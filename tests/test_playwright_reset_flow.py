@@ -304,10 +304,10 @@ def test_e2e_empty_dashboard_kpis_and_no_fake_trends(local_server):
 
         # Verify dynamic badges on Card 1 (Total Records) and Card 6 (Data Quality Score)
         total_trend = page.locator("#kpiTotalRecordsTrendBadge").inner_text()
-        assert "No historical data" in total_trend or "—" in total_trend
+        assert "No data" in total_trend or "—" in total_trend
 
         score_trend = page.locator("#kpiDataQualityScoreTrendBadge").inner_text()
-        assert "No historical data" in score_trend or "—" in score_trend
+        assert "No data" in score_trend or "—" in score_trend
 
         # Quality score displays "—" when empty
         score_val = page.locator("#kpiDataQualityScore").inner_text()
@@ -374,5 +374,96 @@ def test_e2e_page_reloads_after_permanent_delete(local_server):
         assert total_records == "0"
         score_val = page.locator("#kpiDataQualityScore").inner_text()
         assert score_val == "—"
+
+        browser.close()
+
+
+def test_e2e_three_trend_comparison_scenarios(local_server):
+    """Test all three comparison scenarios:
+    1. Empty database: shows 'No data' and '—'
+    2. Current data without previous period: shows 'No previous-period comparison available' with tooltip
+    3. Current data WITH previous period: shows genuine calculated trend percentage
+    """
+    db = SessionLocal()
+    try:
+        db.query(JobCleanRecord).delete()
+        db.query(Customer).delete()
+        db.query(ProcessingJob).delete()
+        db.commit()
+    finally:
+        db.close()
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(local_server, wait_until="networkidle")
+
+        # Scenario 1: Empty database
+        page.wait_for_selector("#kpiTotalRecords")
+        assert page.locator("#kpiTotalRecords").inner_text() == "0"
+        assert page.locator("#kpiDataQualityScore").inner_text() == "—"
+        assert page.locator("#kpiTotalRecordsTrendBadge").inner_text() == "No data"
+        assert page.locator("#kpiDataQualityScoreTrendBadge").inner_text() == "No data"
+
+        # Scenario 2: Seed 1 job today (current window), 0 jobs in prior window
+        db = SessionLocal()
+        now = datetime.datetime.now()
+        try:
+            job_today = ProcessingJob(
+                filename="customers_today.csv",
+                dataset_type="customers",
+                file_hash="hash_today",
+                status="completed",
+                total_rows=10,
+                accepted_rows=9,
+                rejected_rows=1,
+                duplicate_rows=0,
+                started_at=now - datetime.timedelta(hours=2),
+                completed_at=now - datetime.timedelta(hours=2) + datetime.timedelta(seconds=5),
+            )
+            db.add(job_today)
+            db.commit()
+        finally:
+            db.close()
+
+        page.reload(wait_until="networkidle")
+        page.wait_for_selector("#kpiTotalRecords")
+        assert page.locator("#kpiTotalRecords").inner_text() == "10"
+        assert page.locator("#kpiAcceptedRecords").inner_text() == "9"
+        assert "90" in page.locator("#kpiDataQualityScore").inner_text()
+        assert page.locator("#kpiTotalRecordsTrendBadge").inner_text() == "No previous-period comparison available"
+        assert page.locator("#kpiDataQualityScoreTrendBadge").inner_text() == "No previous-period comparison available"
+
+        expected_tooltip = "This dashboard displays your current data correctly, but there is not enough historical data from the previous comparison period to calculate a trend percentage."
+        assert page.locator("#kpiTotalRecordsTrendBadge").get_attribute("title") == expected_tooltip
+        assert page.locator("#kpiDataQualityScoreTrendBadge").get_attribute("title") == expected_tooltip
+
+        # Scenario 3: Seed 1 job in prior window (10 days ago, total_rows=5, accepted_rows=5)
+        db = SessionLocal()
+        try:
+            job_prior = ProcessingJob(
+                filename="customers_last_week.csv",
+                dataset_type="customers",
+                file_hash="hash_prior",
+                status="completed",
+                total_rows=5,
+                accepted_rows=5,
+                rejected_rows=0,
+                duplicate_rows=0,
+                started_at=now - datetime.timedelta(days=10),
+                completed_at=now - datetime.timedelta(days=10) + datetime.timedelta(seconds=5),
+            )
+            db.add(job_prior)
+            db.commit()
+        finally:
+            db.close()
+
+        page.reload(wait_until="networkidle")
+        page.wait_for_selector("#kpiTotalRecords")
+        assert page.locator("#kpiTotalRecords").inner_text() == "15"
+        total_trend_text = page.locator("#kpiTotalRecordsTrendBadge").inner_text()
+        assert "+100.0% from last week" in total_trend_text or "+100%" in total_trend_text
+        score_trend_text = page.locator("#kpiDataQualityScoreTrendBadge").inner_text()
+        assert "-10.0% from last week" in score_trend_text or "-10%" in score_trend_text
 
         browser.close()

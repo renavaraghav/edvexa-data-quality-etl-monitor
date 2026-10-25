@@ -447,16 +447,28 @@ const Dashboard = {
       }
 
       // Dynamic Trend Indicators
+      const NO_PREV_COMPARISON = 'No previous-period comparison available';
+      const NO_PREV_TOOLTIP = 'This dashboard displays your current data correctly, but there is not enough historical data from the previous comparison period to calculate a trend percentage.';
+
       const elTotalTrend = document.getElementById('kpiTotalRecordsTrendBadge');
       if (elTotalTrend) {
-        if (kpis.total_records_trend !== null && kpis.total_records_trend !== undefined) {
+        if (hasRecords && kpis.total_records_trend !== null && kpis.total_records_trend !== undefined) {
           const sign = kpis.total_records_trend >= 0 ? '+' : '';
           const arrow = kpis.total_records_trend >= 0 ? '↑ ' : '↓ ';
           const period = kpis.trend_period_label || 'from last week';
           elTotalTrend.textContent = `${arrow}${sign}${kpis.total_records_trend}% ${period}`;
+          elTotalTrend.title = `Trend calculated against ${period}`;
+          elTotalTrend.removeAttribute('aria-label');
           elTotalTrend.className = `kpi-badge-trend ${kpis.total_records_trend >= 0 ? 'trend-green' : 'trend-red'}`;
+        } else if (hasRecords) {
+          elTotalTrend.textContent = NO_PREV_COMPARISON;
+          elTotalTrend.title = NO_PREV_TOOLTIP;
+          elTotalTrend.setAttribute('aria-label', NO_PREV_TOOLTIP);
+          elTotalTrend.className = 'kpi-badge-trend trend-neutral';
         } else {
-          elTotalTrend.textContent = hasRecords ? 'No historical data' : '—';
+          elTotalTrend.textContent = 'No data';
+          elTotalTrend.removeAttribute('title');
+          elTotalTrend.removeAttribute('aria-label');
           elTotalTrend.className = 'kpi-badge-trend trend-neutral';
         }
       }
@@ -467,9 +479,18 @@ const Dashboard = {
           const sign = kpis.data_quality_trend >= 0 ? '+' : '';
           const period = kpis.trend_period_label || 'from last week';
           elScoreTrend.textContent = `${sign}${kpis.data_quality_trend}% ${period}`;
+          elScoreTrend.title = `Trend calculated against ${period}`;
+          elScoreTrend.removeAttribute('aria-label');
           elScoreTrend.className = `kpi-badge-trend ${kpis.data_quality_trend >= 0 ? 'trend-teal' : 'trend-red'}`;
+        } else if (hasRecords) {
+          elScoreTrend.textContent = NO_PREV_COMPARISON;
+          elScoreTrend.title = NO_PREV_TOOLTIP;
+          elScoreTrend.setAttribute('aria-label', NO_PREV_TOOLTIP);
+          elScoreTrend.className = 'kpi-badge-trend trend-neutral';
         } else {
-          elScoreTrend.textContent = hasRecords ? 'No historical data' : '—';
+          elScoreTrend.textContent = 'No data';
+          elScoreTrend.removeAttribute('title');
+          elScoreTrend.removeAttribute('aria-label');
           elScoreTrend.className = 'kpi-badge-trend trend-neutral';
         }
       }
