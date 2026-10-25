@@ -18,7 +18,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: STORAGE_BACKEND
-        value: local
+        value: r2
       - key: ALLOW_DESTRUCTIVE_RESET
         value: "false"
       - key: DATABASE_URL
