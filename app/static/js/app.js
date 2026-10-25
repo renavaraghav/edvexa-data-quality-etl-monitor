@@ -13,6 +13,23 @@ const App = {
   notifications: [],
 
   init() {
+    // Check for post-reload toast from successful permanent data reset
+    try {
+      const pendingRaw = sessionStorage.getItem('edvexa_post_reload_toast');
+      if (pendingRaw) {
+        sessionStorage.removeItem('edvexa_post_reload_toast');
+        const parsed = JSON.parse(pendingRaw);
+        if (parsed && parsed.message) {
+          setTimeout(() => {
+            this.showToast(parsed.message, parsed.type || 'success');
+            if (parsed.notification) {
+              this.addNotification(parsed.notification);
+            }
+          }, 100);
+        }
+      }
+    } catch (_) {}
+
     this.initNotifications();
     this.bindNavigation();
     this.bindSidebarCollapse();
@@ -539,36 +556,7 @@ const App = {
         return;
       }
 
-      // Success: Update loading message and refresh all dashboard components before closing modal
-      if (loadingState) {
-        const textSpan = loadingState.querySelector('span:last-child');
-        if (textSpan) textSpan.textContent = 'Updating dashboard metrics...';
-      }
-
-      let refreshSuccess = true;
-      if (window.Dashboard) {
-        try {
-          if (typeof Dashboard.resetDateFilter === 'function') {
-            Dashboard.resetDateFilter();
-          }
-          const results = await Promise.allSettled([
-            Dashboard.fetchSummary(),
-            Dashboard.fetchTrends(),
-            Dashboard.fetchJobs(),
-            Dashboard.fetchErrors(),
-            Dashboard.fetchRecords()
-          ]);
-          if (results.some(r => r.status === 'rejected')) {
-            refreshSuccess = false;
-          }
-        } catch (_) {
-          refreshSuccess = false;
-        }
-      }
-
-      // Close modal after refresh completes
-      this.closeResetModal();
-
+      // Backend confirmed successful deletion
       const del = data.deleted || data.deleted_counts || {};
       const totalCleared = (del.jobs || del.processing_jobs || 0) +
                            (del.customers || 0) +
@@ -577,34 +565,50 @@ const App = {
 
       const isAlreadyEmpty = Boolean(data.message && data.message.includes('already empty')) || totalCleared === 0;
 
-      const labelEl = document.getElementById('slideResetLabel');
-      if (labelEl) {
-        const origText = labelEl.textContent;
-        labelEl.textContent = isAlreadyEmpty ? 'Already Empty' : 'Reset Complete';
-        labelEl.style.opacity = '1';
-        setTimeout(() => {
-          labelEl.textContent = origText;
-        }, 1600);
+      const toastMessage = isAlreadyEmpty
+        ? 'The application data is already empty. Nothing to clear.'
+        : 'All uploaded data, processing jobs, clean records, and validation errors have been permanently deleted.';
+      const toastType = isAlreadyEmpty ? 'info' : 'success';
+
+      // Persist toast and notification in sessionStorage so it displays after the full website reload
+      try {
+        const toastData = {
+          message: toastMessage,
+          type: toastType,
+          notification: isAlreadyEmpty
+            ? {
+                type: 'info',
+                title: 'Application Already Empty',
+                message: 'No imported business data or ETL processing jobs found to clear.'
+              }
+            : {
+                type: 'danger',
+                title: 'Full Data Reset Completed',
+                message: `Permanently deleted ${del.jobs || del.processing_jobs || 0} jobs, ${del.clean_records || del.job_clean_records || 0} clean records, and ${del.upload_files || del.physical_files_removed || 0} stored files.`
+              }
+        };
+        sessionStorage.setItem('edvexa_post_reload_toast', JSON.stringify(toastData));
+      } catch (storageErr) {
+        console.warn('Could not save post-reload toast to sessionStorage:', storageErr);
       }
 
-      if (isAlreadyEmpty) {
-        this.showToast('The application data is already empty. Nothing to clear.', 'info');
-        App.addNotification({
-          type: 'info',
-          title: 'Application Already Empty',
-          message: 'No imported business data or ETL processing jobs found to clear.'
-        });
-      } else {
-        if (refreshSuccess) {
-          this.showToast('All uploaded data, processing jobs, clean records, and validation errors have been permanently deleted.', 'success');
-        } else {
-          this.showToast('Data was permanently deleted, but refreshing dashboard metrics failed. Click Retry to reload.', 'warning');
-        }
-        App.addNotification({
-          type: 'danger',
-          title: 'Full Data Reset Completed',
-          message: `Permanently deleted ${del.jobs || del.processing_jobs || 0} jobs, ${del.clean_records || del.job_clean_records || 0} clean records, and ${del.upload_files || del.physical_files_removed || 0} stored files.`
-        });
+      // Update loading message and close modal
+      if (loadingState) {
+        const textSpan = loadingState.querySelector('span:last-child');
+        if (textSpan) textSpan.textContent = 'Data deleted. Reloading website...';
+      }
+      this.closeResetModal();
+
+      // Show immediate toast before reload initiates
+      this.showToast(toastMessage, toastType);
+
+      // Immediately after successful deletion, automatically reload the entire website page
+      try {
+        window.location.reload();
+      } catch (reloadErr) {
+        console.error('window.location.reload() error:', reloadErr);
+        // Distinguish successful deletion from reload failure
+        this.showToast('Data was permanently deleted, but automatic website reload failed. Please refresh your browser manually.', 'warning');
       }
 
     } catch (err) {

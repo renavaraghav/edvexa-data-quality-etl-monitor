@@ -327,3 +327,52 @@ def test_e2e_empty_dashboard_kpis_and_no_fake_trends(local_server):
         assert "No Data Ingested" in status_badge
 
         browser.close()
+
+
+def test_e2e_page_reloads_after_permanent_delete(local_server):
+    """Verify that clicking Permanently Delete executes full website reload and displays fresh empty state."""
+    seed_local_db()
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(local_server, wait_until="networkidle")
+
+        # Set a marker on the window to prove that a full page reload occurs
+        page.evaluate("window.__testReloadMarker = 'active_session'")
+        assert page.evaluate("window.__testReloadMarker") == "active_session"
+
+        # Open modal with slider completed
+        page.evaluate("App.openResetModal(true)")
+        modal = page.locator("#resetConfirmModal")
+        page.wait_for_selector("#resetConfirmModal", state="visible")
+
+        checkbox = page.locator("#confirmResetCheckbox")
+        delete_btn = page.locator("#confirmResetBtn")
+        assert not checkbox.is_disabled()
+        assert delete_btn.is_disabled()
+
+        # Check checkbox -> enables button without deleting
+        checkbox.check()
+        assert not delete_btn.is_disabled()
+
+        # Click Permanently Delete and wait for the page navigation/reload
+        with page.expect_navigation(timeout=8000):
+            delete_btn.click()
+
+        # Verify page reloaded: window.__testReloadMarker was erased by full reload
+        reloaded_marker = page.evaluate("window.__testReloadMarker")
+        assert reloaded_marker is None, "Window marker must be undefined, proving full website reload occurred!"
+
+        # Verify post-reload toast appears
+        page.wait_for_selector(".toast", state="visible", timeout=4000)
+        toast_text = page.locator(".toast").inner_text()
+        assert "permanently deleted" in toast_text or "already empty" in toast_text
+
+        # Verify fresh empty state after reload
+        total_records = page.locator("#kpiTotalRecords").inner_text()
+        assert total_records == "0"
+        score_val = page.locator("#kpiDataQualityScore").inner_text()
+        assert score_val == "—"
+
+        browser.close()
