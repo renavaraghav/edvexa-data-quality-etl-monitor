@@ -38,6 +38,9 @@ htmlcov/
 data/*.db
 uploads_storage/
 demo/*.mp4
+.browser_profile/
+render_state.png
+render_dashboard.png
 
 # IDE & OS
 .vscode/
