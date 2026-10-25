@@ -98,10 +98,11 @@ To transition the platform from single-node local execution to a resilient, zero
    - Features automatic local caching, key sanitization against directory traversal, and idempotent clear operations.
 
 4. **Administrative & Public Reset Configuration:**
-   - In the assignment demonstration configuration, `ALLOW_DESTRUCTIVE_RESET=true` and `public_reset_enabled=true` are active across both local development and live production, allowing evaluators to verify the destructive reset workflow without requiring an admin token or login.
-   - The frontend implements a strict two-step physical gesture: the user must drag the slider past 85% to completion, which unlocks a confirmation checkbox; ticking the checkbox enables the "Permanently Delete" button (ticking the box does not trigger deletion); clicking the enabled button executes the deletion and triggers an automatic full website reload (`window.location.reload()`).
-   - *Security Note:* In this evaluation mode, direct API calls to `POST /api/dashboard/reset-data` bypass the frontend slider and checkbox since backend authorization is disabled. A production enterprise deployment would enforce session cookies or `ADMIN_RESET_TOKEN` validation (which is fully implemented and tested in `app/routers/auth.py`).
-   - A dedicated observability probe (`GET /api/dashboard/reset-status`) provides real-time visibility into active reset policies and database/storage backend status.
+   - The internal `ALLOW_DESTRUCTIVE_RESET` setting is computed from the environment variable `FORCE_DISABLE_DESTRUCTIVE_RESET`. The default value `false` leaves reset enabled for the assignment demo; setting `FORCE_DISABLE_DESTRUCTIVE_RESET=true` disables the reset endpoint.
+   - In the current assignment-demo configuration, reset is enabled without requiring an administrator token or login so evaluators can verify the workflow.
+   - The frontend uses a two-step confirmation: dragging the slider to the end unlocks the checkbox; ticking the checkbox enables the "Permanently Delete" button; ticking alone does not delete data; clicking the enabled button performs the reset and reloads the website (`window.location.reload()`).
+   - *Security Note:* In this evaluation mode, direct calls to `POST /api/dashboard/reset-data` bypass the slider and checkbox because the backend does not require an administrator session or token. Do not use this configuration with sensitive production data.
+   - A status endpoint (`GET /api/dashboard/reset-status`) reports the active reset policy and backend configuration.
 
 ---
 
@@ -664,7 +665,7 @@ This guide outlines the complete procedure to deploy EDVEXA to a production clou
 | `NEON_STORAGE_ACCESS_KEY_ID` | If Neon | `None` | S3 API Access Key ID. |
 | `NEON_STORAGE_SECRET_ACCESS_KEY` | If Neon | `None` | S3 API Secret Access Key. |
 | `ADMIN_RESET_TOKEN` | Optional | `None` | Secret token required to invoke `POST /api/dashboard/reset-data` when administrative authorization is enforced. |
-| `ALLOW_DESTRUCTIVE_RESET` | Optional | `false` (prod) | Explicit boolean override (`true`/`false`) to enable data reset in production. |
+| `FORCE_DISABLE_DESTRUCTIVE_RESET` | Optional | `false` | Set to `true` to disable the destructive reset endpoint. When unset or `false`, reset remains enabled for the assignment demo. |
 | `CORS_ORIGINS` | Optional | `*` | Comma-delimited list of permitted CORS origins. |
 | `UPLOAD_MAX_SIZE_BYTES` | Optional | `10485760` | Maximum file upload payload size (10 MB). |
 
