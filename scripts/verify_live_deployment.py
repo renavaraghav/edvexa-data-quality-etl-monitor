@@ -45,11 +45,12 @@ def run_live_verification(base_url: str, admin_token: str = ""):
     valid_csv = SAMPLE_DIR / "customers_valid.csv"
     with open(valid_csv, "rb") as f:
         r_upload = session.post(
-            f"{base_url}/api/uploads?dataset_type=customers",
+            f"{base_url}/api/uploads",
+            data={"dataset_type": "customers"},
             files={"file": ("customers_valid.csv", f, "text/csv")},
             timeout=30
         )
-    assert r_upload.status_code == 200, f"Upload failed: {r_upload.status_code} - {r_upload.text}"
+    assert r_upload.status_code == 201, f"Upload failed: {r_upload.status_code} - {r_upload.text}"
     job_valid = r_upload.json()
     print("Valid upload result:", job_valid)
     assert job_valid["status"] == "completed"
@@ -62,11 +63,12 @@ def run_live_verification(base_url: str, admin_token: str = ""):
     invalid_csv = SAMPLE_DIR / "customers_invalid.csv"
     with open(invalid_csv, "rb") as f:
         r_invalid = session.post(
-            f"{base_url}/api/uploads?dataset_type=customers",
+            f"{base_url}/api/uploads",
+            data={"dataset_type": "customers"},
             files={"file": ("customers_invalid.csv", f, "text/csv")},
             timeout=30
         )
-    assert r_invalid.status_code == 200, f"Invalid upload failed: {r_invalid.status_code} - {r_invalid.text}"
+    assert r_invalid.status_code == 201, f"Invalid upload failed: {r_invalid.status_code} - {r_invalid.text}"
     job_invalid = r_invalid.json()
     print("Invalid upload result:", job_invalid)
     assert job_invalid["status"] == "completed"
@@ -77,11 +79,12 @@ def run_live_verification(base_url: str, admin_token: str = ""):
     print("[TEST 5/8] Testing idempotency policy on repeated upload...")
     with open(valid_csv, "rb") as f:
         r_repeat = session.post(
-            f"{base_url}/api/uploads?dataset_type=customers",
+            f"{base_url}/api/uploads",
+            data={"dataset_type": "customers"},
             files={"file": ("customers_valid.csv", f, "text/csv")},
             timeout=30
         )
-    assert r_repeat.status_code == 200
+    assert r_repeat.status_code == 201, f"Repeated upload failed: {r_repeat.status_code} - {r_repeat.text}"
     job_repeat = r_repeat.json()
     print("Repeated upload result:", job_repeat)
     assert job_repeat["is_repeated_upload"] is True
