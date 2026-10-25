@@ -43,7 +43,7 @@ To provide secure, isolated downloads on a per-job basis without corrupting or i
 1. **The Isolation Problem:** Clean tables (`customers`, `sales`, `inventory`) maintain global unique deduplication constraints across the lifetime of the platform. A job may accept 5 clean records, but querying the global table would inadvertently export records from other jobs or previous uploads.
 2. **Dedicated Audit Model (`JobCleanRecord`):** We introduced `JobCleanRecord` (`id`, `job_id`, `row_number`, `dataset_type`, `business_key`, `record_json`, `created_at`). During the ETL load phase, every accepted clean record is staged into `job_clean_records` in the same atomic database transaction as the business tables.
 3. **Multi-Sheet Microsoft Excel Workbook Export (`generate_job_excel_report`):** Generates a genuine `.xlsx` workbook using `openpyxl` with three dedicated worksheets:
-   - **Sheet 1: `Job Summary`:** Job metadata, execution metrics, error aggregations, and the mathematical reconciliation audit ($\text{total\_rows} = \text{accepted} + \text{rejected} + \text{duplicates} + \text{skipped}$).
+   - **Sheet 1: `Job Summary`:** Job metadata, execution metrics, error aggregations, and the row accounting rule: total rows = accepted rows + rejected rows + duplicates + skipped rows.
    - **Sheet 2: `Clean Records`:** Only clean records accepted by that specific job. Features navy blue header rows, frozen panes at `A2`, auto-filters, numeric formatting (`#,##0.00` for currency, `#,##0` for quantities), and automated column width fitting.
    - **Sheet 3: `Validation Errors`:** All validation failures and duplicate detections with row numbers, error codes, error messages, and original values. Features frozen header row (`A2`), auto-filters, and text wrapping.
 4. **Empty State Resilience:** The Excel workbook can always be generated for completed jobs even if accepted rows or validation errors equal 0, rendering a clean explanatory note instead of erroring out.
@@ -170,7 +170,7 @@ When an identical file (same SHA-256 hash) is uploaded:
 
 ### 3.5 Accounting Invariant
 To ensure mathematical integrity across all pipelines:
-$$\text{total\_rows} = \text{accepted\_rows} + \text{rejected\_rows} + \text{duplicate\_rows} + \text{skipped\_rows}$$
+**Row accounting rule:** Total rows = accepted rows + rejected rows + duplicate rows + skipped rows.
 Every discovered row belongs to one mutually exclusive category. An automated assertion enforces this equation before database commit.
 
 ### 3.6 In-File vs. Database Duplicate Distinction (Job #10 Case Study)
@@ -482,15 +482,12 @@ When a date range filter yields zero matching jobs:
 
 ### 9.1 Mathematical Accounting Invariant
 Every row processed by the platform is deterministically classified into exactly one mutually exclusive bucket:
-$$\text{total\_records\_processed} = \text{accepted\_records} + \text{rejected\_records} + \text{duplicate\_records} + \text{skipped\_records}$$
+**Row accounting rule:** Total records processed = accepted records + rejected records + duplicate records + skipped records.
 No row can be both rejected and counted as a duplicate. An assertion verifies this identity prior to every database commit.
 
 ### 9.2 Quality Score Formula
 The platform calculates data quality score using the standard enterprise ratio:
-$$\text{Quality Score} = \begin{cases} 
-\left( \dfrac{\text{accepted\_records}}{\text{total\_records\_processed}} \right) \times 100\%, & \text{if } \text{total\_records\_processed} > 0 \\ 
-0.0\%, & \text{if } \text{total\_records\_processed} = 0 \text{ (Badge: 'No data')}
-\end{cases}$$
+**Quality Score formula:** When total records processed is greater than zero, divide accepted records by total records processed and multiply by 100. When no records have been processed, show the application's no-data state instead of a historical comparison.
 Clicking the Data Quality Score KPI card opens an interactive methodology modal displaying the current values for accepted records, rejected records, duplicate keys, total rows, and the verified mathematical equation.
 
 ---
