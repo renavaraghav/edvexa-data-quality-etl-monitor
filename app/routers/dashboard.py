@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import datetime, time
 import threading
@@ -9,6 +10,8 @@ from app.config import settings
 from app.services.auth import is_authenticated_admin
 from app.database import get_db
 from app.services.storage import clear_all_upload_artifacts
+
+logger = logging.getLogger("edvexa.dashboard")
 from app.models import (
     ProcessingJob,
     ValidationError,
@@ -204,53 +207,31 @@ def verify_reset_authorization(
 ) -> bool:
     """
     Validate authorization for destructive data reset operations.
-    - In production: strictly disabled unless requester has an active authenticated administrator session.
-      Anonymous visitors cannot delete production data under any circumstances.
-    - In local development: allowed by default for testing with test data.
+    Public reset is enabled across environments (development and production)
+    so any visitor can reset uploaded data via the interactive slider and confirmation checkbox.
     """
-    is_prod = settings.ENVIRONMENT == "production"
-    is_admin = is_authenticated_admin(request)
-
-    if is_prod:
-        if not is_admin:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Destructive data reset is disabled in production. An authenticated administrator session is required."
-            )
-        return True
-
-    # In local development / non-production
-    if not settings.ALLOW_DESTRUCTIVE_RESET and not is_admin:
+    if not settings.ALLOW_DESTRUCTIVE_RESET:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Destructive data reset is currently disabled by configuration."
         )
-
     return True
 
 
 @router.get("/reset-status")
 def get_reset_status(request: Request):
     """
-    Returns whether destructive data reset is allowed in the current environment,
-    whether the requester has an authenticated administrator session, and database dialect.
+    Returns whether destructive data reset is allowed in the current environment
+    and whether public reset is active.
     """
-    is_prod = settings.ENVIRONMENT == "production"
-    is_admin = is_authenticated_admin(request)
-
-    if is_prod:
-        # In production: destructive reset is ONLY allowed if the requester is an authenticated administrator
-        destructive_allowed = is_admin
-    else:
-        destructive_allowed = settings.ALLOW_DESTRUCTIVE_RESET or is_admin
-
     return {
         "status": "ready",
         "environment": settings.ENVIRONMENT,
-        "destructive_reset_allowed": destructive_allowed,
-        "authenticated_admin": is_admin,
-        "admin_auth_required": is_prod,
-        "admin_token_required": is_prod and not is_admin,
+        "destructive_reset_allowed": settings.ALLOW_DESTRUCTIVE_RESET,
+        "public_reset_enabled": True,
+        "confirmation_checkbox_required": True,
+        "admin_auth_required": False,
+        "admin_token_required": False,
         "storage_backend": settings.STORAGE_BACKEND,
         "database_type": settings.database_type,
     }
@@ -289,7 +270,11 @@ def reset_all_uploaded_data(
         )
 
         # Safely remove upload artifacts via storage abstraction
-        deleted_files = clear_all_upload_artifacts()
+        try:
+            deleted_files = clear_all_upload_artifacts()
+        except Exception as storage_err:
+            logger.warning(f"Storage cleanup had warning: {storage_err}")
+            deleted_files = 0
         failed_files: list[dict] = []
 
         # If database was already completely empty

@@ -1448,17 +1448,17 @@
           </p>
         </div>
 
-        <!-- Production Reset Protection Notice (shown dynamically in production when unauthenticated) -->
-        <div id="resetProdDisabledNotice" class="d-none alert alert-danger p-3 mb-3" style="background-color: rgba(217, 83, 79, 0.12); border: 1px solid rgba(217, 83, 79, 0.35); border-radius: var(--radius-md);">
-          <div class="d-flex align-items-center gap-2 font-bold text-danger text-sm mb-1">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            <span>Destructive Reset Disabled in Production</span>
+        <!-- Confirmation Checkbox (Disabled until slider is dragged to completion) -->
+        <div class="reset-checkbox-box p-3 mb-3" id="resetCheckboxWrapper" style="background: var(--surface-secondary, rgba(200, 150, 80, 0.05)); border: 1.5px solid var(--border-color, #E8DCC9); border-radius: var(--radius-md); transition: all 0.2s ease;">
+          <label class="d-flex align-items-start gap-2 mb-0" for="confirmResetCheckbox" style="cursor: pointer;">
+            <input type="checkbox" id="confirmResetCheckbox" disabled style="width: 18px; height: 18px; margin-top: 2px; accent-color: var(--danger, #D9534F); cursor: pointer;">
+            <span class="text-xs font-bold" style="color: var(--text-primary); line-height: 1.5; user-select: none;">
+              I understand that this will permanently delete all uploaded data and processing history.
+            </span>
+          </label>
+          <div id="resetCheckboxHint" class="text-xs text-muted mt-2 d-none" style="margin-left: 26px;">
+            Drag the "Slide to Reset" slider in the top bar to unlock this confirmation checkbox.
           </div>
-          <p class="text-xs mb-0" style="color: var(--text-secondary); line-height: 1.5;">
-            Destructive data reset is disabled in production. Anonymous visitors cannot delete production data. Only an authenticated administrator session can authorize data deletion.
-          </p>
         </div>
 
         <div class="reset-safety-notice mt-2">
@@ -1471,7 +1471,11 @@
 
       <div class="modal-footer flex-between">
         <button id="cancelResetBtn" class="btn btn-secondary btn-sm">Cancel</button>
-        <button id="confirmResetBtn" class="btn btn-outline-danger btn-sm font-bold" style="background-color: var(--danger); color: #FFFFFF; border-color: var(--danger);">
+        <div id="resetLoadingState" class="d-none d-flex align-items-center gap-2 text-danger font-bold text-xs">
+          <span class="spinner-sm"></span>
+          <span>Permanently deleting all uploaded data...</span>
+        </div>
+        <button id="confirmResetBtn" class="d-none btn btn-outline-danger btn-sm font-bold" style="background-color: var(--danger); color: #FFFFFF; border-color: var(--danger);">
           <span>Confirm Delete All Imported Data</span>
         </button>
       </div>

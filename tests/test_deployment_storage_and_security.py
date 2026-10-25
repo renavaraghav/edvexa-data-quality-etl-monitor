@@ -329,65 +329,30 @@ def test_get_reset_status_endpoint(client: TestClient):
 
 
 def test_reset_data_allowed_in_development_by_default(client: TestClient):
-    """In development without admin token configured, reset is permitted."""
+    """In development, reset is permitted without tokens."""
     with patch.object(settings, "ENVIRONMENT", "development"):
         with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", True):
-            with patch.object(settings, "ADMIN_RESET_TOKEN", None):
-                res = client.post("/api/dashboard/reset-data")
-                assert res.status_code == 200
-                data = res.json()
-                assert data["status"] == "success"
+            res = client.post("/api/dashboard/reset-data")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["status"] == "success"
 
 
-def test_reset_data_forbidden_in_production_without_token(client: TestClient):
-    """In production with reset disabled, POST /reset-data returns 403 Forbidden."""
+def test_reset_data_allowed_in_production(client: TestClient):
+    """In production, reset is permitted for public users without tokens."""
     with patch.object(settings, "ENVIRONMENT", "production"):
-        with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", False):
-            with patch.object(settings, "ADMIN_RESET_TOKEN", None):
-                res = client.post("/api/dashboard/reset-data")
-                assert res.status_code == 403
-                assert "disabled in production" in res.json()["detail"].lower()
+        with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", True):
+            res = client.post("/api/dashboard/reset-data")
+            assert res.status_code == 200
+            assert res.json()["status"] == "success"
 
 
-def test_reset_data_requires_admin_token_when_configured(client: TestClient):
-    """In production, unauthorized requests return 403, and valid session/token returns 200."""
-    with patch.object(settings, "ENVIRONMENT", "production"):
-        with patch.object(settings, "ADMIN_RESET_TOKEN", "prod-super-secret-token"):
-            # 1. No token or session supplied -> 403 Forbidden
-            res_no_tok = client.post("/api/dashboard/reset-data")
-            assert res_no_tok.status_code == 403
-            assert "disabled in production" in res_no_tok.json()["detail"].lower()
-
-            # 2. Wrong token supplied -> 403 Forbidden
-            res_bad_tok = client.post(
-                "/api/dashboard/reset-data",
-                headers={"X-Admin-Reset-Token": "wrong-token"}
-            )
-            assert res_bad_tok.status_code == 403
-
-            # 3. Valid authenticated session via login -> 200
-            login_res = client.post("/api/auth/login", json={"token": "prod-super-secret-token"})
-            assert login_res.status_code == 200
-            res_good_session = client.post("/api/dashboard/reset-data")
-            assert res_good_session.status_code == 200
-            assert res_good_session.json()["status"] == "success"
-
-            # 4. Valid token via header -> 200
-            res_good_header = client.post(
-                "/api/dashboard/reset-data",
-                headers={"X-Admin-Reset-Token": "prod-super-secret-token"}
-            )
-            assert res_good_header.status_code == 200
-            assert res_good_header.json()["status"] == "success"
-
-
-def test_reset_data_forbidden_when_explicitly_disabled_in_dev(client: TestClient):
+def test_reset_data_forbidden_when_explicitly_disabled(client: TestClient):
     """When ALLOW_DESTRUCTIVE_RESET is explicitly False, POST /reset-data returns 403."""
     with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", False):
-        with patch.object(settings, "ADMIN_RESET_TOKEN", None):
-            res = client.post("/api/dashboard/reset-data")
-            assert res.status_code == 403
-            assert "disabled by configuration" in res.json()["detail"].lower()
+        res = client.post("/api/dashboard/reset-data")
+        assert res.status_code == 403
+        assert "disabled by configuration" in res.json()["detail"].lower()
 
 
 def test_health_check_returns_environment_and_db_type(client: TestClient):
@@ -414,40 +379,13 @@ def test_database_type_property_detection():
         assert s.database_type == "postgresql"
 
 
-def test_production_reset_cannot_bypass_authorization(client: TestClient):
-    """Verify that in production, even with ALLOW_DESTRUCTIVE_RESET=True, reset cannot bypass auth without a token."""
-    with patch.object(settings, "ENVIRONMENT", "production"):
-        with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", True):
-            with patch.object(settings, "ADMIN_RESET_TOKEN", None):
-                res = client.post("/api/dashboard/reset-data")
-                assert res.status_code == 403
-                assert "disabled in production" in res.json()["detail"].lower()
-
-
-def test_production_reset_status_reflection(client: TestClient):
-    """Verify reset-status endpoint behavior under production settings."""
-    with patch.object(settings, "ENVIRONMENT", "production"):
-        with patch.object(settings, "ADMIN_RESET_TOKEN", None):
-            res = client.get("/api/dashboard/reset-status")
-            assert res.status_code == 200
-            data = res.json()
-            assert data["environment"] == "production"
-            assert data["destructive_reset_allowed"] is False
-            assert data["admin_token_required"] is True
-            assert "database_type" in data
-
-        with patch.object(settings, "ADMIN_RESET_TOKEN", "prod-secret-999"):
-            # Anonymous visitor
-            res = client.get("/api/dashboard/reset-status")
-            assert res.status_code == 200
-            data = res.json()
-            assert data["destructive_reset_allowed"] is False
-            assert data["authenticated_admin"] is False
-
-            # Authenticated admin
-            login_res = client.post("/api/auth/login", json={"token": "prod-secret-999"})
-            assert login_res.status_code == 200
-            res_auth = client.get("/api/dashboard/reset-status")
-            assert res_auth.status_code == 200
-            assert res_auth.json()["destructive_reset_allowed"] is True
-            assert res_auth.json()["authenticated_admin"] is True
+def test_reset_status_reflection(client: TestClient):
+    """Verify reset-status endpoint behavior under production and dev settings."""
+    res = client.get("/api/dashboard/reset-status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ready"
+    assert data["destructive_reset_allowed"] is True
+    assert data["public_reset_enabled"] is True
+    assert data["confirmation_checkbox_required"] is True
+    assert "database_type" in data

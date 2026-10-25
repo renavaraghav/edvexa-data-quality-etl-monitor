@@ -124,10 +124,7 @@ class Settings:
     # Security & Destructive Action Safeguards
     ADMIN_RESET_TOKEN: str | None = os.getenv("ADMIN_RESET_TOKEN")
     ALLOW_DESTRUCTIVE_RESET: bool = (
-        os.getenv(
-            "ALLOW_DESTRUCTIVE_RESET",
-            "false" if os.getenv("ENVIRONMENT", "development").lower() == "production" else "true"
-        ).lower() in ("true", "1", "yes")
+        os.getenv("ALLOW_DESTRUCTIVE_RESET", "true").lower() in ("true", "1", "yes")
     )
 
     # CORS Configuration

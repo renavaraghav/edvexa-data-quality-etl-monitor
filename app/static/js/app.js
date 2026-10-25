@@ -310,7 +310,7 @@ const App = {
         thumb.style.transform = `translateX(${maxDistance}px)`;
         progress.style.width = '100%';
         setTimeout(() => {
-          App.openResetModal();
+          App.openResetModal(true);
           resetSliderUI();
         }, 150);
       } else {
@@ -326,46 +326,65 @@ const App = {
       if (App._isResetting) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        App.openResetModal();
+        App.openResetModal(true);
       }
     });
   },
 
-  async openResetModal() {
+  openResetModal(sliderCompleted = false) {
     const modal = document.getElementById('resetConfirmModal');
     if (!modal) return;
     modal.classList.remove('d-none');
 
-    // Inspect reset status to configure UI state
-    try {
-      const res = await fetch(`${window.API_BASE}/api/dashboard/reset-status`);
-      if (res.ok) {
-        const data = await res.json();
-        const noticeEl = document.getElementById('resetProdDisabledNotice');
-        const confirmBtn = document.getElementById('confirmResetBtn');
+    const checkbox = document.getElementById('confirmResetCheckbox');
+    const hint = document.getElementById('resetCheckboxHint');
+    const wrapper = document.getElementById('resetCheckboxWrapper');
+    const loadingState = document.getElementById('resetLoadingState');
+    const cancelBtn = document.getElementById('cancelResetBtn');
 
-        if (data.environment === 'production' && !data.destructive_reset_allowed) {
-          if (noticeEl) noticeEl.classList.remove('d-none');
-          if (confirmBtn) {
-            confirmBtn.disabled = true;
-            confirmBtn.title = 'Destructive reset is disabled in production.';
-            confirmBtn.innerHTML = `<span>Reset Disabled in Production</span>`;
-          }
-        } else {
-          if (noticeEl) noticeEl.classList.add('d-none');
-          if (confirmBtn) {
-            confirmBtn.disabled = false;
-            confirmBtn.title = '';
-            confirmBtn.innerHTML = `<span>Confirm Delete All Imported Data</span>`;
-          }
-        }
+    if (loadingState) loadingState.classList.add('d-none');
+    if (cancelBtn) cancelBtn.disabled = false;
+
+    // The confirmation checkbox must remain disabled until the slider reaches completed position
+    App._sliderCompleted = Boolean(sliderCompleted);
+
+    if (checkbox) {
+      checkbox.checked = false;
+      checkbox.disabled = !App._sliderCompleted;
+    }
+
+    if (hint) {
+      if (!App._sliderCompleted) {
+        hint.classList.remove('d-none');
+      } else {
+        hint.classList.add('d-none');
       }
-    } catch (_) {}
+    }
+
+    if (wrapper) {
+      if (App._sliderCompleted) {
+        wrapper.style.borderColor = 'var(--danger, #D9534F)';
+        wrapper.style.backgroundColor = 'rgba(217, 83, 79, 0.04)';
+      } else {
+        wrapper.style.borderColor = 'var(--border-color, #E8DCC9)';
+        wrapper.style.backgroundColor = 'var(--surface-secondary, rgba(200, 150, 80, 0.05))';
+      }
+    }
   },
 
   closeResetModal() {
     const modal = document.getElementById('resetConfirmModal');
     if (modal) modal.classList.add('d-none');
+    const checkbox = document.getElementById('confirmResetCheckbox');
+    if (checkbox) {
+      checkbox.checked = false;
+      checkbox.disabled = true;
+    }
+    App._sliderCompleted = false;
+    const loadingState = document.getElementById('resetLoadingState');
+    if (loadingState) loadingState.classList.add('d-none');
+    const cancelBtn = document.getElementById('cancelResetBtn');
+    if (cancelBtn) cancelBtn.disabled = false;
   },
 
   bindResetModal() {
@@ -376,6 +395,7 @@ const App = {
     const closeBtn = document.getElementById('closeResetModalBtn');
     const cancelBtn = document.getElementById('cancelResetBtn');
     const confirmBtn = document.getElementById('confirmResetBtn');
+    const checkbox = document.getElementById('confirmResetCheckbox');
     if (!modal) return;
 
     if (closeBtn) closeBtn.addEventListener('click', () => this.closeResetModal());
@@ -385,172 +405,156 @@ const App = {
       if (e.target === modal) this.closeResetModal();
     });
 
+    // When the visitor ticks the checkbox, immediately execute reset API request
+    if (checkbox) {
+      checkbox.addEventListener('change', async () => {
+        if (!checkbox.checked) return;
+        if (checkbox.disabled) return;
+        await this.executeResetData();
+      });
+    }
+
+    // Keep fallback support on confirm button if present
     if (confirmBtn) {
       confirmBtn.addEventListener('click', async () => {
-        if (App._isResetting) return;
-        App._isResetting = true;
-
-        confirmBtn.disabled = true;
-        if (cancelBtn) cancelBtn.disabled = true;
-        confirmBtn.innerHTML = `<span>Deleting Data...</span>`;
-
-        const thumb = document.getElementById('slideResetThumb');
-        const widget = document.getElementById('slideResetWidget');
-        if (thumb) thumb.style.pointerEvents = 'none';
-        if (widget) widget.style.opacity = '0.6';
-
-        try {
-          let res;
-          try {
-            res = await fetch(`${window.API_BASE}/api/dashboard/reset-data`, {
-              method: 'POST',
-              headers: {
-                'Accept': 'application/json'
-              }
-            });
-          } catch (netErr) {
-            this.closeResetModal();
-            this.showToast('Network error: Unable to connect to the reset service.', 'danger');
-            App.addNotification({
-              type: 'danger',
-              title: 'Reset Network Error',
-              message: 'Failed to communicate with local backend service.'
-            });
-            return;
-          }
-
-          let data = null;
-          try {
-            const rawText = await res.text();
-            data = rawText ? JSON.parse(rawText) : {};
-          } catch (_) {
-            data = {};
-          }
-
-          this.closeResetModal();
-
-          if (res.status === 404) {
-            this.showToast('Reset endpoint is currently unavailable (404 Not Found).', 'danger');
-            App.addNotification({
-              type: 'danger',
-              title: 'Reset Endpoint Unavailable',
-              message: 'The reset API endpoint was not found on the server (404).'
-            });
-            return;
-          }
-
-          if (res.status === 401) {
-            const msg = data.detail || 'Invalid or missing administrative reset token.';
-            this.showToast(msg, 'danger');
-            App.addNotification({
-              type: 'danger',
-              title: 'Reset Unauthorized (401)',
-              message: msg
-            });
-            return;
-          }
-
-          if (res.status === 403) {
-            const msg = data.detail || 'Destructive data reset is disabled in production.';
-            this.showToast(msg, 'danger');
-            App.addNotification({
-              type: 'danger',
-              title: 'Reset Forbidden (403)',
-              message: msg
-            });
-            return;
-          }
-
-          if (res.status === 409) {
-            this.showToast('A data reset operation is already in progress.', 'warning');
-            App.addNotification({
-              type: 'warning',
-              title: 'Reset Concurrency Warning',
-              message: 'Another data reset operation is currently running.'
-            });
-            return;
-          }
-
-          if (!res.ok) {
-            const errDetail = data.detail || `Reset failed with HTTP status ${res.status}.`;
-            this.showToast(errDetail, 'danger');
-            App.addNotification({
-              type: 'danger',
-              title: 'Reset Operation Failed',
-              message: errDetail
-            });
-            return;
-          }
-
-          // Successful Reset Outcome
-          const del = data.deleted || data.deleted_counts || {};
-          const totalCleared = (del.jobs || del.processing_jobs || 0) +
-                               (del.customers || 0) +
-                               (del.sales || 0) +
-                               (del.inventory || 0);
-
-          const isAlreadyEmpty = Boolean(data.message && data.message.includes('already empty')) || totalCleared === 0;
-
-          const labelEl = document.getElementById('slideResetLabel');
-          if (labelEl) {
-            const origText = labelEl.textContent;
-            labelEl.textContent = isAlreadyEmpty ? 'Already Empty' : 'Reset Complete';
-            labelEl.style.opacity = '1';
-            setTimeout(() => {
-              labelEl.textContent = origText;
-            }, 1400);
-          }
-
-          if (isAlreadyEmpty) {
-            this.showToast('The application data is already empty. Nothing to clear.', 'info');
-            App.addNotification({
-              type: 'info',
-              title: 'Application Already Empty',
-              message: 'No imported business data or ETL processing jobs found to clear.'
-            });
-          } else {
-            this.showToast('All uploaded data and processing jobs have been permanently deleted.', 'success');
-            App.addNotification({
-              type: 'danger',
-              title: 'Full Data Reset Completed',
-              message: `Permanently deleted ${del.jobs || del.processing_jobs || 0} jobs, ${del.clean_records || del.job_clean_records || 0} clean records, and ${del.upload_files || del.physical_files_removed || 0} stored files.`
-            });
-          }
-
-          // Reset client-side date filter to default (Last 30 days)
-          if (window.Dashboard && typeof window.Dashboard.resetDateFilter === 'function') {
-            window.Dashboard.resetDateFilter();
-          }
-
-          // Clear top search input
-          const searchInput = document.getElementById('topNavSearch');
-          if (searchInput) searchInput.value = '';
-
-          // Clear jobs search
-          const jobsSearch = document.getElementById('jobsSearchInput');
-          if (jobsSearch) jobsSearch.value = '';
-
-          // Refresh overview and sub-views to strict zero state
-          if (window.Dashboard) {
-            Dashboard.fetchSummary();
-            Dashboard.fetchTrends();
-            Dashboard.fetchJobs();
-            Dashboard.fetchErrors();
-            Dashboard.fetchRecords();
-          }
-
-        } catch (err) {
-          this.closeResetModal();
-          this.showToast('Unexpected error while resetting application data.', 'danger');
-        } finally {
-          App._isResetting = false;
-          confirmBtn.disabled = false;
-          if (cancelBtn) cancelBtn.disabled = false;
-          confirmBtn.innerHTML = `<span>Confirm Delete All Imported Data</span>`;
-          if (thumb) thumb.style.pointerEvents = '';
-          if (widget) widget.style.opacity = '1';
-        }
+        await this.executeResetData();
       });
+    }
+  },
+
+  async executeResetData() {
+    if (App._isResetting) return;
+    App._isResetting = true;
+
+    const checkbox = document.getElementById('confirmResetCheckbox');
+    const cancelBtn = document.getElementById('cancelResetBtn');
+    const loadingState = document.getElementById('resetLoadingState');
+    const thumb = document.getElementById('slideResetThumb');
+    const widget = document.getElementById('slideResetWidget');
+
+    // Display loading state while deletion is running
+    if (checkbox) checkbox.disabled = true;
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (loadingState) loadingState.classList.remove('d-none');
+    if (thumb) thumb.style.pointerEvents = 'none';
+    if (widget) widget.style.opacity = '0.6';
+
+    try {
+      let res;
+      try {
+        res = await fetch(`${window.API_BASE}/api/dashboard/reset-data`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+      } catch (netErr) {
+        this.showToast('Network error: Unable to connect to the reset service.', 'danger');
+        App.addNotification({
+          type: 'danger',
+          title: 'Reset Network Error',
+          message: 'Failed to communicate with backend service.'
+        });
+        this.resetModalFailureUI();
+        return;
+      }
+
+      let data = null;
+      try {
+        const rawText = await res.text();
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch (_) {
+        data = {};
+      }
+
+      if (res.status === 409) {
+        this.showToast('A data reset operation is already in progress.', 'warning');
+        App.addNotification({
+          type: 'warning',
+          title: 'Reset Concurrency Warning',
+          message: 'Another data reset operation is currently running.'
+        });
+        this.resetModalFailureUI();
+        return;
+      }
+
+      if (!res.ok) {
+        const errDetail = data.detail || `Reset failed with HTTP status ${res.status}.`;
+        this.showToast(errDetail, 'danger');
+        App.addNotification({
+          type: 'danger',
+          title: 'Reset Operation Failed',
+          message: errDetail
+        });
+        this.resetModalFailureUI();
+        return;
+      }
+
+      // Success: Close modal and refresh dashboard
+      this.closeResetModal();
+
+      const del = data.deleted || data.deleted_counts || {};
+      const totalCleared = (del.jobs || del.processing_jobs || 0) +
+                           (del.customers || 0) +
+                           (del.sales || 0) +
+                           (del.inventory || 0);
+
+      const isAlreadyEmpty = Boolean(data.message && data.message.includes('already empty')) || totalCleared === 0;
+
+      const labelEl = document.getElementById('slideResetLabel');
+      if (labelEl) {
+        const origText = labelEl.textContent;
+        labelEl.textContent = isAlreadyEmpty ? 'Already Empty' : 'Reset Complete';
+        labelEl.style.opacity = '1';
+        setTimeout(() => {
+          labelEl.textContent = origText;
+        }, 1600);
+      }
+
+      if (isAlreadyEmpty) {
+        this.showToast('The application data is already empty. Nothing to clear.', 'info');
+        App.addNotification({
+          type: 'info',
+          title: 'Application Already Empty',
+          message: 'No imported business data or ETL processing jobs found to clear.'
+        });
+      } else {
+        this.showToast('All uploaded data, processing jobs, clean records, and validation errors have been permanently deleted.', 'success');
+        App.addNotification({
+          type: 'danger',
+          title: 'Full Data Reset Completed',
+          message: `Permanently deleted ${del.jobs || del.processing_jobs || 0} jobs, ${del.clean_records || del.job_clean_records || 0} clean records, and ${del.upload_files || del.physical_files_removed || 0} stored files.`
+        });
+      }
+
+      // Refresh overview and sub-views directly from database to reflect cleared data
+      if (window.Dashboard) {
+        Dashboard.fetchSummary();
+        Dashboard.fetchTrends();
+        Dashboard.fetchJobs();
+        Dashboard.fetchErrors();
+        Dashboard.fetchRecords();
+      }
+
+    } catch (err) {
+      this.showToast('Unexpected error while resetting application data.', 'danger');
+      this.resetModalFailureUI();
+    } finally {
+      App._isResetting = false;
+      if (thumb) thumb.style.pointerEvents = '';
+      if (widget) widget.style.opacity = '1';
+    }
+  },
+
+  resetModalFailureUI() {
+    const checkbox = document.getElementById('confirmResetCheckbox');
+    const cancelBtn = document.getElementById('cancelResetBtn');
+    const loadingState = document.getElementById('resetLoadingState');
+    if (loadingState) loadingState.classList.add('d-none');
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (checkbox) {
+      checkbox.checked = false;
+      checkbox.disabled = false;
     }
   },
 
