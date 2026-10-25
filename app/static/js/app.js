@@ -286,7 +286,7 @@ const App = {
       progress.style.transition = 'none';
     });
 
-    thumb.addEventListener('pointermove', (e) => {
+    const onPointerMove = (e) => {
       if (!isDragging || App._isResetting) return;
       const dx = Math.max(0, Math.min(e.clientX - startX, maxDistance));
       const percent = maxDistance > 0 ? (dx / maxDistance) * 100 : 0;
@@ -296,12 +296,15 @@ const App = {
       if (label) {
         label.style.opacity = Math.max(0, 1 - (percent / 75)).toString();
       }
-    });
+    };
 
     const endDrag = (e) => {
       if (!isDragging) return;
       isDragging = false;
       thumb.classList.remove('dragging');
+      try {
+        if (e.pointerId) thumb.releasePointerCapture(e.pointerId);
+      } catch (_) {}
       const dx = Math.max(0, Math.min(e.clientX - startX, maxDistance));
       const percent = maxDistance > 0 ? (dx / maxDistance) * 100 : 0;
 
@@ -318,8 +321,12 @@ const App = {
       }
     };
 
+    thumb.addEventListener('pointermove', onPointerMove);
     thumb.addEventListener('pointerup', endDrag);
     thumb.addEventListener('pointercancel', endDrag);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
 
     // Keyboard accessibility (Enter or Space triggers confirmation modal)
     thumb.addEventListener('keydown', (e) => {
@@ -398,6 +405,15 @@ const App = {
     if (loadingState) loadingState.classList.add('d-none');
     const cancelBtn = document.getElementById('cancelResetBtn');
     if (cancelBtn) cancelBtn.disabled = false;
+    const closeBtn = document.getElementById('closeResetModalBtn');
+    if (closeBtn) closeBtn.disabled = false;
+    const hint = document.getElementById('resetCheckboxHint');
+    if (hint) hint.classList.add('d-none');
+    const wrapper = document.getElementById('resetCheckboxWrapper');
+    if (wrapper) {
+      wrapper.style.borderColor = 'var(--border-color, #E8DCC9)';
+      wrapper.style.backgroundColor = 'var(--surface-secondary, rgba(200, 150, 80, 0.05))';
+    }
   },
 
   bindResetModal() {
@@ -454,6 +470,7 @@ const App = {
     const checkbox = document.getElementById('confirmResetCheckbox');
     const confirmBtn = document.getElementById('confirmResetBtn');
     const cancelBtn = document.getElementById('cancelResetBtn');
+    const closeBtn = document.getElementById('closeResetModalBtn');
     const loadingState = document.getElementById('resetLoadingState');
     const thumb = document.getElementById('slideResetThumb');
     const widget = document.getElementById('slideResetWidget');
@@ -466,6 +483,7 @@ const App = {
       confirmBtn.style.cursor = 'not-allowed';
     }
     if (cancelBtn) cancelBtn.disabled = true;
+    if (closeBtn) closeBtn.disabled = true;
     if (loadingState) loadingState.classList.remove('d-none');
     if (thumb) thumb.style.pointerEvents = 'none';
     if (widget) widget.style.opacity = '0.6';
@@ -581,9 +599,11 @@ const App = {
     const checkbox = document.getElementById('confirmResetCheckbox');
     const confirmBtn = document.getElementById('confirmResetBtn');
     const cancelBtn = document.getElementById('cancelResetBtn');
+    const closeBtn = document.getElementById('closeResetModalBtn');
     const loadingState = document.getElementById('resetLoadingState');
     if (loadingState) loadingState.classList.add('d-none');
     if (cancelBtn) cancelBtn.disabled = false;
+    if (closeBtn) closeBtn.disabled = false;
     if (checkbox) {
       checkbox.disabled = false;
     }
