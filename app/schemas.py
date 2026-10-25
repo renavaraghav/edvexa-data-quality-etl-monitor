@@ -102,6 +102,9 @@ class DashboardKPIs(BaseModel):
     skipped_records: int
     total_jobs: int
     data_quality_rate: float  # Percentage (0 - 100)
+    total_records_trend: float | None = None
+    data_quality_trend: float | None = None
+    trend_period_label: str | None = None
 
 class DatasetMetric(BaseModel):
     dataset_type: str

@@ -1,6 +1,6 @@
 import logging
 import secrets
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import threading
 from fastapi import APIRouter, Depends, Query, Header, HTTPException, status, Request
 from sqlalchemy.orm import Session
@@ -86,6 +86,49 @@ def get_dashboard_summary(
     else:
         quality_rate = 0.0
 
+    total_records_trend: float | None = None
+    data_quality_trend: float | None = None
+    trend_period_label: str | None = None
+
+    if total_rows > 0:
+        now = datetime.now()
+        if start_dt and end_dt:
+            window_delta = end_dt - start_dt
+            prev_end = start_dt
+            prev_start = start_dt - window_delta
+            trend_period_label = "from previous period"
+            curr_rows, curr_acc = total_rows, accepted_rows
+        elif start_dt and not end_dt:
+            window_delta = now - start_dt
+            prev_end = start_dt
+            prev_start = start_dt - window_delta
+            trend_period_label = "from previous period"
+            curr_rows, curr_acc = total_rows, accepted_rows
+        else:
+            curr_end = end_dt or now
+            curr_start = curr_end - timedelta(days=7)
+            prev_end = curr_start
+            prev_start = curr_start - timedelta(days=7)
+            trend_period_label = "from last week"
+
+            curr_stmt = select(
+                func.coalesce(func.sum(ProcessingJob.total_rows), 0),
+                func.coalesce(func.sum(ProcessingJob.accepted_rows), 0)
+            ).where(ProcessingJob.started_at >= curr_start, ProcessingJob.started_at <= curr_end)
+            curr_rows, curr_acc = db.execute(curr_stmt).one()
+
+        prev_stmt = select(
+            func.coalesce(func.sum(ProcessingJob.total_rows), 0),
+            func.coalesce(func.sum(ProcessingJob.accepted_rows), 0)
+        ).where(ProcessingJob.started_at >= prev_start, ProcessingJob.started_at < prev_end)
+        prev_rows, prev_acc = db.execute(prev_stmt).one()
+
+        if prev_rows > 0:
+            total_records_trend = round(((curr_rows - prev_rows) / prev_rows) * 100.0, 1)
+            prev_quality = round((prev_acc / prev_rows) * 100.0, 1)
+            curr_quality = round((curr_acc / curr_rows) * 100.0, 1) if curr_rows > 0 else 0.0
+            data_quality_trend = round(curr_quality - prev_quality, 1)
+
     kpis = DashboardKPIs(
         total_records_processed=int(total_rows),
         accepted_records=int(accepted_rows),
@@ -94,6 +137,9 @@ def get_dashboard_summary(
         skipped_records=int(skipped_rows),
         total_jobs=int(total_jobs),
         data_quality_rate=quality_rate,
+        total_records_trend=total_records_trend,
+        data_quality_trend=data_quality_trend,
+        trend_period_label=trend_period_label,
     )
 
     # Per-dataset breakdowns

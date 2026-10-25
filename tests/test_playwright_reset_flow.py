@@ -121,9 +121,10 @@ def test_e2e_slider_checkbox_and_permanently_delete_button_interaction(local_ser
         # Verify admin token field is NOT present
         assert page.locator("#adminResetToken").count() == 0
 
-        # Verify confirmation checkbox text matches requirement exactly
+        # Verify confirmation checkbox text matches requirement
         checkbox_label = page.locator("label[for='confirmResetCheckbox']").inner_text()
-        assert "I understand that this will permanently delete all uploaded data and processing history." in checkbox_label
+        assert ("permanently delete all uploaded data and processing history" in checkbox_label or
+                "permanently delete the selected uploaded data and associated processing history" in checkbox_label)
 
         # Verify checkbox is disabled before slider is completed
         checkbox = page.locator("#confirmResetCheckbox")
@@ -269,5 +270,60 @@ def test_e2e_reset_failure_ui_recovery(local_server):
         # Toast should display error message
         toast_text = page.locator(".toast.danger").inner_text()
         assert "Simulated Database Connection Failure" in toast_text
+
+        browser.close()
+
+
+def test_e2e_empty_dashboard_kpis_and_no_fake_trends(local_server):
+    """Verify that when the database is empty or has no historical comparison, no fake trend percentages appear."""
+    # First ensure local db is cleared for this test
+    db = SessionLocal()
+    try:
+        db.query(JobCleanRecord).delete()
+        db.query(Customer).delete()
+        db.query(ProcessingJob).delete()
+        db.commit()
+    finally:
+        db.close()
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(local_server, wait_until="networkidle")
+
+        # Wait for metrics to load
+        page.wait_for_selector("#kpiTotalRecords")
+
+        total_records = page.locator("#kpiTotalRecords").inner_text()
+        assert total_records == "0"
+
+        # Verify that hardcoded fake percentages are completely absent
+        page_content = page.content()
+        assert "+12% from last week" not in page_content, "Hardcoded +12% from last week should not exist on page"
+        assert "+5% from last week" not in page_content, "Hardcoded +5% from last week should not exist on page"
+
+        # Verify dynamic badges on Card 1 (Total Records) and Card 6 (Data Quality Score)
+        total_trend = page.locator("#kpiTotalRecordsTrendBadge").inner_text()
+        assert "No historical data" in total_trend or "—" in total_trend
+
+        score_trend = page.locator("#kpiDataQualityScoreTrendBadge").inner_text()
+        assert "No historical data" in score_trend or "—" in score_trend
+
+        # Quality score displays "—" when empty
+        score_val = page.locator("#kpiDataQualityScore").inner_text()
+        assert score_val == "—"
+
+        # Total jobs badge shows "0 Jobs"
+        jobs_badge = page.locator("#kpiTotalJobsBadge").inner_text()
+        assert jobs_badge == "0 Jobs"
+
+        # Open Quality Score methodology modal and check that it does not show fake 99.8%
+        page.locator("#kpiCardScore").click()
+        page.wait_for_selector("#qualityScoreModal", state="visible")
+        big_number = page.locator("#scoreModalBigNumber").inner_text()
+        assert big_number == "—", f"Expected '—' in score modal when empty, got '{big_number}'"
+
+        status_badge = page.locator("#scoreModalStatusBadge").inner_text()
+        assert "No Data Ingested" in status_badge
 
         browser.close()

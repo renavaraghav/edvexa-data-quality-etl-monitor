@@ -433,7 +433,7 @@
               </div>
               <div class="kpi-stat-number" id="kpiTotalRecords">—</div>
               <div class="kpi-bottom-row">
-                <span class="kpi-badge-trend trend-green">&uarr; +12% from last week</span>
+                <span class="kpi-badge-trend trend-neutral" id="kpiTotalRecordsTrendBadge">No historical data</span>
               </div>
               <div class="kpi-sparkline-wrap">
                 <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
@@ -465,7 +465,7 @@
               </div>
               <div class="kpi-stat-number" id="kpiAcceptedRecords">—</div>
               <div class="kpi-bottom-row">
-                <span class="kpi-badge-trend trend-green" id="kpiQualityRateBadge">100% Quality Pass Rate</span>
+                <span class="kpi-badge-trend trend-neutral" id="kpiQualityRateBadge">No data</span>
               </div>
               <div class="kpi-sparkline-wrap">
                 <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
@@ -497,7 +497,7 @@
               </div>
               <div class="kpi-stat-number" id="kpiRejectedRecords">—</div>
               <div class="kpi-bottom-row">
-                <span class="kpi-badge-trend trend-red" id="kpiRejectedRateBadge">0.0% Rejection Rate</span>
+                <span class="kpi-badge-trend trend-neutral" id="kpiRejectedRateBadge">No data</span>
               </div>
               <div class="kpi-sparkline-wrap">
                 <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
@@ -529,7 +529,7 @@
               </div>
               <div class="kpi-stat-number" id="kpiDuplicateRecords">—</div>
               <div class="kpi-bottom-row">
-                <span class="kpi-badge-trend trend-amber" id="kpiDuplicateBadge">Zero Overwrites</span>
+                <span class="kpi-badge-trend trend-neutral" id="kpiDuplicateBadge">No data</span>
               </div>
               <div class="kpi-sparkline-wrap">
                 <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
@@ -561,7 +561,7 @@
               </div>
               <div class="kpi-stat-number" id="kpiTotalJobs">—</div>
               <div class="kpi-bottom-row">
-                <span class="kpi-badge-trend trend-purple" id="kpiTotalJobsBadge">All Completed</span>
+                <span class="kpi-badge-trend trend-neutral" id="kpiTotalJobsBadge">0 Jobs</span>
               </div>
               <div class="kpi-sparkline-wrap">
                 <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
@@ -591,9 +591,9 @@
                 </div>
                 <span class="kpi-card-title">Data Quality Score</span>
               </div>
-              <div class="kpi-stat-number" id="kpiDataQualityScore">—%</div>
+              <div class="kpi-stat-number" id="kpiDataQualityScore">—</div>
               <div class="kpi-bottom-row">
-                <span class="kpi-badge-trend trend-teal">+5% from last week</span>
+                <span class="kpi-badge-trend trend-neutral" id="kpiDataQualityScoreTrendBadge">No historical data</span>
               </div>
               <div class="kpi-sparkline-wrap">
                 <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
@@ -1452,8 +1452,8 @@
         <div class="reset-checkbox-box p-3 mb-3" id="resetCheckboxWrapper" style="background: var(--surface-secondary, rgba(200, 150, 80, 0.05)); border: 1.5px solid var(--border-color, #E8DCC9); border-radius: var(--radius-md); transition: all 0.2s ease;">
           <label class="d-flex align-items-start gap-2 mb-0" for="confirmResetCheckbox" style="cursor: pointer;">
             <input type="checkbox" id="confirmResetCheckbox" disabled style="width: 18px; height: 18px; margin-top: 2px; accent-color: var(--danger, #D9534F); cursor: pointer;">
-            <span class="text-xs font-bold" style="color: var(--text-primary); line-height: 1.5; user-select: none;">
-              I understand that this will permanently delete all uploaded data and processing history.
+            <span class="text-xs font-bold" id="confirmResetCheckboxLabel" style="color: var(--text-primary); line-height: 1.5; user-select: none;">
+              I understand that this action will permanently delete the selected uploaded data and associated processing history.
             </span>
           </label>
           <div id="resetCheckboxHint" class="text-xs text-muted mt-2 d-none" style="margin-left: 26px;">
@@ -1508,10 +1508,10 @@
         <div class="score-summary-banner">
           <div>
             <span class="text-xs text-muted uppercase tracking-wider font-bold">Current Quality Pass Score</span>
-            <div class="score-modal-big" id="scoreModalBigNumber">99.8%</div>
+            <div class="score-modal-big" id="scoreModalBigNumber">—</div>
           </div>
-          <div class="score-status-badge badge-teal">
-            <span>&check; Enterprise Grade A+</span>
+          <div class="score-status-badge badge-neutral" id="scoreModalStatusBadge">
+            <span>No Data Ingested</span>
           </div>
         </div>
 

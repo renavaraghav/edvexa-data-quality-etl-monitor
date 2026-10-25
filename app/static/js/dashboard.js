@@ -413,25 +413,66 @@ const Dashboard = {
 
       const hasRecords = kpis.total_records_processed > 0;
       if (elScore) {
-        elScore.textContent = hasRecords ? `${kpis.data_quality_rate}%` : '0%';
+        elScore.textContent = hasRecords ? `${kpis.data_quality_rate}%` : '—';
       }
 
       // KPI Subtexts / Badges
       const elJobsBadge = document.getElementById('kpiTotalJobsBadge');
       if (elJobsBadge) {
         elJobsBadge.textContent = kpis.total_jobs > 0 ? 'All Completed' : '0 Jobs';
+        elJobsBadge.className = `kpi-badge-trend ${kpis.total_jobs > 0 ? 'trend-purple' : 'trend-neutral'}`;
       }
 
       const elQualBadge = document.getElementById('kpiQualityRateBadge');
       if (elQualBadge) {
         elQualBadge.textContent = hasRecords ? `${kpis.data_quality_rate}% Quality Pass Rate` : 'No data';
+        elQualBadge.className = `kpi-badge-trend ${hasRecords ? 'trend-green' : 'trend-neutral'}`;
       }
 
       const rejRate = hasRecords
         ? ((kpis.rejected_records / kpis.total_records_processed) * 100).toFixed(1)
         : '0.0';
       const elRejBadge = document.getElementById('kpiRejectedRateBadge');
-      if (elRejBadge) elRejBadge.textContent = `${rejRate}% Rejection Rate`;
+      if (elRejBadge) {
+        elRejBadge.textContent = hasRecords ? `${rejRate}% Rejection Rate` : 'No data';
+        elRejBadge.className = `kpi-badge-trend ${hasRecords ? 'trend-red' : 'trend-neutral'}`;
+      }
+
+      const elDupBadge = document.getElementById('kpiDuplicateBadge');
+      if (elDupBadge) {
+        elDupBadge.textContent = hasRecords
+          ? (kpis.duplicate_records > 0 ? `${kpis.duplicate_records} Prevented` : 'Zero Overwrites')
+          : 'No data';
+        elDupBadge.className = `kpi-badge-trend ${hasRecords ? 'trend-amber' : 'trend-neutral'}`;
+      }
+
+      // Dynamic Trend Indicators
+      const elTotalTrend = document.getElementById('kpiTotalRecordsTrendBadge');
+      if (elTotalTrend) {
+        if (kpis.total_records_trend !== null && kpis.total_records_trend !== undefined) {
+          const sign = kpis.total_records_trend >= 0 ? '+' : '';
+          const arrow = kpis.total_records_trend >= 0 ? '↑ ' : '↓ ';
+          const period = kpis.trend_period_label || 'from last week';
+          elTotalTrend.textContent = `${arrow}${sign}${kpis.total_records_trend}% ${period}`;
+          elTotalTrend.className = `kpi-badge-trend ${kpis.total_records_trend >= 0 ? 'trend-green' : 'trend-red'}`;
+        } else {
+          elTotalTrend.textContent = hasRecords ? 'No historical data' : '—';
+          elTotalTrend.className = 'kpi-badge-trend trend-neutral';
+        }
+      }
+
+      const elScoreTrend = document.getElementById('kpiDataQualityScoreTrendBadge');
+      if (elScoreTrend) {
+        if (hasRecords && kpis.data_quality_trend !== null && kpis.data_quality_trend !== undefined) {
+          const sign = kpis.data_quality_trend >= 0 ? '+' : '';
+          const period = kpis.trend_period_label || 'from last week';
+          elScoreTrend.textContent = `${sign}${kpis.data_quality_trend}% ${period}`;
+          elScoreTrend.className = `kpi-badge-trend ${kpis.data_quality_trend >= 0 ? 'trend-teal' : 'trend-red'}`;
+        } else {
+          elScoreTrend.textContent = hasRecords ? 'No historical data' : '—';
+          elScoreTrend.className = 'kpi-badge-trend trend-neutral';
+        }
+      }
 
       // 2. Update Dataset Breakdown Card
       if (data.dataset_metrics && data.dataset_metrics.length > 0) {
@@ -509,7 +550,7 @@ const Dashboard = {
       this.trendsChart = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: ['No Data'],
+          labels: ['No Ingestion History'],
           datasets: [{ label: 'Accepted', data: [0], backgroundColor: '#EFE7DA' }]
         },
         options: {

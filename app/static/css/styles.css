@@ -1213,6 +1213,7 @@ body.sidebar-collapsed .nav-item[data-tooltip]:hover::after {
 .trend-amber { color: var(--warning); }
 .trend-purple { color: var(--purple); }
 .trend-teal { color: var(--teal); }
+.trend-neutral { color: var(--text-muted, #85786A); }
 
 .kpi-sparkline-wrap {
   width: calc(100% + 32px);
@@ -2476,6 +2477,21 @@ body.sidebar-collapsed .nav-item[data-tooltip]:hover::after {
 [data-theme="dark"] .badge-teal {
   color: #2DD4BF;
   border-color: rgba(45, 212, 191, 0.4);
+}
+
+.badge-neutral {
+  background-color: var(--surface-secondary, rgba(133, 120, 106, 0.15));
+  color: var(--text-muted, #85786A);
+  border: 1px solid var(--border-color, #E8DCC9);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .badge-neutral {
+  color: #A69888;
+  border-color: rgba(166, 152, 136, 0.3);
 }
 
 /* Toast Notifications */

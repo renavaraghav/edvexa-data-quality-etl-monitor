@@ -539,7 +539,34 @@ const App = {
         return;
       }
 
-      // Success: Close modal and refresh dashboard
+      // Success: Update loading message and refresh all dashboard components before closing modal
+      if (loadingState) {
+        const textSpan = loadingState.querySelector('span:last-child');
+        if (textSpan) textSpan.textContent = 'Updating dashboard metrics...';
+      }
+
+      let refreshSuccess = true;
+      if (window.Dashboard) {
+        try {
+          if (typeof Dashboard.resetDateFilter === 'function') {
+            Dashboard.resetDateFilter();
+          }
+          const results = await Promise.allSettled([
+            Dashboard.fetchSummary(),
+            Dashboard.fetchTrends(),
+            Dashboard.fetchJobs(),
+            Dashboard.fetchErrors(),
+            Dashboard.fetchRecords()
+          ]);
+          if (results.some(r => r.status === 'rejected')) {
+            refreshSuccess = false;
+          }
+        } catch (_) {
+          refreshSuccess = false;
+        }
+      }
+
+      // Close modal after refresh completes
       this.closeResetModal();
 
       const del = data.deleted || data.deleted_counts || {};
@@ -568,21 +595,16 @@ const App = {
           message: 'No imported business data or ETL processing jobs found to clear.'
         });
       } else {
-        this.showToast('All uploaded data, processing jobs, clean records, and validation errors have been permanently deleted.', 'success');
+        if (refreshSuccess) {
+          this.showToast('All uploaded data, processing jobs, clean records, and validation errors have been permanently deleted.', 'success');
+        } else {
+          this.showToast('Data was permanently deleted, but refreshing dashboard metrics failed. Click Retry to reload.', 'warning');
+        }
         App.addNotification({
           type: 'danger',
           title: 'Full Data Reset Completed',
           message: `Permanently deleted ${del.jobs || del.processing_jobs || 0} jobs, ${del.clean_records || del.job_clean_records || 0} clean records, and ${del.upload_files || del.physical_files_removed || 0} stored files.`
         });
-      }
-
-      // Refresh overview and sub-views directly from database to reflect cleared data
-      if (window.Dashboard) {
-        Dashboard.fetchSummary();
-        Dashboard.fetchTrends();
-        Dashboard.fetchJobs();
-        Dashboard.fetchErrors();
-        Dashboard.fetchRecords();
       }
 
     } catch (err) {
@@ -631,19 +653,30 @@ const App = {
     const duplicates = summary ? (summary.duplicate_records ?? parseNum('kpiDuplicateRecords')) : parseNum('kpiDuplicateRecords');
     const skipped = summary ? (summary.skipped_rows || 0) : 0;
 
-    let score = '0.0% (No data)';
+    let score = '—';
     if (total > 0) {
       score = ((accepted / total) * 100).toFixed(1) + '%';
     }
 
-    // If card has a score, sync with card if non-empty
+    // If card has a score, sync with card if non-empty and has records
     const cardScoreEl = document.getElementById('kpiDataQualityScore');
-    if (cardScoreEl && cardScoreEl.textContent && total > 0) {
+    if (cardScoreEl && cardScoreEl.textContent && total > 0 && cardScoreEl.textContent !== '—') {
       score = cardScoreEl.textContent;
     }
 
     const bigNumberEl = document.getElementById('scoreModalBigNumber');
     if (bigNumberEl) bigNumberEl.textContent = score;
+
+    const statusBadge = document.getElementById('scoreModalStatusBadge');
+    if (statusBadge) {
+      if (total > 0) {
+        statusBadge.className = 'score-status-badge badge-teal';
+        statusBadge.innerHTML = '<span>&check; Enterprise Grade A+</span>';
+      } else {
+        statusBadge.className = 'score-status-badge badge-neutral';
+        statusBadge.innerHTML = '<span>No Data Ingested</span>';
+      }
+    }
 
     const totalEl = document.getElementById('scoreModalTotal');
     if (totalEl) totalEl.textContent = total.toLocaleString();
@@ -660,7 +693,10 @@ const App = {
     const invariantEl = document.getElementById('scoreModalInvariant');
     if (invariantEl) {
       const sum = accepted + rejected + duplicates + skipped;
-      if (sum === total) {
+      if (total === 0) {
+        invariantEl.className = 'badge-neutral text-xs font-bold';
+        invariantEl.innerHTML = 'No data to verify';
+      } else if (sum === total) {
         invariantEl.className = 'badge-success text-xs font-bold';
         invariantEl.innerHTML = '&check; Strict Accounting Verified (100% Accounted)';
       } else {
