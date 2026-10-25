@@ -331,14 +331,57 @@ const App = {
     });
   },
 
-  openResetModal() {
+  async openResetModal() {
     const modal = document.getElementById('resetConfirmModal');
-    if (modal) modal.classList.remove('d-none');
+    if (!modal) return;
+    modal.classList.remove('d-none');
+
+    const tokenInput = document.getElementById('adminResetTokenInput');
+    if (tokenInput) tokenInput.value = '';
+
+    // Inspect reset status to configure token requirements dynamically
+    try {
+      const res = await fetch(`${window.API_BASE}/api/dashboard/reset-status`);
+      if (res.ok) {
+        const data = await res.json();
+        const tokenGroup = document.getElementById('adminResetTokenGroup');
+        const confirmBtn = document.getElementById('confirmResetBtn');
+        const helpText = document.getElementById('adminResetTokenHelp');
+
+        if (tokenGroup) {
+          if (data.admin_token_required) {
+            tokenGroup.classList.remove('d-none');
+          } else {
+            tokenGroup.classList.add('d-none');
+          }
+        }
+
+        if (confirmBtn) {
+          if (!data.destructive_reset_allowed) {
+            confirmBtn.disabled = true;
+            confirmBtn.title = 'Destructive data reset is disabled in production.';
+            if (helpText) {
+              helpText.textContent = 'Destructive data reset is disabled in production.';
+              helpText.classList.add('text-danger');
+            }
+          } else {
+            confirmBtn.disabled = false;
+            confirmBtn.title = '';
+            if (helpText) {
+              helpText.textContent = 'Required to authorize destructive reset in production environments.';
+              helpText.classList.remove('text-danger');
+            }
+          }
+        }
+      }
+    } catch (_) {}
   },
 
   closeResetModal() {
     const modal = document.getElementById('resetConfirmModal');
     if (modal) modal.classList.add('d-none');
+    const tokenInput = document.getElementById('adminResetTokenInput');
+    if (tokenInput) tokenInput.value = '';
   },
 
   bindResetModal() {
@@ -374,12 +417,18 @@ const App = {
 
         try {
           let res;
+          const tokenInput = document.getElementById('adminResetTokenInput');
+          const adminToken = tokenInput ? tokenInput.value.trim() : '';
+          const resetHeaders = { 'Accept': 'application/json' };
+          if (adminToken) {
+            resetHeaders['X-Admin-Reset-Token'] = adminToken;
+          }
+          if (tokenInput) tokenInput.value = '';
+
           try {
             res = await fetch(`${window.API_BASE}/api/dashboard/reset-data`, {
               method: 'POST',
-              headers: {
-                'Accept': 'application/json'
-              }
+              headers: resetHeaders
             });
           } catch (netErr) {
             this.closeResetModal();
@@ -412,12 +461,24 @@ const App = {
             return;
           }
 
-          if (res.status === 401 || res.status === 403) {
-            this.showToast('Reset request rejected by authorization.', 'danger');
+          if (res.status === 401) {
+            const msg = data.detail || 'Invalid or missing administrative reset token.';
+            this.showToast(msg, 'danger');
             App.addNotification({
               type: 'danger',
-              title: 'Reset Unauthorized',
-              message: 'Administrative privileges required for data reset.'
+              title: 'Reset Unauthorized (401)',
+              message: msg
+            });
+            return;
+          }
+
+          if (res.status === 403) {
+            const msg = data.detail || 'Destructive data reset is disabled in production.';
+            this.showToast(msg, 'danger');
+            App.addNotification({
+              type: 'danger',
+              title: 'Reset Forbidden (403)',
+              message: msg
             });
             return;
           }
@@ -966,15 +1027,74 @@ const App = {
       const res = await fetch(`${window.API_BASE}/api/health`);
       if (res.ok) {
         const data = await res.json();
-        badge.className = `status-indicator ${data.status === 'healthy' ? 'connected' : 'degraded'}`;
-        badge.querySelector('.status-text').textContent = data.status === 'healthy' ? 'API Online' : 'DB Degraded';
+        const isHealthy = data.status === 'healthy';
+        badge.className = `status-indicator ${isHealthy ? 'connected' : 'degraded'}`;
+        const statusText = badge.querySelector('.status-text');
+        if (statusText) statusText.textContent = isHealthy ? 'API Online' : 'DB Degraded';
+
+        // 1. Sidebar DB Status
+        const sidebarDb = document.getElementById('sidebarDbStatus');
+        if (sidebarDb) {
+          if (data.database_connected) {
+            sidebarDb.innerHTML = (data.database_type === 'postgresql')
+              ? 'Connected &bull; PostgreSQL (Neon)'
+              : 'Connected &bull; SQLite';
+          } else {
+            sidebarDb.innerHTML = 'Disconnected &bull; Error';
+          }
+        }
+
+        // 2. Top Nav Environment Label
+        const envLabel = document.getElementById('topNavEnvLabel');
+        if (envLabel) {
+          envLabel.textContent = (data.environment === 'production')
+            ? 'Cloud Production (Render)'
+            : 'Local Environment';
+        }
+
+        // 3. Sidebar Application Version
+        const verBadge = document.getElementById('sidebarAppVersion');
+        if (verBadge && data.version) {
+          verBadge.textContent = `v${data.version}`;
+        }
+
+        // 4. Settings View Dynamic Hardware & Connection Info
+        const dbDriver = document.getElementById('settingsDbDriver');
+        const dbFile = document.getElementById('settingsDbFile');
+        const dbStatus = document.getElementById('settingsDbStatus');
+        const storageBack = document.getElementById('settingsStorageBackend');
+        if (dbDriver) {
+          dbDriver.textContent = (data.database_type === 'postgresql')
+            ? 'Driver: Neon PostgreSQL (asyncpg/psycopg2)'
+            : 'Driver: SQLite 3 with WAL journal mode';
+        }
+        if (dbFile) {
+          dbFile.innerHTML = (data.database_type === 'postgresql')
+            ? 'Host: <code>Neon Cloud Serverless (AWS Singapore)</code>'
+            : 'Database file: <code>edvexa_data.db</code>';
+        }
+        if (dbStatus) {
+          dbStatus.innerHTML = data.database_connected
+            ? '&bull; Status: Healthy &amp; Connected'
+            : '&bull; Status: Degraded / Disconnected';
+          dbStatus.className = `text-sm mt-2 font-bold ${data.database_connected ? 'text-success' : 'text-danger'}`;
+        }
+        if (storageBack) {
+          if (data.storage_backend === 'neon' || data.storage_backend === 's3' || data.storage_backend === 'r2') {
+            storageBack.innerHTML = 'Storage: <code>Neon Object Storage (S3-compatible)</code>';
+          } else {
+            storageBack.innerHTML = 'Storage: <code>uploads_storage/ (Local Disk)</code>';
+          }
+        }
       } else {
         badge.className = 'status-indicator offline';
-        badge.querySelector('.status-text').textContent = 'API Error';
+        const statusText = badge.querySelector('.status-text');
+        if (statusText) statusText.textContent = 'API Error';
       }
     } catch {
       badge.className = 'status-indicator offline';
-      badge.querySelector('.status-text').textContent = 'API Offline';
+      const statusText = badge.querySelector('.status-text');
+      if (statusText) statusText.textContent = 'API Offline';
     }
   },
 

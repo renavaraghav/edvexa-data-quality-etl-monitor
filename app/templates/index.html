@@ -149,13 +149,13 @@
           <span class="db-pulse-dot"></span>
           <div class="db-status-info">
             <span class="db-label">Database</span>
-            <span class="db-sublabel">Connected &bull; SQLite</span>
+            <span class="db-sublabel" id="sidebarDbStatus">Connected &bull; Loading...</span>
           </div>
         </div>
 
         <!-- Platform Version & Motto -->
         <div class="sidebar-meta-text">
-          <div class="version-badge-text">v1.0.0</div>
+          <div class="version-badge-text" id="sidebarAppVersion">v2.7.0</div>
           <p class="sidebar-motto">
             Reliable Data.<br>
             Clean Pipelines.<br>
@@ -313,7 +313,7 @@
             </svg>
             <div class="env-time-text">
               <span class="env-date" id="topNavDateTime">Oct 25, 2026 01:01 AM</span>
-              <span class="env-label">Local Environment</span>
+              <span class="env-label" id="topNavEnvLabel">Environment &bull; Loading...</span>
             </div>
           </div>
 
@@ -431,7 +431,7 @@
                 </div>
                 <span class="kpi-card-title">Total Records Ingested</span>
               </div>
-              <div class="kpi-stat-number" id="kpiTotalRecords">0</div>
+              <div class="kpi-stat-number" id="kpiTotalRecords">—</div>
               <div class="kpi-bottom-row">
                 <span class="kpi-badge-trend trend-green">&uarr; +12% from last week</span>
               </div>
@@ -463,7 +463,7 @@
                 </div>
                 <span class="kpi-card-title">Accepted Records</span>
               </div>
-              <div class="kpi-stat-number" id="kpiAcceptedRecords">0</div>
+              <div class="kpi-stat-number" id="kpiAcceptedRecords">—</div>
               <div class="kpi-bottom-row">
                 <span class="kpi-badge-trend trend-green" id="kpiQualityRateBadge">100% Quality Pass Rate</span>
               </div>
@@ -495,7 +495,7 @@
                 </div>
                 <span class="kpi-card-title">Validation Rejections</span>
               </div>
-              <div class="kpi-stat-number" id="kpiRejectedRecords">0</div>
+              <div class="kpi-stat-number" id="kpiRejectedRecords">—</div>
               <div class="kpi-bottom-row">
                 <span class="kpi-badge-trend trend-red" id="kpiRejectedRateBadge">0.0% Rejection Rate</span>
               </div>
@@ -527,7 +527,7 @@
                 </div>
                 <span class="kpi-card-title">Duplicate Keys Prevented</span>
               </div>
-              <div class="kpi-stat-number" id="kpiDuplicateRecords">0</div>
+              <div class="kpi-stat-number" id="kpiDuplicateRecords">—</div>
               <div class="kpi-bottom-row">
                 <span class="kpi-badge-trend trend-amber" id="kpiDuplicateBadge">Zero Overwrites</span>
               </div>
@@ -559,7 +559,7 @@
                 </div>
                 <span class="kpi-card-title">Processing Jobs</span>
               </div>
-              <div class="kpi-stat-number" id="kpiTotalJobs">0</div>
+              <div class="kpi-stat-number" id="kpiTotalJobs">—</div>
               <div class="kpi-bottom-row">
                 <span class="kpi-badge-trend trend-purple" id="kpiTotalJobsBadge">All Completed</span>
               </div>
@@ -591,7 +591,7 @@
                 </div>
                 <span class="kpi-card-title">Data Quality Score</span>
               </div>
-              <div class="kpi-stat-number" id="kpiDataQualityScore">99.8%</div>
+              <div class="kpi-stat-number" id="kpiDataQualityScore">—%</div>
               <div class="kpi-bottom-row">
                 <span class="kpi-badge-trend trend-teal">+5% from last week</span>
               </div>
@@ -849,7 +849,7 @@
                     </tr>
                   </thead>
                   <tbody id="recentJobsTableBody">
-                    <tr><td colspan="10" class="text-center py-4 text-muted">No processing jobs recorded yet. Ingest a CSV to get started.</td></tr>
+                    <tr><td colspan="10" class="text-center py-4 text-muted"><span class="spinner-sm mr-2"></span>Loading recent processing jobs...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1012,7 +1012,7 @@
                     </tr>
                   </thead>
                   <tbody id="allJobsTableBody">
-                    <tr><td colspan="11" class="text-center py-4 text-muted">Loading jobs...</td></tr>
+                    <tr><td colspan="11" class="text-center py-4 text-muted"><span class="spinner-sm mr-2"></span>Loading jobs...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1061,7 +1061,7 @@
                     </tr>
                   </thead>
                   <tbody id="errorsTableBody">
-                    <tr><td colspan="8" class="text-center py-4 text-muted">Loading validation errors...</td></tr>
+                    <tr><td colspan="8" class="text-center py-4 text-muted"><span class="spinner-sm mr-2"></span>Loading validation errors...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1107,7 +1107,7 @@
                     <!-- Dynamic Headers based on dataset -->
                   </thead>
                   <tbody id="recordsTableBody">
-                    <tr><td colspan="6" class="text-center py-4 text-muted">Loading records...</td></tr>
+                    <tr><td colspan="6" class="text-center py-4 text-muted"><span class="spinner-sm mr-2"></span>Loading records...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1285,13 +1285,13 @@
               <div class="schema-grid">
                 <div class="schema-box">
                   <h5>Database Connection</h5>
-                  <p class="text-sm text-muted">Driver: SQLite 3 with WAL journal mode</p>
-                  <p class="text-sm">Database file: <code>edvexa_data.db</code></p>
-                  <p class="text-sm text-success mt-2 font-bold">&bull; Status: Healthy &amp; Connected</p>
+                  <p class="text-sm text-muted" id="settingsDbDriver">Driver: SQLite 3 with WAL journal mode</p>
+                  <p class="text-sm" id="settingsDbFile">Database file: <code>edvexa_data.db</code></p>
+                  <p class="text-sm text-success mt-2 font-bold" id="settingsDbStatus">&bull; Status: Healthy &amp; Connected</p>
                 </div>
                 <div class="schema-box">
                   <h5>File Staging Engine</h5>
-                  <p class="text-sm text-muted">Storage: <code>uploads_storage/</code></p>
+                  <p class="text-sm text-muted" id="settingsStorageBackend">Storage: <code>uploads_storage/</code></p>
                   <p class="text-sm">Hash Algorithm: SHA-256 Checksum</p>
                   <p class="text-sm">Allowed Encoding: UTF-8, UTF-8-SIG (BOM)</p>
                 </div>
@@ -1448,11 +1448,17 @@
           </p>
         </div>
 
+        <div id="adminResetTokenGroup" class="form-group mb-3 d-none">
+          <label for="adminResetTokenInput" class="form-label text-xs font-bold text-muted uppercase">Admin Reset Authorization Token</label>
+          <input type="password" id="adminResetTokenInput" class="form-control form-control-sm" placeholder="Enter ADMIN_RESET_TOKEN..." autocomplete="off">
+          <span class="text-xs text-muted" id="adminResetTokenHelp">Required to authorize destructive reset in production environments.</span>
+        </div>
+
         <div class="reset-safety-notice mt-2">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
-          <span><strong>Safety Guarantee:</strong> Database schema, SQLite structure, system code, and platform configuration remain strictly intact.</span>
+          <span><strong>Safety Guarantee:</strong> Database schema, table structures, system code, and platform configuration remain strictly intact.</span>
         </div>
       </div>
 

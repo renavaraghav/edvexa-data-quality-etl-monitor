@@ -8,6 +8,9 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     database_connected: bool
+    database_type: str
+    environment: str
+    storage_backend: str
     timestamp: datetime
 
 class ValidationErrorItem(BaseModel):

@@ -76,6 +76,9 @@ def health_check(db: Session = Depends(get_db)):
         status="healthy" if db_connected else "degraded",
         version=settings.VERSION,
         database_connected=db_connected,
+        database_type=settings.database_type,
+        environment=settings.ENVIRONMENT,
+        storage_backend=settings.STORAGE_BACKEND,
         timestamp=utc_now()
     )
 

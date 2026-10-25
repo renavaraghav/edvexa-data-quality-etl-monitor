@@ -38,11 +38,18 @@ def sanitize_database_url(url: str) -> str:
 class Settings:
     PROJECT_NAME: str = "Edvexa Data Quality & ETL Monitor"
     PROJECT_SUBTITLE: str = "Reliable Data. Clean Pipelines. Trusted Decisions."
-    VERSION: str = "2.6.0"
+    VERSION: str = "2.7.0"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development").lower()
     
     # Database
     DATABASE_URL: str = normalize_database_url(os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'edvexa_data.db'}"))
+
+    @property
+    def database_type(self) -> str:
+        """Derive database dialect: 'postgresql' or 'sqlite'."""
+        if "postgres" in self.DATABASE_URL.lower():
+            return "postgresql"
+        return "sqlite"
     
     # Uploads & Storage Abstraction
     UPLOAD_MAX_SIZE_BYTES: int = int(os.getenv("UPLOAD_MAX_SIZE_BYTES", str(10 * 1024 * 1024)))  # 10 MB

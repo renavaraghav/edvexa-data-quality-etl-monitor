@@ -363,6 +363,23 @@ const Dashboard = {
     }
   },
 
+  async fetchWithRetry(url, options = {}, retries = 3, backoffMs = 1000) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        if (res.ok) return res;
+        if ((res.status >= 500 || res.status === 429) && attempt < retries) {
+          await new Promise(r => setTimeout(r, backoffMs * Math.pow(1.8, attempt)));
+          continue;
+        }
+        return res;
+      } catch (err) {
+        if (attempt >= retries) throw err;
+        await new Promise(r => setTimeout(r, backoffMs * Math.pow(1.8, attempt)));
+      }
+    }
+  },
+
   /* =========================================================================
      1. OVERVIEW: KPIS & CHARTS
      ========================================================================= */
@@ -374,8 +391,8 @@ const Dashboard = {
       if (this.endDate) params.append('end_date', this.endDate);
       const qs = params.toString() ? `?${params.toString()}` : '';
 
-      const res = await fetch(`${window.API_BASE}/api/dashboard/summary${qs}`);
-      if (!res.ok) throw new Error('Failed to fetch dashboard summary');
+      const res = await this.fetchWithRetry(`${window.API_BASE}/api/dashboard/summary${qs}`);
+      if (!res.ok) throw new Error(`Failed to fetch dashboard summary: HTTP ${res.status}`);
       const data = await res.json();
       const kpis = data.kpis;
       this.lastSummary = kpis;
@@ -450,7 +467,17 @@ const Dashboard = {
       }
 
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load dashboard summary:', err);
+      const tbody = document.getElementById('recentJobsTableBody');
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted"><p class="text-danger mb-2 font-bold">Failed to load dashboard metrics from backend.</p><button onclick="Dashboard.fetchSummary(); Dashboard.fetchTrends();" class="btn btn-secondary btn-sm">Retry Loading Metrics</button></td></tr>`;
+      }
+      ['kpiTotalRecords', 'kpiAcceptedRecords', 'kpiRejectedRecords', 'kpiDuplicateRecords', 'kpiTotalJobs'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.textContent === '—') el.textContent = '0';
+      });
+      const elScore = document.getElementById('kpiDataQualityScore');
+      if (elScore && elScore.textContent === '—%') elScore.textContent = '0.0%';
     }
   },
 
@@ -461,7 +488,7 @@ const Dashboard = {
       if (this.endDate) params.append('end_date', this.endDate);
       const qs = params.toString() ? `?${params.toString()}` : '';
 
-      const res = await fetch(`${window.API_BASE}/api/dashboard/trends${qs}`);
+      const res = await this.fetchWithRetry(`${window.API_BASE}/api/dashboard/trends${qs}`);
       if (!res.ok) return;
       const data = await res.json();
       this.renderTrendsChart(data.trends || []);
@@ -1023,7 +1050,7 @@ const Dashboard = {
   async fetchJobs() {
     const tbody = document.getElementById('allJobsTableBody');
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-muted">Loading jobs...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-muted"><span class="spinner-sm mr-2"></span>Loading processing jobs...</td></tr>`;
 
     const search = document.getElementById('jobsSearchInput').value.trim();
     const dataset = document.getElementById('jobsDatasetFilter').value;
@@ -1040,8 +1067,8 @@ const Dashboard = {
     if (this.endDate) params.append('end_date', this.endDate);
 
     try {
-      const res = await fetch(`${window.API_BASE}/api/jobs?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to load jobs');
+      const res = await this.fetchWithRetry(`${window.API_BASE}/api/jobs?${params.toString()}`);
+      if (!res.ok) throw new Error(`Failed to load jobs: HTTP ${res.status}`);
       const data = await res.json();
 
       if (data.items.length === 0) {
@@ -1065,7 +1092,7 @@ const Dashboard = {
         }
       );
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-danger">Failed to load processing jobs.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-muted"><p class="text-danger mb-2 font-bold">Failed to load processing jobs.</p><button onclick="Dashboard.fetchJobs()" class="btn btn-secondary btn-sm">Retry Loading Jobs</button></td></tr>`;
     }
   },
 
@@ -1097,7 +1124,7 @@ const Dashboard = {
   async fetchErrors() {
     const tbody = document.getElementById('errorsTableBody');
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">Loading errors...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted"><span class="spinner-sm mr-2"></span>Loading validation errors...</td></tr>`;
 
     const jobId = document.getElementById('errorsJobIdFilter').value.trim();
     const field = document.getElementById('errorsFieldFilter').value.trim();
@@ -1112,8 +1139,8 @@ const Dashboard = {
     if (this.endDate) params.append('end_date', this.endDate);
 
     try {
-      const res = await fetch(`${window.API_BASE}/api/errors?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to load validation errors');
+      const res = await this.fetchWithRetry(`${window.API_BASE}/api/errors?${params.toString()}`);
+      if (!res.ok) throw new Error(`Failed to load validation errors: HTTP ${res.status}`);
       const data = await res.json();
 
       if (data.items.length === 0) {
@@ -1148,7 +1175,7 @@ const Dashboard = {
         }
       );
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger">Failed to fetch validation errors.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted"><p class="text-danger mb-2 font-bold">Failed to load validation errors.</p><button onclick="Dashboard.fetchErrors()" class="btn btn-secondary btn-sm">Retry Loading Errors</button></td></tr>`;
     }
   },
 
@@ -1228,7 +1255,7 @@ const Dashboard = {
       `;
     }
 
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Loading ${dataset} records...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted"><span class="spinner-sm mr-2"></span>Loading ${dataset} records...</td></tr>`;
 
     const params = new URLSearchParams({
       dataset_type: dataset,
@@ -1240,8 +1267,8 @@ const Dashboard = {
     if (this.endDate) params.append('end_date', this.endDate);
 
     try {
-      const res = await fetch(`${window.API_BASE}/api/records?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to load clean records');
+      const res = await this.fetchWithRetry(`${window.API_BASE}/api/records?${params.toString()}`);
+      if (!res.ok) throw new Error(`Failed to load clean records: HTTP ${res.status}`);
       const data = await res.json();
 
       if (data.items.length === 0) {
@@ -1297,7 +1324,7 @@ const Dashboard = {
       );
 
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-danger">Failed to fetch clean records.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted"><p class="text-danger mb-2 font-bold">Failed to load clean ${dataset} records.</p><button onclick="Dashboard.fetchRecords()" class="btn btn-secondary btn-sm">Retry Loading Records</button></td></tr>`;
     }
   },
 

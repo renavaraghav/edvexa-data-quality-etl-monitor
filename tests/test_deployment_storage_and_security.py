@@ -387,3 +387,57 @@ def test_reset_data_forbidden_when_explicitly_disabled_in_dev(client: TestClient
             res = client.post("/api/dashboard/reset-data")
             assert res.status_code == 403
             assert "disabled by configuration" in res.json()["detail"].lower()
+
+
+def test_health_check_returns_environment_and_db_type(client: TestClient):
+    """Verify /api/health exposes version 2.7.0, database_type, environment, and storage_backend."""
+    res = client.get("/api/health")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["version"] == "2.7.0"
+    assert data["status"] == "healthy"
+    assert data["database_connected"] is True
+    assert data["database_type"] in ("sqlite", "postgresql")
+    assert "environment" in data
+    assert "storage_backend" in data
+
+
+def test_database_type_property_detection():
+    """Verify settings.database_type correctly distinguishes sqlite and postgresql."""
+    s = Settings()
+    with patch.object(s, "DATABASE_URL", "sqlite:///test.db"):
+        assert s.database_type == "sqlite"
+    with patch.object(s, "DATABASE_URL", "postgresql://user:pass@host/db?sslmode=require"):
+        assert s.database_type == "postgresql"
+    with patch.object(s, "DATABASE_URL", "postgres://user:pass@host/db"):
+        assert s.database_type == "postgresql"
+
+
+def test_production_reset_cannot_bypass_authorization(client: TestClient):
+    """Verify that in production, even with ALLOW_DESTRUCTIVE_RESET=True, reset cannot bypass auth without a token."""
+    with patch.object(settings, "ENVIRONMENT", "production"):
+        with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", True):
+            with patch.object(settings, "ADMIN_RESET_TOKEN", None):
+                res = client.post("/api/dashboard/reset-data")
+                assert res.status_code == 403
+                assert "disabled in production" in res.json()["detail"].lower()
+
+
+def test_production_reset_status_reflection(client: TestClient):
+    """Verify reset-status endpoint behavior under production settings."""
+    with patch.object(settings, "ENVIRONMENT", "production"):
+        with patch.object(settings, "ADMIN_RESET_TOKEN", None):
+            res = client.get("/api/dashboard/reset-status")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["environment"] == "production"
+            assert data["destructive_reset_allowed"] is False
+            assert data["admin_token_required"] is True
+            assert "database_type" in data
+
+        with patch.object(settings, "ADMIN_RESET_TOKEN", "prod-secret-999"):
+            res = client.get("/api/dashboard/reset-status")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["destructive_reset_allowed"] is True
+            assert data["admin_token_required"] is True
