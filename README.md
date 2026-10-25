@@ -657,7 +657,7 @@ A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion,
 - **Author:** Raghav Kumar
 - **Role:** Software Engineer
 - **Project:** EDVEXA Data Quality and ETL Monitoring Platform
-- **Tools Used:** Google Antigravity, CodeZero, Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite / Neon PostgreSQL, Cloudflare R2, Render, openpyxl, pytest, Git and GitHub.
+- **Tools Used:** CodeZero, Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite / Neon PostgreSQL, Cloudflare R2, Render, openpyxl, pytest, Git and GitHub.
 
 ### Tooling Demarcation
 - **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including FastAPI backend implementation, SQLAlchemy relational schema, openpyxl multi-sheet Excel engine, dual-theme responsive frontend, date-range filtering, storage abstraction layer, Render + Neon + Cloudflare R2 cloud architecture, and the 81 automated regression tests.
