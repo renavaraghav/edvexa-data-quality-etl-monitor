@@ -16,7 +16,7 @@
 
 The platform guarantees strict data integrity before raw records can enter downstream clean storage tables. Every ingested row is accounted for deterministically under the fundamental invariant:
 
-$$\text{total\_rows} = \text{accepted\_rows} + \text{rejected\_rows} + \text{duplicate\_rows} + \text{skipped\_rows}$$
+**Row accounting rule:** Total rows = accepted rows + rejected rows + duplicate rows + skipped rows.
 
 The application provides multi-encoding CSV parsing, automated field normalization, duplicate prevention, an interactive dashboard with real-time quality metrics and historical trends, downloadable audit workbooks (CSV and Excel `.xlsx`), and a safe two-step slide-to-reset interaction.
 
