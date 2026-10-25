@@ -121,10 +121,10 @@ class Settings:
         """Backwards compatibility alias for is_s3_configured."""
         return self.is_s3_configured
 
-    # Security & Destructive Action Safeguards
+    # Security & Destructive Action Safeguards: Public reset is enabled by default in all environments
     ADMIN_RESET_TOKEN: str | None = os.getenv("ADMIN_RESET_TOKEN")
     ALLOW_DESTRUCTIVE_RESET: bool = (
-        os.getenv("ALLOW_DESTRUCTIVE_RESET", "true").lower() in ("true", "1", "yes")
+        os.getenv("FORCE_DISABLE_DESTRUCTIVE_RESET", "false").lower() not in ("true", "1", "yes")
     )
 
     # CORS Configuration
