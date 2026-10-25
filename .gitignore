@@ -37,6 +37,7 @@ htmlcov/
 *.sqlite3
 data/*.db
 uploads_storage/
+demo/*.mp4
 
 # IDE & OS
 .vscode/

@@ -86,6 +86,9 @@ edvexa-data-quality/
 │   ├── sales.csv                   # 12 comprehensive mixed records
 │   └── inventory.csv               # 12 comprehensive mixed records
 │
+├── demo/
+│   └── edvexa-demo.mp4             # 4m23s full application demonstration walkthrough (250 MB)
+│
 ├── screenshots/
 │   ├── 01_dashboard_overview_light.png   # Full light theme overview (KPIs, donut, trends, recent jobs)
 │   ├── 02_dashboard_overview_dark.png    # Full dark espresso theme overview (WCAG AA compliant)
@@ -496,7 +499,23 @@ Genuine, unedited full-resolution screenshots captured from the running applicat
 
 ---
 
-## 14. Known Limitations & Production Considerations
+## 14. Application Demonstration Video
+
+A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion, data validation diagnostics, duplicate detection, date-range filtering, dark espresso mode contrast, iPhone-style slide-to-reset, and multi-sheet Excel reports is provided for evaluators:
+
+- **Local Video Path:** [`demo/edvexa-demo.mp4`](demo/edvexa-demo.mp4) *(preserved locally in workspace)*
+- **Demo Documentation:** [`demo/README.md`](demo/README.md)
+- **Format:** MP4 Video (`video/mp4`)
+- **Duration:** 4 minutes 23 seconds
+- **File Size:** 249.86 MB (261,994,262 bytes)
+- **External Streaming Link:** [Watch EDVEXA Video Walkthrough (Google Drive / GitHub Release)](https://github.com/renavaraghav/edvexa-data-quality-etl-monitor/releases) *(Recommended for instant playback without downloading 250 MB)*
+
+> [!NOTE]
+> For offline local evaluation, open [`demo/edvexa-demo.mp4`](demo/edvexa-demo.mp4) in any media player (VLC, Windows Media Player, QuickTime, or directly in Chrome/Edge). Because GitHub enforces a strict 100 MB per-file limit on standard Git repositories, the uncompressed 250 MB recording is preserved locally in `demo/` and linked via the external streaming URL above for zero-friction evaluation.
+
+---
+
+## 15. Known Limitations & Production Considerations
 
 1. **Authentication & Authorization:** The assignment explicitly specifies no multi-user admin authentication for local development simplicity. In a production cloud deployment, JWT / OAuth2 bearer tokens and role-based access control (RBAC) should protect upload and administrative endpoints.
 2. **Synchronous Execution:** Uploads are processed synchronously in the local environment, which is fast and deterministic for files under 10 MB. For files exceeding hundreds of thousands of rows, processing should be offloaded to an asynchronous message broker (e.g., Celery + Redis).
@@ -504,7 +523,7 @@ Genuine, unedited full-resolution screenshots captured from the running applicat
 
 ---
 
-## 15. Troubleshooting Guide
+## 16. Troubleshooting Guide
 
 - **Port 8010 Already in Use:**
   Run on a different port:
@@ -526,7 +545,7 @@ Genuine, unedited full-resolution screenshots captured from the running applicat
 
 ---
 
-## 16. AI Engineering Tooling & CodeZero Demarcation
+## 17. AI Engineering Tooling & CodeZero Demarcation
 
 In compliance with assignment evaluation criteria:
 - **CodeZero:** Employed during initial project exploration in repository `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the initial CSV checker CLI requirements and draft the feature specification (commit `7983368`, plan `6adcf6109cb64fb3236a5352`).
