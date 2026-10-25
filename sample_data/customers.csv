@@ -1,0 +1,14 @@
+customer_id,name,email,phone,created_at
+CUST-001,  alexander pierce  ,ALEX.PIERCE@EXAMPLE.COM,+1-555-0101,2024-01-15
+CUST-002,Elena Rostova,elena.rostova@acme.org,555-0102,02/18/2024
+CUST-003,Marcus Aurelius Vance,m.vance@rome.io,+44-20-7946-0919,2023-11-30
+CUST-004,Sophia Lin,sophia.lin@techcorp.com,,2024-03-01
+CUST-005,David Kim,dkim@startup.co,555-0199,2024-02-14
+CUST-001,Alexander Duplicate,alex.duplicate@example.com,555-9999,2024-01-16
+CUST-006,Brian BadEmail,plainaddress,555-0106,2024-01-20
+CUST-007,Clara MissingAt,clara.example.com,555-0107,2024-01-22
+,Missing ID User,noid@example.com,555-0108,2024-01-25
+CUST-008,,noname@example.com,555-0109,2024-01-26
+CUST-009,Missing Email User,,555-0110,2024-01-27
+CUST-010,Felix LeapDayInvalid,felix@leap.com,555-0111,2023-02-29
+CUST-011,George BadDateString,george@baddate.com,555-0112,not-a-date

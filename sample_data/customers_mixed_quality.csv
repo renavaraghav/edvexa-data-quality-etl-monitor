@@ -1,0 +1,7 @@
+customer_id,name,email,phone,created_at
+CUST101,  NEHA VERMA  ,NEHA@EXAMPLE.COM,9876543210,2026-10-10
+CUST102,Missing Email,,9876543211,2026-10-11
+CUST103,Invalid Email,not-an-email,9876543212,2026-10-12
+CUST104,,blankname@example.com,9876543213,2026-10-13
+CUST105,Invalid Date,date@example.com,9876543214,not-a-date
+CUST101,Duplicate Customer,duplicate@example.com,9876543215,2026-10-14

@@ -1,0 +1,4 @@
+sale_id,customer_id,amount,sale_date,currency
+SALE001,CUST001,1250.50,2026-10-10,inr
+SALE002,CUST002,799.00,2026-10-11,INR
+SALE003,CUST003,2400,2026-10-12,usd

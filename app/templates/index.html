@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EDVEXA — Data Quality & ETL Monitor</title>
+  
+  <!-- Prevent Flash of Unstyled Theme (FOUT) -->
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var urlTheme = params.get('theme');
+      var saved = urlTheme || localStorage.getItem('edvexa_theme') || 'light';
+      document.documentElement.setAttribute('data-theme', saved);
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/css/styles.css?v=2.6">
+  <!-- Chart.js for data visualizations (served locally for zero latency and offline reliability) -->
+  <script src="/static/js/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Mobile Drawer Backdrop Overlay -->
+  <div id="mobileBackdrop" class="mobile-backdrop"></div>
+
+  <div class="app-layout">
+    
+    <!-- =========================================================================
+         LEFT SIDEBAR NAVIGATION
+         ========================================================================= -->
+    <aside class="sidebar" id="appSidebar">
+      <!-- Brand & Emblem & Collapse Button -->
+      <div class="sidebar-brand">
+        <div class="brand-left-wrap">
+          <div class="brand-emblem-wrap">
+            <svg class="brand-emblem" width="34" height="34" viewBox="0 0 40 40" fill="none">
+              <!-- Faceted Hexagon Emblem in Bronze/Amber Tones -->
+              <polygon points="20,2 35,10 35,28 20,38 5,28 5,10" fill="#B37C3C" />
+              <polygon points="20,2 35,10 20,20" fill="#CA9655" />
+              <polygon points="35,10 35,28 20,20" fill="#8F5E29" />
+              <polygon points="35,28 20,38 20,20" fill="#754B1D" />
+              <polygon points="20,38 5,28 20,20" fill="#A36E32" />
+              <polygon points="5,28 5,10 20,20" fill="#C28C4B" />
+              <polygon points="5,10 20,2 20,20" fill="#E0B070" />
+              <circle cx="20" cy="20" r="3.5" fill="#FAF4EB" />
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">EDVEXA</span>
+            <span class="brand-subtitle">DATA OPERATIONS</span>
+          </div>
+        </div>
+
+        <!-- Sidebar Collapse/Expand Toggle Button (Panel with vertical divider) -->
+        <button id="sidebarCollapseBtn" class="sidebar-collapse-btn" aria-label="Toggle sidebar width" title="Collapse / Expand sidebar">
+          <svg class="collapse-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+            <path class="collapse-arrow" d="m14 9-3 3 3 3"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Navigation Menu Items (9 items) -->
+      <nav class="sidebar-nav">
+        <!-- 1. Overview -->
+        <button class="nav-item active" data-view="overview" id="nav-overview" data-tooltip="Overview" aria-label="Overview">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="7" height="9" x="3" y="3" rx="1.5"/><rect width="7" height="5" x="14" y="3" rx="1.5"/>
+            <rect width="7" height="9" x="14" y="12" rx="1.5"/><rect width="7" height="5" x="3" y="16" rx="1.5"/>
+          </svg>
+          <span>Overview</span>
+        </button>
+
+        <!-- 2. Import Data -->
+        <button class="nav-item" data-view="import" id="nav-import" data-tooltip="Import Data" aria-label="Import Data">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span>Import Data</span>
+        </button>
+
+        <!-- 3. Processing Jobs -->
+        <button class="nav-item" data-view="jobs" id="nav-jobs" data-tooltip="Processing Jobs" aria-label="Processing Jobs">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          <span>Processing Jobs</span>
+        </button>
+
+        <!-- 4. Validation Errors -->
+        <button class="nav-item" data-view="errors" id="nav-errors" data-tooltip="Validation Errors" aria-label="Validation Errors">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span>Validation Errors</span>
+        </button>
+
+        <!-- 5. Clean Records -->
+        <button class="nav-item" data-view="records" id="nav-records" data-tooltip="Clean Records" aria-label="Clean Records">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>
+          </svg>
+          <span>Clean Records</span>
+        </button>
+
+        <!-- 6. Data Explorer -->
+        <button class="nav-item" data-view="explorer" id="nav-explorer" data-tooltip="Data Explorer" aria-label="Data Explorer">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/>
+          </svg>
+          <span>Data Explorer</span>
+        </button>
+
+        <!-- 7. Reports & Downloads -->
+        <button class="nav-item" data-view="reports" id="nav-reports" data-tooltip="Reports & Downloads" aria-label="Reports & Downloads">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/>
+          </svg>
+          <span>Reports & Downloads</span>
+        </button>
+
+        <!-- 8. Documentation -->
+        <button class="nav-item" data-view="docs" id="nav-docs" data-tooltip="Documentation" aria-label="Documentation">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10M6 10h10M6 14h6"/>
+          </svg>
+          <span>Documentation</span>
+        </button>
+
+        <!-- 9. Settings -->
+        <button class="nav-item" data-view="settings" id="nav-settings" data-tooltip="Settings" aria-label="Settings">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Footer Section -->
+      <div class="sidebar-footer">
+        <!-- Database Connected Pill -->
+        <div class="sidebar-db-status">
+          <span class="db-pulse-dot"></span>
+          <div class="db-status-info">
+            <span class="db-label">Database</span>
+            <span class="db-sublabel">Connected &bull; SQLite</span>
+          </div>
+        </div>
+
+        <!-- Platform Version & Motto -->
+        <div class="sidebar-meta-text">
+          <div class="version-badge-text">v1.0.0</div>
+          <p class="sidebar-motto">
+            Reliable Data.<br>
+            Clean Pipelines.<br>
+            Trusted Decisions.
+          </p>
+        </div>
+
+        <!-- Dual-Mode Mountain & Pine Landscape Vector Art -->
+        <div class="sidebar-landscape-container">
+          <svg class="sidebar-landscape-svg" viewBox="0 0 248 115" fill="none" preserveAspectRatio="none">
+            <defs>
+              <!-- Light Theme Gradients -->
+              <linearGradient id="mntFarLight" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#E5D9C8" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#D7C7B2" stop-opacity="0.75"/>
+              </linearGradient>
+              <linearGradient id="mntMidLight" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#CBB9A2" stop-opacity="0.6"/>
+                <stop offset="100%" stop-color="#B29F87" stop-opacity="0.95"/>
+              </linearGradient>
+              <linearGradient id="mntNearLight" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#9E8A72" stop-opacity="0.9"/>
+                <stop offset="100%" stop-color="#7A6852" stop-opacity="1"/>
+              </linearGradient>
+              <linearGradient id="pineGradLight" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#6F5E4A"/>
+                <stop offset="100%" stop-color="#554433"/>
+              </linearGradient>
+
+              <!-- Dark Theme Gradients -->
+              <linearGradient id="mntFarDark" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3A2E20" stop-opacity="0.45"/>
+                <stop offset="100%" stop-color="#261E15" stop-opacity="0.85"/>
+              </linearGradient>
+              <linearGradient id="mntMidDark" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#2E2419" stop-opacity="0.75"/>
+                <stop offset="100%" stop-color="#1B150E" stop-opacity="0.95"/>
+              </linearGradient>
+              <linearGradient id="mntNearDark" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1F1811" stop-opacity="0.95"/>
+                <stop offset="100%" stop-color="#120E0A" stop-opacity="1"/>
+              </linearGradient>
+              <linearGradient id="pineGradDark" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#18130D"/>
+                <stop offset="100%" stop-color="#0D0A07"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Distant mountain ridges -->
+            <path class="sb-mnt-far" d="M0,72 Q35,42 80,56 T165,36 Q205,48 248,32 L248,115 L0,115 Z" />
+            
+            <!-- Midground ridge -->
+            <path class="sb-mnt-mid" d="M0,86 Q45,68 115,76 T210,62 Q230,68 248,58 L248,115 L0,115 Z" />
+
+            <!-- Foreground ridge -->
+            <path class="sb-mnt-near" d="M0,98 Q55,84 130,94 T248,80 L248,115 L0,115 Z" />
+
+            <!-- Pine tree silhouettes -->
+            <polygon class="sb-pine" points="220,50 216,62 218,62 214,74 217,74 212,86 228,86 223,74 226,74 222,62 224,62" />
+            <polygon class="sb-pine" points="236,44 233,56 235,56 231,68 234,68 229,82 243,82 238,68 241,68 237,56 239,56" opacity="0.9" />
+            <polygon class="sb-pine" points="204,60 201,70 203,70 199,80 202,80 197,92 211,92 206,80 209,80 205,70 207,70" />
+            <polygon class="sb-pine" points="186,68 183,78 185,78 181,88 183,88 179,98 193,98 189,88 191,88 187,78 189,78" opacity="0.85" />
+            <polygon class="sb-pine" points="28,85 26,92 27,92 24,100 26,100 23,108 33,108 30,100 32,100 29,92 30,92" opacity="0.6" />
+          </svg>
+        </div>
+      </div>
+    </aside>
+
+    <!-- =========================================================================
+         MAIN APPLICATION CONTENT WRAPPER
+         ========================================================================= -->
+    <div class="main-wrapper">
+      
+      <!-- Top Navigation Bar -->
+      <header class="topbar">
+        <!-- Left: Search Pill & Mobile Hamburger -->
+        <div class="topbar-left">
+          <button id="mobileMenuBtn" class="mobile-toggle" aria-label="Toggle Navigation Drawer">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          
+          <div class="topbar-search-wrap">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="topNavSearch" class="topbar-search-input" placeholder="Search jobs, datasets, or records..." autocomplete="off">
+          </div>
+        </div>
+
+        <!-- Right: Theme, Notifications, User Profile, API Status, Date, Refresh -->
+        <div class="topbar-right">
+          <!-- Accessible Theme Toggle Switch -->
+          <div class="theme-toggle-wrap" title="Toggle Theme (Beige & White / Dark Espresso)">
+            <svg class="theme-sun-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            </svg>
+            <label class="switch-pill" for="themeToggleCheckbox">
+              <input type="checkbox" id="themeToggleCheckbox" role="switch" aria-label="Toggle dark espresso theme" aria-checked="false">
+              <span class="slider-round"></span>
+            </label>
+            <svg class="theme-moon-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </div>
+
+          <!-- Notification Bell with Dynamic Unread Badge -->
+          <div class="notification-wrap">
+            <button class="icon-pill-btn" id="notificationBtn" title="System Notifications" aria-label="View notifications">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              <span class="notification-badge d-none" id="notificationBadge">0</span>
+            </button>
+            <!-- Notification Dropdown Panel -->
+            <div class="notification-dropdown d-none" id="notificationDropdown">
+              <div class="notif-header">
+                <div>
+                  <span class="notif-title">Recent Notifications</span>
+                  <span class="notif-count" id="notifUnreadCount">0 unread</span>
+                </div>
+                <div class="d-flex gap-2">
+                  <button id="markAllReadBtn" class="btn btn-text text-xs text-muted" style="padding: 2px 6px; cursor: pointer;" title="Mark all notifications as read">Mark read</button>
+                  <button id="clearAllNotifsBtn" class="btn btn-text text-xs text-muted" style="padding: 2px 6px; cursor: pointer;" title="Clear notification history">Clear all</button>
+                </div>
+              </div>
+              <div class="notif-list" id="notifListContainer">
+                <div class="p-3 text-center text-xs text-muted" id="notifEmptyState">No notifications yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- iPhone-Style Compact Slide-to-Reset Control -->
+          <div class="slide-reset-widget" id="slideResetWidget" title="Slide to permanently delete all uploaded data">
+            <div class="slide-reset-track" id="slideResetTrack">
+              <div class="slide-reset-progress" id="slideResetProgress"></div>
+              <span class="slide-reset-label" id="slideResetLabel">Slide to Reset</span>
+              <div class="slide-reset-thumb" id="slideResetThumb" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Slide to permanently delete all uploaded data">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- API Status Pill -->
+          <div class="status-indicator connected" id="apiStatusBadge">
+            <span class="status-dot"></span>
+            <span class="status-text">API Online</span>
+          </div>
+
+          <!-- Environment / Live Time Pill -->
+          <div class="env-time-pill" title="Server Execution Environment">
+            <svg class="cal-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <div class="env-time-text">
+              <span class="env-date" id="topNavDateTime">Oct 25, 2026 01:01 AM</span>
+              <span class="env-label">Local Environment</span>
+            </div>
+          </div>
+
+          <!-- Refresh Button -->
+          <button id="refreshDataBtn" class="refresh-pill-btn" title="Refresh Live Ingestion Telemetry">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Toast Container for Notifications -->
+      <div id="toastContainer" class="toast-container"></div>
+
+      <!-- Main Body Container -->
+      <main class="content-body">
+        
+        <!-- =========================================================================
+             VIEW 1: OVERVIEW (HIGH-FIDELITY DASHBOARD)
+             ========================================================================= -->
+        <section id="view-overview" class="view-panel active">
+          
+          <!-- Header Area with Dual-Theme Artwork -->
+          <div class="dashboard-hero-header">
+            <div class="hero-header-text">
+              <span class="hero-tracker">MONITORING CENTER</span>
+              <h1 class="hero-title">Data Quality &amp; ETL Monitor</h1>
+              <p class="hero-subtitle">Import. Validate. Clean. Monitor. Make Better Decisions.</p>
+            </div>
+            
+            <!-- Dual-Theme Header Artwork Container -->
+            <div class="hero-artwork-container">
+              <!-- Light Theme Topographic Lines -->
+              <svg class="hero-topo-waves theme-light-only" viewBox="0 0 650 160" fill="none" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="goldWaveGrad1" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#E2B77B" stop-opacity="0.05"/>
+                    <stop offset="50%" stop-color="#C89650" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#DFBA84" stop-opacity="0.02"/>
+                  </linearGradient>
+                  <linearGradient id="goldWaveGrad2" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#E8C793" stop-opacity="0.05"/>
+                    <stop offset="40%" stop-color="#B8823A" stop-opacity="0.25"/>
+                    <stop offset="100%" stop-color="#C89650" stop-opacity="0.05"/>
+                  </linearGradient>
+                </defs>
+                <path d="M50,140 Q200,20 380,85 T650,30" stroke="url(#goldWaveGrad1)" stroke-width="1.6" />
+                <path d="M10,120 Q180,40 350,95 T640,45" stroke="url(#goldWaveGrad2)" stroke-width="1.2" />
+                <path d="M80,155 Q240,55 420,110 T660,60" stroke="url(#goldWaveGrad1)" stroke-width="1.4" />
+                <path d="M0,100 Q160,10 320,70 T620,20" stroke="url(#goldWaveGrad2)" stroke-width="1.0" />
+                <path d="M120,165 Q280,75 460,125 T670,80" stroke="url(#goldWaveGrad1)" stroke-width="1.2" opacity="0.6" />
+              </svg>
+
+              <!-- Dark Theme Celestial Sun & Mountain Sunset Artwork -->
+              <svg class="hero-celestial-artwork theme-dark-only" viewBox="0 0 650 160" fill="none" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <!-- Celestial Sun Radial Glow -->
+                  <radialGradient id="sunRadialGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#FFDD99" stop-opacity="1" />
+                    <stop offset="35%" stop-color="#EAA64C" stop-opacity="0.95" />
+                    <stop offset="70%" stop-color="#C87528" stop-opacity="0.4" />
+                    <stop offset="100%" stop-color="#171411" stop-opacity="0" />
+                  </radialGradient>
+                  <!-- Mountain Gradients for Dark Mode -->
+                  <linearGradient id="dkMntFar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3D3022" stop-opacity="0.85"/>
+                    <stop offset="100%" stop-color="#241E17" stop-opacity="0.95"/>
+                  </linearGradient>
+                  <linearGradient id="dkMntMid" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#2B221A" stop-opacity="0.95"/>
+                    <stop offset="100%" stop-color="#1A1511" stop-opacity="1"/>
+                  </linearGradient>
+                  <linearGradient id="dkMntNear" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#1E1812" stop-opacity="1"/>
+                    <stop offset="100%" stop-color="#14110E" stop-opacity="1"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Glowing Celestial Sun Disk -->
+                <circle cx="520" cy="62" r="75" fill="url(#sunRadialGlow)" />
+                <circle cx="520" cy="62" r="38" fill="#F4BD6B" opacity="0.92" />
+                <circle cx="520" cy="62" r="32" fill="#FFE2A8" opacity="0.95" />
+
+                <!-- Distant Mountain Ridge -->
+                <path d="M220,135 Q340,78 440,96 T580,82 Q615,88 650,78 L650,160 L220,160 Z" fill="url(#dkMntFar)" opacity="0.75" />
+
+                <!-- Midground Ridge -->
+                <path d="M280,140 Q390,92 480,108 T610,95 L650,90 L650,160 L280,160 Z" fill="url(#dkMntMid)" opacity="0.9" />
+
+                <!-- Foreground Mountain Silhouette -->
+                <path d="M350,150 Q460,112 550,122 T650,108 L650,160 L350,160 Z" fill="url(#dkMntNear)" />
+
+                <!-- Pine Tree Silhouettes Clustered Along the Ridge -->
+                <polygon points="495,96 492,106 494,106 490,116 493,116 488,128 502,128 497,116 500,116 496,106 498,106" fill="#13100D" />
+                <polygon points="508,92 505,102 507,102 503,113 506,113 501,126 515,126 510,113 513,113 509,102 511,102" fill="#13100D" />
+                <polygon points="535,94 532,104 534,104 530,115 533,115 528,128 542,128 537,115 540,115 536,104 538,104" fill="#13100D" />
+                <polygon points="550,102 548,110 549,110 546,119 548,119 544,130 556,130 552,119 554,119 551,110 552,110" fill="#13100D" opacity="0.9" />
+                <polygon points="568,98 565,107 567,107 563,118 566,118 561,130 575,130 570,118 573,118 569,107 571,107" fill="#13100D" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- The Six KPI Cards Grid -->
+          <div class="kpi-six-grid">
+            
+            <!-- Card 1: Total Records Ingested (Warm Gold) -->
+            <div class="kpi-card-rich clickable" id="kpiCardTotalRecords" role="button" tabindex="0" aria-label="View all processing jobs for total records">
+              <div class="kpi-top-row">
+                <div class="kpi-icon-squircle squircle-gold">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                  </svg>
+                </div>
+                <span class="kpi-card-title">Total Records Ingested</span>
+              </div>
+              <div class="kpi-stat-number" id="kpiTotalRecords">0</div>
+              <div class="kpi-bottom-row">
+                <span class="kpi-badge-trend trend-green">&uarr; +12% from last week</span>
+              </div>
+              <div class="kpi-sparkline-wrap">
+                <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
+                  <defs>
+                    <linearGradient id="goldSparkGradLight" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#C89650" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#C89650" stop-opacity="0.0"/>
+                    </linearGradient>
+                    <linearGradient id="goldSparkGradDark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.0"/>
+                    </linearGradient>
+                  </defs>
+                  <path class="sp-fill-gold" d="M0,35 Q30,30 60,32 T120,22 Q160,12 200,18 L200,45 L0,45 Z" />
+                  <path class="sp-stroke-gold" d="M0,35 Q30,30 60,32 T120,22 Q160,12 200,18" fill="none" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Card 2: Accepted Records (Emerald Green) -->
+            <div class="kpi-card-rich clickable" id="kpiCardAccepted" role="button" tabindex="0" aria-label="View clean accepted records">
+              <div class="kpi-top-row">
+                <div class="kpi-icon-squircle squircle-green">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><polyline points="9 12 11.5 14.5 15.5 9.5"/>
+                  </svg>
+                </div>
+                <span class="kpi-card-title">Accepted Records</span>
+              </div>
+              <div class="kpi-stat-number" id="kpiAcceptedRecords">0</div>
+              <div class="kpi-bottom-row">
+                <span class="kpi-badge-trend trend-green" id="kpiQualityRateBadge">100% Quality Pass Rate</span>
+              </div>
+              <div class="kpi-sparkline-wrap">
+                <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
+                  <defs>
+                    <linearGradient id="greenSparkGradLight" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#2E8B57" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#2E8B57" stop-opacity="0.0"/>
+                    </linearGradient>
+                    <linearGradient id="greenSparkGradDark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#34D399" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#34D399" stop-opacity="0.0"/>
+                    </linearGradient>
+                  </defs>
+                  <path class="sp-fill-green" d="M0,38 Q40,36 70,25 T140,28 Q170,16 200,14 L200,45 L0,45 Z" />
+                  <path class="sp-stroke-green" d="M0,38 Q40,36 70,25 T140,28 Q170,16 200,14" fill="none" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Card 3: Validation Rejections (Coral Red) -->
+            <div class="kpi-card-rich clickable" id="kpiCardRejected" role="button" tabindex="0" aria-label="View validation errors and rejections">
+              <div class="kpi-top-row">
+                <div class="kpi-icon-squircle squircle-red">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <span class="kpi-card-title">Validation Rejections</span>
+              </div>
+              <div class="kpi-stat-number" id="kpiRejectedRecords">0</div>
+              <div class="kpi-bottom-row">
+                <span class="kpi-badge-trend trend-red" id="kpiRejectedRateBadge">0.0% Rejection Rate</span>
+              </div>
+              <div class="kpi-sparkline-wrap">
+                <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
+                  <defs>
+                    <linearGradient id="redSparkGradLight" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#D9534F" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#D9534F" stop-opacity="0.0"/>
+                    </linearGradient>
+                    <linearGradient id="redSparkGradDark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#F87171" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#F87171" stop-opacity="0.0"/>
+                    </linearGradient>
+                  </defs>
+                  <path class="sp-fill-red" d="M0,36 Q30,34 70,22 T130,30 Q170,18 200,24 L200,45 L0,45 Z" />
+                  <path class="sp-stroke-red" d="M0,36 Q30,34 70,22 T130,30 Q170,18 200,24" fill="none" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Card 4: Duplicate Keys Prevented (Warm Amber) -->
+            <div class="kpi-card-rich clickable" id="kpiCardDuplicates" role="button" tabindex="0" aria-label="View jobs with duplicate key prevention">
+              <div class="kpi-top-row">
+                <div class="kpi-icon-squircle squircle-amber">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                  </svg>
+                </div>
+                <span class="kpi-card-title">Duplicate Keys Prevented</span>
+              </div>
+              <div class="kpi-stat-number" id="kpiDuplicateRecords">0</div>
+              <div class="kpi-bottom-row">
+                <span class="kpi-badge-trend trend-amber" id="kpiDuplicateBadge">Zero Overwrites</span>
+              </div>
+              <div class="kpi-sparkline-wrap">
+                <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
+                  <defs>
+                    <linearGradient id="amberSparkGradLight" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#E67E22" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#E67E22" stop-opacity="0.0"/>
+                    </linearGradient>
+                    <linearGradient id="amberSparkGradDark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#FBBC04" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#FBBC04" stop-opacity="0.0"/>
+                    </linearGradient>
+                  </defs>
+                  <path class="sp-fill-amber" d="M0,32 Q35,30 75,20 T145,26 Q175,14 200,20 L200,45 L0,45 Z" />
+                  <path class="sp-stroke-amber" d="M0,32 Q35,30 75,20 T145,26 Q175,14 200,20" fill="none" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Card 5: Processing Jobs (Purple) -->
+            <div class="kpi-card-rich clickable" id="kpiCardJobs" role="button" tabindex="0" aria-label="View all processing jobs table">
+              <div class="kpi-top-row">
+                <div class="kpi-icon-squircle squircle-purple">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  </svg>
+                </div>
+                <span class="kpi-card-title">Processing Jobs</span>
+              </div>
+              <div class="kpi-stat-number" id="kpiTotalJobs">0</div>
+              <div class="kpi-bottom-row">
+                <span class="kpi-badge-trend trend-purple" id="kpiTotalJobsBadge">All Completed</span>
+              </div>
+              <div class="kpi-sparkline-wrap">
+                <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
+                  <defs>
+                    <linearGradient id="purpleSparkGradLight" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#6366F1" stop-opacity="0.0"/>
+                    </linearGradient>
+                    <linearGradient id="purpleSparkGradDark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#A78BFA" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#A78BFA" stop-opacity="0.0"/>
+                    </linearGradient>
+                  </defs>
+                  <path class="sp-fill-purple" d="M0,35 Q40,32 80,24 T150,22 Q180,15 200,16 L200,45 L0,45 Z" />
+                  <path class="sp-stroke-purple" d="M0,35 Q40,32 80,24 T150,22 Q180,15 200,16" fill="none" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Card 6: Data Quality Score (Teal) -->
+            <div class="kpi-card-rich clickable" id="kpiCardScore" role="button" tabindex="0" aria-label="View Data Quality Score calculation methodology">
+              <div class="kpi-top-row">
+                <div class="kpi-icon-squircle squircle-teal">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>
+                  </svg>
+                </div>
+                <span class="kpi-card-title">Data Quality Score</span>
+              </div>
+              <div class="kpi-stat-number" id="kpiDataQualityScore">99.8%</div>
+              <div class="kpi-bottom-row">
+                <span class="kpi-badge-trend trend-teal">+5% from last week</span>
+              </div>
+              <div class="kpi-sparkline-wrap">
+                <svg viewBox="0 0 200 45" preserveAspectRatio="none" class="sparkline-svg">
+                  <defs>
+                    <linearGradient id="tealSparkGradLight" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#0D9488" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#0D9488" stop-opacity="0.0"/>
+                    </linearGradient>
+                    <linearGradient id="tealSparkGradDark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#2DD4BF" stop-opacity="0.45"/>
+                      <stop offset="100%" stop-color="#2DD4BF" stop-opacity="0.0"/>
+                    </linearGradient>
+                  </defs>
+                  <path class="sp-fill-teal" d="M0,34 Q30,30 70,22 T140,24 Q170,12 200,14 L200,45 L0,45 Z" />
+                  <path class="sp-stroke-teal" d="M0,34 Q30,30 70,22 T140,24 Q170,12 200,14" fill="none" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Middle Row: 3 Visual Analytics Cards (Trends ~48%, Distribution ~26%, Breakdown ~26%) -->
+          <div class="middle-analytics-grid">
+            
+            <!-- 1. ETL Ingestion Quality Trends Stacked Bar Chart -->
+            <div class="analytics-card trends-card">
+              <div class="card-header-refined">
+                <div>
+                  <h3 class="card-heading-serif">ETL Ingestion Quality Trends</h3>
+                  <p class="card-desc-muted">Accepted vs rejected vs duplicates across processing jobs</p>
+                </div>
+                <!-- Interactive Date-Range Filter Container -->
+                <div class="date-filter-container">
+                  <button class="date-filter-pill-btn" id="dateFilterBtn" type="button" aria-haspopup="true" aria-expanded="false" title="Filter dashboard by date range">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    <span id="currentDateRangeLabel">Last 30 days</span>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+
+                  <!-- Popover Dropdown Card -->
+                  <div class="date-range-popover d-none" id="dateRangePopover" role="dialog" aria-label="Date Range Selector">
+                    <div class="date-popover-header">
+                      <span class="popover-title">Filter by Date Range</span>
+                      <button type="button" class="btn-icon-xs" id="closeDatePopoverBtn" aria-label="Close date filter">&times;</button>
+                    </div>
+                    
+                    <!-- Presets -->
+                    <div class="date-presets-row">
+                      <button type="button" class="date-preset-pill" data-preset="today">Today</button>
+                      <button type="button" class="date-preset-pill" data-preset="7d">Last 7d</button>
+                      <button type="button" class="date-preset-pill active" data-preset="30d">Last 30d</button>
+                      <button type="button" class="date-preset-pill" data-preset="90d">Last 90d</button>
+                      <button type="button" class="date-preset-pill" data-preset="all">All Time</button>
+                    </div>
+
+                    <!-- Date Inputs Row -->
+                    <div class="date-inputs-row">
+                      <div class="date-input-group">
+                        <label for="filterStartDate">From</label>
+                        <input type="date" id="filterStartDate" class="date-field" />
+                      </div>
+                      <span class="date-range-arrow">&rarr;</span>
+                      <div class="date-input-group">
+                        <label for="filterEndDate">To</label>
+                        <input type="date" id="filterEndDate" class="date-field" />
+                      </div>
+                    </div>
+
+                    <!-- Mini Calendar Widget -->
+                    <div class="calendar-widget" id="calendarWidget">
+                      <div class="calendar-nav">
+                        <button type="button" id="calPrevMonth" class="cal-nav-btn" aria-label="Previous Month">&lsaquo;</button>
+                        <span id="calMonthYearLabel" class="cal-month-label">October 2026</span>
+                        <button type="button" id="calNextMonth" class="cal-nav-btn" aria-label="Next Month">&rsaquo;</button>
+                      </div>
+                      <div class="calendar-weekdays">
+                        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                      </div>
+                      <div class="calendar-days-grid" id="calendarDaysGrid">
+                        <!-- Populated by JS -->
+                      </div>
+                    </div>
+
+                    <!-- Popover Actions -->
+                    <div class="date-popover-footer">
+                      <button type="button" class="btn btn-outline btn-xs" id="resetDateFilterBtn">Reset (30d)</button>
+                      <div class="date-popover-btns-right">
+                        <button type="button" class="btn btn-text btn-xs" id="cancelDateFilterBtn">Cancel</button>
+                        <button type="button" class="btn btn-solid-brown btn-xs" id="applyDateFilterBtn">Apply Filter</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Top Chart Legend -->
+              <div class="trends-custom-legend">
+                <span class="legend-chip"><span class="chip-dot dot-green"></span> Accepted</span>
+                <span class="legend-chip"><span class="chip-dot dot-red"></span> Rejected</span>
+                <span class="legend-chip"><span class="chip-dot dot-amber"></span> Duplicates</span>
+              </div>
+
+              <div class="card-chart-body">
+                <div class="chart-container" style="position: relative; height: 230px; width: 100%;">
+                  <canvas id="qualityTrendsChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Record Distribution Donut Chart with Center Text -->
+            <div class="analytics-card distribution-card">
+              <div class="card-header-refined">
+                <div>
+                  <h3 class="card-heading-serif">Record Distribution</h3>
+                  <p class="card-desc-muted">All processed records</p>
+                </div>
+              </div>
+              <div class="distribution-body-flex">
+                <!-- Donut Canvas Container -->
+                <div class="donut-chart-wrapper">
+                  <canvas id="qualityDistributionChart"></canvas>
+                  <div class="donut-center-overlay">
+                    <div class="donut-big-number" id="donutTotalCount">0</div>
+                    <div class="donut-small-sub">Total Records</div>
+                  </div>
+                </div>
+                <!-- Right Legend Breakdown -->
+                <div class="donut-legend-column">
+                  <div class="donut-legend-item">
+                    <span class="donut-dot dot-green"></span>
+                    <div class="donut-item-text">
+                      <span class="donut-item-label">Accepted</span>
+                      <span class="donut-item-val" id="donutAcceptedText">0 (0.0%)</span>
+                    </div>
+                  </div>
+                  <div class="donut-legend-item">
+                    <span class="donut-dot dot-red"></span>
+                    <div class="donut-item-text">
+                      <span class="donut-item-label">Rejected</span>
+                      <span class="donut-item-val" id="donutRejectedText">0 (0.0%)</span>
+                    </div>
+                  </div>
+                  <div class="donut-legend-item">
+                    <span class="donut-dot dot-amber"></span>
+                    <div class="donut-item-text">
+                      <span class="donut-item-label">Duplicates</span>
+                      <span class="donut-item-val" id="donutDuplicatesText">0 (0.0%)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Dataset Breakdown Card -->
+            <div class="analytics-card breakdown-card">
+              <div class="card-header-refined">
+                <div>
+                  <h3 class="card-heading-serif">Dataset Breakdown</h3>
+                  <p class="card-desc-muted">Jobs by dataset type</p>
+                </div>
+              </div>
+              <div class="dataset-breakdown-list" id="datasetBreakdownContainer">
+                
+                <!-- Customers -->
+                <div class="dataset-item-row">
+                  <div class="dataset-item-header">
+                    <div class="dataset-icon-title">
+                      <div class="dataset-squircle squircle-brown">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                      </div>
+                      <span class="dataset-name">Customers</span>
+                    </div>
+                    <span class="dataset-count" id="datasetCountCustomers">0 jobs</span>
+                  </div>
+                  <div class="dataset-progress-track">
+                    <div class="dataset-progress-fill fill-brown" id="datasetBarCustomers" style="width: 0%;"></div>
+                  </div>
+                </div>
+
+                <!-- Sales -->
+                <div class="dataset-item-row">
+                  <div class="dataset-item-header">
+                    <div class="dataset-icon-title">
+                      <div class="dataset-squircle squircle-mint">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+                        </svg>
+                      </div>
+                      <span class="dataset-name">Sales</span>
+                    </div>
+                    <span class="dataset-count" id="datasetCountSales">0 jobs</span>
+                  </div>
+                  <div class="dataset-progress-track">
+                    <div class="dataset-progress-fill fill-tan" id="datasetBarSales" style="width: 0%;"></div>
+                  </div>
+                </div>
+
+                <!-- Inventory -->
+                <div class="dataset-item-row">
+                  <div class="dataset-item-header">
+                    <div class="dataset-icon-title">
+                      <div class="dataset-squircle squircle-orange">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>
+                        </svg>
+                      </div>
+                      <span class="dataset-name">Inventory</span>
+                    </div>
+                    <span class="dataset-count" id="datasetCountInventory">0 jobs</span>
+                  </div>
+                  <div class="dataset-progress-track">
+                    <div class="dataset-progress-fill fill-orange" id="datasetBarInventory" style="width: 0%;"></div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom Row: Recent Processing Jobs Table -->
+          <div class="card recent-jobs-card mt-4">
+            <div class="card-header-refined flex-between">
+              <div>
+                <h3 class="card-heading-serif">Recent Processing Jobs</h3>
+                <p class="card-desc-muted">Latest ETL pipeline executions</p>
+              </div>
+              <button class="btn-solid-brown" onclick="App.navigateTo('jobs')">
+                <span>View All Jobs</span>
+                <span class="arrow-right">&rarr;</span>
+              </button>
+            </div>
+            
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="data-table-warm">
+                  <thead>
+                    <tr>
+                      <th>Job ID</th>
+                      <th>Dataset</th>
+                      <th>File Name</th>
+                      <th>Records</th>
+                      <th>Accepted</th>
+                      <th>Rejected</th>
+                      <th>Duplicates</th>
+                      <th>Status</th>
+                      <th>Started At</th>
+                      <th class="text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentJobsTableBody">
+                    <tr><td colspan="10" class="text-center py-4 text-muted">No processing jobs recorded yet. Ingest a CSV to get started.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- =========================================================================
+             VIEW 2: IMPORT DATA
+             ========================================================================= -->
+        <section id="view-import" class="view-panel">
+          <div class="import-container">
+            <div class="card">
+              <div class="card-header-refined">
+                <div>
+                  <h3 class="card-heading-serif">Ingest CSV Dataset</h3>
+                  <p class="card-desc-muted">Select dataset schema, drag &amp; drop your file, and execute the automated ETL validation pipeline.</p>
+                </div>
+              </div>
+
+              <div class="card-body">
+                <form id="uploadForm" class="upload-form">
+                  <!-- Dataset Selector -->
+                  <div class="form-group">
+                    <label for="datasetSelect" class="form-label">Select Dataset Schema <span class="text-danger">*</span></label>
+                    <select id="datasetSelect" name="dataset_type" class="form-control" required>
+                      <option value="customers">Customers (customer_id, name, email, phone, created_at)</option>
+                      <option value="sales">Sales (sale_id, customer_id, amount, sale_date, currency)</option>
+                      <option value="inventory">Inventory (product_id, product_name, quantity, unit_price, updated_at)</option>
+                    </select>
+                  </div>
+
+                  <!-- Drop Zone -->
+                  <div class="drop-zone" id="dropZone">
+                    <div class="drop-icon">
+                      <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <p class="drop-title">Drag and drop your CSV file here, or <span class="drop-browse">browse files</span></p>
+                    <p class="drop-hint">Supports UTF-8 and UTF-8 BOM encoding. Max file size: 10 MB.</p>
+                    <input type="file" id="fileInput" name="file" accept=".csv" class="drop-input" required>
+                  </div>
+
+                  <!-- Selected File Preview -->
+                  <div id="fileSelectedInfo" class="file-info-bar d-none">
+                    <div class="file-info-left">
+                      <span class="file-icon">CSV</span>
+                      <div>
+                        <div id="selectedFileName" class="file-name">filename.csv</div>
+                        <div id="selectedFileSize" class="file-size">0 KB</div>
+                      </div>
+                    </div>
+                    <button type="button" id="removeFileBtn" class="btn btn-text text-danger" title="Remove file">&times;</button>
+                  </div>
+
+                  <!-- Upload Action Button -->
+                  <div class="form-actions mt-4">
+                    <button type="submit" id="submitUploadBtn" class="btn btn-solid-brown" disabled>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      <span>Run Ingestion Pipeline</span>
+                    </button>
+                  </div>
+                </form>
+
+                <!-- Processing Feedback Container -->
+                <div id="uploadFeedback" class="upload-feedback d-none mt-4"></div>
+              </div>
+            </div>
+
+            <!-- Dataset Schema Guidance Box -->
+            <div class="card mt-4">
+              <div class="card-header-refined">
+                <h4 class="card-heading-serif">Dataset Schema Specifications</h4>
+              </div>
+              <div class="card-body">
+                <div class="schema-grid">
+                  <div class="schema-box">
+                    <h5>Customers</h5>
+                    <ul>
+                      <li><code>customer_id</code>: Unique primary key (Required)</li>
+                      <li><code>name</code>: Full name, title-cased (Required)</li>
+                      <li><code>email</code>: Valid RFC email, lowercased (Required)</li>
+                      <li><code>phone</code>: Phone number (Optional)</li>
+                      <li><code>created_at</code>: ISO format YYYY-MM-DD (Required)</li>
+                    </ul>
+                  </div>
+                  <div class="schema-box">
+                    <h5>Sales</h5>
+                    <ul>
+                      <li><code>sale_id</code>: Unique primary key (Required)</li>
+                      <li><code>customer_id</code>: Associated Customer ID (Required)</li>
+                      <li><code>amount</code>: Non-negative float &ge; 0.0 (Required)</li>
+                      <li><code>sale_date</code>: ISO format YYYY-MM-DD (Required)</li>
+                      <li><code>currency</code>: USD, EUR, GBP, CAD, AUD, JPY, INR (Required)</li>
+                    </ul>
+                  </div>
+                  <div class="schema-box">
+                    <h5>Inventory</h5>
+                    <ul>
+                      <li><code>product_id</code>: Unique primary key (Required)</li>
+                      <li><code>product_name</code>: Product title (Required)</li>
+                      <li><code>quantity</code>: Non-negative integer &ge; 0 (Required)</li>
+                      <li><code>unit_price</code>: Non-negative float &ge; 0.0 (Required)</li>
+                      <li><code>updated_at</code>: ISO format YYYY-MM-DD (Required)</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 3: PROCESSING JOBS
+             ========================================================================= -->
+        <section id="view-jobs" class="view-panel">
+          <div class="card">
+            <div class="card-header-refined flex-between flex-wrap gap-2">
+              <div>
+                <h3 class="card-heading-serif">Processing Job History</h3>
+                <p class="card-desc-muted">Audit trail of all executed CSV imports and ETL transformations</p>
+              </div>
+
+              <!-- Filter Controls -->
+              <div class="filter-bar">
+                <input type="text" id="jobsSearchInput" class="form-control form-control-sm" placeholder="Search filename or ID...">
+                <select id="jobsDatasetFilter" class="form-control form-control-sm">
+                  <option value="">All Datasets</option>
+                  <option value="customers">Customers</option>
+                  <option value="sales">Sales</option>
+                  <option value="inventory">Inventory</option>
+                </select>
+                <select id="jobsStatusFilter" class="form-control form-control-sm">
+                  <option value="">All Statuses</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                  <option value="processing">Processing</option>
+                </select>
+                <button id="applyJobsFilterBtn" class="btn btn-secondary btn-sm">Filter</button>
+                <button id="clearJobsFilterBtn" class="btn btn-text btn-sm">Reset</button>
+              </div>
+            </div>
+
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="data-table-warm">
+                  <thead>
+                    <tr>
+                      <th>Job ID</th>
+                      <th>Filename</th>
+                      <th>Dataset</th>
+                      <th>Status</th>
+                      <th>Total Rows</th>
+                      <th>Accepted</th>
+                      <th>Rejected</th>
+                      <th>Duplicates</th>
+                      <th>Duration</th>
+                      <th>Date</th>
+                      <th class="text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="allJobsTableBody">
+                    <tr><td colspan="11" class="text-center py-4 text-muted">Loading jobs...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Pagination Footer -->
+            <div class="card-footer flex-between">
+              <div class="text-muted text-sm" id="jobsPaginationInfo">Showing 0 of 0</div>
+              <div class="pagination-controls" id="jobsPaginationControls"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 4: VALIDATION ERRORS
+             ========================================================================= -->
+        <section id="view-errors" class="view-panel">
+          <div class="card">
+            <div class="card-header-refined flex-between flex-wrap gap-2">
+              <div>
+                <h3 class="card-heading-serif">Data Validation Error Report</h3>
+                <p class="card-desc-muted">Detailed itemization of field-level rejections, invalid values, and duplicate detections</p>
+              </div>
+
+              <div class="filter-bar">
+                <input type="number" id="errorsJobIdFilter" class="form-control form-control-sm" placeholder="Job ID..." style="width: 100px;">
+                <input type="text" id="errorsFieldFilter" class="form-control form-control-sm" placeholder="Field name...">
+                <button id="applyErrorsFilterBtn" class="btn btn-secondary btn-sm">Filter</button>
+                <button id="clearErrorsFilterBtn" class="btn btn-text btn-sm">Reset</button>
+              </div>
+            </div>
+
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="data-table-warm">
+                  <thead>
+                    <tr>
+                      <th>Error ID</th>
+                      <th>Job ID</th>
+                      <th>CSV Row #</th>
+                      <th>Field</th>
+                      <th>Error Code</th>
+                      <th>Explanation</th>
+                      <th>Original Value</th>
+                      <th>Recorded At</th>
+                    </tr>
+                  </thead>
+                  <tbody id="errorsTableBody">
+                    <tr><td colspan="8" class="text-center py-4 text-muted">Loading validation errors...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card-footer flex-between">
+              <div class="text-muted text-sm" id="errorsPaginationInfo">Showing 0 of 0</div>
+              <div class="pagination-controls" id="errorsPaginationControls"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 5: CLEAN RECORDS BROWSER
+             ========================================================================= -->
+        <section id="view-records" class="view-panel">
+          <div class="card">
+            <div class="card-header-refined flex-between flex-wrap gap-2">
+              <div>
+                <h3 class="card-heading-serif">Clean Records Browser</h3>
+                <p class="card-desc-muted">Persisted business data verified against all quality rules</p>
+              </div>
+
+              <div class="records-header-controls">
+                <!-- Dataset Tabs -->
+                <div class="tab-group" id="recordsTabGroup">
+                  <button class="tab-btn active" data-dataset="customers">Customers</button>
+                  <button class="tab-btn" data-dataset="sales">Sales</button>
+                  <button class="tab-btn" data-dataset="inventory">Inventory</button>
+                </div>
+
+                <div class="filter-bar">
+                  <input type="text" id="recordsSearchInput" class="form-control form-control-sm" placeholder="Search clean records...">
+                  <button id="searchRecordsBtn" class="btn btn-secondary btn-sm">Search</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="data-table-warm" id="recordsTable">
+                  <thead id="recordsTableHead">
+                    <!-- Dynamic Headers based on dataset -->
+                  </thead>
+                  <tbody id="recordsTableBody">
+                    <tr><td colspan="6" class="text-center py-4 text-muted">Loading records...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card-footer flex-between">
+              <div class="text-muted text-sm" id="recordsPaginationInfo">Showing 0 of 0</div>
+              <div class="pagination-controls" id="recordsPaginationControls"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 6: DATA EXPLORER
+             ========================================================================= -->
+        <section id="view-explorer" class="view-panel">
+          <div class="card">
+            <div class="card-header-refined flex-between">
+              <div>
+                <h3 class="card-heading-serif">Data Explorer &amp; Schema Inspector</h3>
+                <p class="card-desc-muted">Interactive schema structure, table health metrics, and verified entity relationships</p>
+              </div>
+              <button class="btn btn-solid-brown btn-sm" onclick="App.navigateTo('records')">
+                Explore Clean Records &rarr;
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="schema-grid">
+                <div class="schema-box">
+                  <h5>Customers Table (`customers_clean`)</h5>
+                  <p class="text-sm text-muted mb-2">Entity: Core user profiles with RFC email standardization and ISO date stamps.</p>
+                  <ul>
+                    <li><code>customer_id</code> (VARCHAR PRIMARY KEY) &bull; Indexed</li>
+                    <li><code>name</code> (VARCHAR) &bull; Title-case normalized</li>
+                    <li><code>email</code> (VARCHAR) &bull; Lowercase RFC validated</li>
+                    <li><code>phone</code> (VARCHAR) &bull; Standardized format</li>
+                    <li><code>created_at</code> (DATE) &bull; ISO YYYY-MM-DD</li>
+                  </ul>
+                </div>
+                <div class="schema-box">
+                  <h5>Sales Table (`sales_clean`)</h5>
+                  <p class="text-sm text-muted mb-2">Entity: Commercial transactions normalized across standard currencies.</p>
+                  <ul>
+                    <li><code>sale_id</code> (VARCHAR PRIMARY KEY) &bull; Indexed</li>
+                    <li><code>customer_id</code> (VARCHAR) &bull; Foreign key relation</li>
+                    <li><code>amount</code> (DECIMAL) &bull; Non-negative float &ge; 0.0</li>
+                    <li><code>sale_date</code> (DATE) &bull; ISO format validated</li>
+                    <li><code>currency</code> (VARCHAR) &bull; USD, EUR, GBP, CAD, AUD, JPY, INR</li>
+                  </ul>
+                </div>
+                <div class="schema-box">
+                  <h5>Inventory Table (`inventory_clean`)</h5>
+                  <p class="text-sm text-muted mb-2">Entity: Stock ledger with unit pricing and inventory tracking.</p>
+                  <ul>
+                    <li><code>product_id</code> (VARCHAR PRIMARY KEY) &bull; Indexed</li>
+                    <li><code>product_name</code> (VARCHAR) &bull; Sanitized string</li>
+                    <li><code>quantity</code> (INTEGER) &bull; Non-negative integer &ge; 0</li>
+                    <li><code>unit_price</code> (DECIMAL) &bull; Non-negative float &ge; 0.0</li>
+                    <li><code>updated_at</code> (DATE) &bull; ISO format validated</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 7: REPORTS & DOWNLOADS
+             ========================================================================= -->
+        <section id="view-reports" class="view-panel">
+          <div class="card">
+            <div class="card-header-refined">
+              <h3 class="card-heading-serif">Reports &amp; Data Export Center</h3>
+              <p class="card-desc-muted">Export verified multi-sheet Excel (.xlsx) workbooks and clean CSV datasets</p>
+            </div>
+            <div class="card-body">
+              <div class="schema-grid">
+                <div class="schema-box">
+                  <h5>Excel Executive Workbooks (.xlsx)</h5>
+                  <p class="text-sm text-muted mb-3">Download comprehensive, formatted workbooks containing Job Summary, Clean Records, and Validation Errors worksheets with frozen panes and formula calculations.</p>
+                  <button class="btn btn-outline-primary btn-sm" onclick="App.navigateTo('jobs')">
+                    Select a Job from History &rarr;
+                  </button>
+                </div>
+                <div class="schema-box">
+                  <h5>Clean CSV Exports</h5>
+                  <p class="text-sm text-muted mb-3">Extract sanitized datasets ready for machine learning pipelines, warehouse staging, or downstream business intelligence.</p>
+                  <button class="btn btn-outline-success btn-sm" onclick="App.navigateTo('records')">
+                    Browse Clean Datasets &rarr;
+                  </button>
+                </div>
+                <div class="schema-box">
+                  <h5>Validation Error Logs</h5>
+                  <p class="text-sm text-muted mb-3">Auditable CSV discrepancy reports with row numbers, error codes, and original rejected inputs for data supplier feedback.</p>
+                  <button class="btn btn-outline-danger btn-sm" onclick="App.navigateTo('errors')">
+                    View Error Logs &rarr;
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 8: DOCUMENTATION
+             ========================================================================= -->
+        <section id="view-docs" class="view-panel">
+          <div class="docs-container">
+            <div class="card">
+              <div class="card-header-refined">
+                <h3 class="card-heading-serif">Edvexa Platform Architecture &amp; Governance Rules</h3>
+              </div>
+              <div class="card-body docs-body">
+                <h4>1. Accounting &amp; Mutual-Exclusion Rule</h4>
+                <p>Every single record ingested is deterministically classified into exactly one category:</p>
+                <div class="formula-box">
+                  <code>total_rows = accepted_rows + rejected_rows + duplicate_rows + skipped_rows</code>
+                </div>
+                <ul>
+                  <li><strong>Accepted:</strong> Passed all schema and business validations; inserted into clean tables.</li>
+                  <li><strong>Rejected:</strong> Failed one or more field-level checks (e.g. missing required field, bad email, unparseable date, negative price).</li>
+                  <li><strong>Duplicate:</strong> Valid syntax, but the unique business key was seen earlier in the file or exists already in clean records.</li>
+                  <li><strong>Skipped:</strong> Safe bypass if an entire identical file run is audited according to policy.</li>
+                </ul>
+
+                <h4>2. Idempotency &amp; Repeat Upload Policy</h4>
+                <p>
+                  Each uploaded CSV is hashed via <strong>SHA-256</strong>. If the same file is submitted multiple times:
+                </p>
+                <ul>
+                  <li>An audit record is created for historical transparency.</li>
+                  <li>Existing primary keys in the database are recognized and accounted for as <strong>duplicate_rows</strong>.</li>
+                  <li>No duplicate rows are ever inserted into clean tables.</li>
+                  <li>Clean records remain pristine and unmodified.</li>
+                </ul>
+
+                <h4>3. Field Validation Specifications</h4>
+                <div class="table-responsive mt-3">
+                  <table class="data-table-warm">
+                    <thead>
+                      <tr><th>Dataset</th><th>Field</th><th>Validation Rule</th><th>Rejection Code</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td>Customers</td><td>customer_id</td><td>Required, non-blank string</td><td><code>MISSING_REQUIRED_FIELD</code></td></tr>
+                      <tr><td>Customers</td><td>name</td><td>Required, trimmed, title-cased</td><td><code>MISSING_REQUIRED_FIELD</code></td></tr>
+                      <tr><td>Customers</td><td>email</td><td>Required, valid RFC format, lowercase</td><td><code>INVALID_EMAIL_FORMAT</code></td></tr>
+                      <tr><td>Customers</td><td>created_at</td><td>Required, valid ISO YYYY-MM-DD</td><td><code>INVALID_DATE_FORMAT</code></td></tr>
+                      <tr><td>Sales</td><td>sale_id</td><td>Required primary key</td><td><code>MISSING_REQUIRED_FIELD</code></td></tr>
+                      <tr><td>Sales</td><td>amount</td><td>Required numeric float &ge; 0.0</td><td><code>NEGATIVE_VALUE</code> / <code>INVALID_NUMERIC_VALUE</code></td></tr>
+                      <tr><td>Sales</td><td>currency</td><td>Must be USD, EUR, GBP, CAD, AUD, JPY, INR</td><td><code>INVALID_CURRENCY</code></td></tr>
+                      <tr><td>Inventory</td><td>quantity</td><td>Required integer &ge; 0</td><td><code>NEGATIVE_VALUE</code> / <code>INVALID_NUMERIC_VALUE</code></td></tr>
+                      <tr><td>Inventory</td><td>unit_price</td><td>Required float &ge; 0.0</td><td><code>NEGATIVE_VALUE</code> / <code>INVALID_NUMERIC_VALUE</code></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <h4>4. Interactive OpenAPI Swagger Documentation</h4>
+                <p>Explore and execute live REST API queries via the built-in Swagger UI:</p>
+                <a href="/docs" target="_blank" class="btn btn-solid-brown btn-sm mt-2">Open Swagger Docs (/docs) &rarr;</a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW 9: SETTINGS
+             ========================================================================= -->
+        <section id="view-settings" class="view-panel">
+          <div class="card">
+            <div class="card-header-refined">
+              <h3 class="card-heading-serif">Platform Settings &amp; Configuration</h3>
+              <p class="card-desc-muted">Application environment, storage quotas, and pipeline runtime parameters</p>
+            </div>
+            <div class="card-body">
+              <div class="schema-grid">
+                <div class="schema-box">
+                  <h5>Database Connection</h5>
+                  <p class="text-sm text-muted">Driver: SQLite 3 with WAL journal mode</p>
+                  <p class="text-sm">Database file: <code>edvexa_data.db</code></p>
+                  <p class="text-sm text-success mt-2 font-bold">&bull; Status: Healthy &amp; Connected</p>
+                </div>
+                <div class="schema-box">
+                  <h5>File Staging Engine</h5>
+                  <p class="text-sm text-muted">Storage: <code>uploads_storage/</code></p>
+                  <p class="text-sm">Hash Algorithm: SHA-256 Checksum</p>
+                  <p class="text-sm">Allowed Encoding: UTF-8, UTF-8-SIG (BOM)</p>
+                </div>
+                <div class="schema-box">
+                  <h5>Report Generation</h5>
+                  <p class="text-sm text-muted">Workbook Engine: OpenPyXL 3.1.5</p>
+                  <p class="text-sm">Supported Export Formats: .xlsx, .csv</p>
+                  <p class="text-sm text-muted mt-2">Strict RFC-4180 Escaping &amp; Formula Sanitization</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       JOB DETAIL MODAL
+       ========================================================================= -->
+  <div id="jobDetailModal" class="modal-backdrop d-none">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title card-heading-serif" id="modalJobTitle">Job Details</h3>
+          <span class="text-sm text-muted" id="modalJobSubtitle">Job ID: #0</span>
+        </div>
+        <button id="closeModalBtn" class="btn btn-text text-lg">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Job Meta Metrics -->
+        <div class="modal-metric-grid" id="modalMetricsGrid">
+          <div class="modal-metric-item">
+            <span class="label">Status</span>
+            <span class="value" id="modalStatus">-</span>
+          </div>
+          <div class="modal-metric-item">
+            <span class="label">Total Rows</span>
+            <span class="value" id="modalTotal">-</span>
+          </div>
+          <div class="modal-metric-item">
+            <span class="label">Accepted</span>
+            <span class="value text-success" id="modalAccepted">-</span>
+          </div>
+          <div class="modal-metric-item">
+            <span class="label">Rejected</span>
+            <span class="value text-danger" id="modalRejected">-</span>
+          </div>
+          <div class="modal-metric-item">
+            <span class="label">Duplicates</span>
+            <span class="value text-warning" id="modalDuplicates">-</span>
+          </div>
+          <div class="modal-metric-item">
+            <span class="label">Duration</span>
+            <span class="value" id="modalDuration">-</span>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <h4 class="text-xs font-bold text-muted mb-1 uppercase tracking-wide">SHA-256 Checksum</h4>
+          <code id="modalFileHash" class="hash-display">hash</code>
+        </div>
+
+        <!-- Download Job Artifacts -->
+        <div class="mt-4 p-3 download-artifacts-card">
+          <div class="flex-between mb-2">
+            <h4 class="text-sm font-bold d-flex align-items-center gap-2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Export &amp; Download Job Artifacts</span>
+            </h4>
+            <span class="text-xs text-muted" id="modalDownloadHelp">Job-isolated artifacts</span>
+          </div>
+          <div class="download-btn-group">
+            <button id="modalDownloadCleanBtn" class="btn btn-outline-success btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Clean Records (CSV)</span>
+            </button>
+            <button id="modalDownloadErrorsBtn" class="btn btn-outline-danger btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Validation Errors (CSV)</span>
+            </button>
+            <button id="modalDownloadSummaryBtn" class="btn btn-outline-primary btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Excel Report (.xlsx)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Validation Errors for this job -->
+        <div class="mt-4">
+          <div class="flex-between mb-2">
+            <h4 class="text-sm font-bold">Validation Errors (<span id="modalErrorCount">0</span>)</h4>
+          </div>
+          <div class="table-responsive modal-error-table-container">
+            <table class="data-table-warm">
+              <thead>
+                <tr>
+                  <th>Row #</th>
+                  <th>Field</th>
+                  <th>Code</th>
+                  <th>Error Message</th>
+                  <th>Original Value</th>
+                </tr>
+              </thead>
+              <tbody id="modalErrorsTableBody">
+                <tr><td colspan="5" class="text-center py-3 text-muted">No errors in this job.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer flex-between">
+        <button id="reprocessJobBtn" class="btn btn-secondary btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+          <span>Reprocess Job</span>
+        </button>
+        <button id="dismissModalBtn" class="btn btn-solid-brown btn-sm">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Safety Confirmation Modal for Destructive Data Reset -->
+  <div id="resetConfirmModal" class="modal-backdrop d-none" role="dialog" aria-modal="true" aria-labelledby="resetModalTitle">
+    <div class="modal-card modal-card-sm">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-2">
+          <div class="kpi-icon-squircle squircle-red" style="width: 32px; height: 32px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="modal-title" id="resetModalTitle">Permanently Delete All Uploaded Data</h3>
+            <span class="text-xs text-muted">Slide-to-Reset Confirmation</span>
+          </div>
+        </div>
+        <button id="closeResetModalBtn" class="btn btn-text text-lg" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="reset-destructive-warning p-3 mb-3" style="background-color: rgba(217, 83, 79, 0.08); border: 1px solid rgba(217, 83, 79, 0.3); border-radius: var(--radius-md);">
+          <div class="d-flex align-items-center gap-2 mb-2 text-danger font-bold text-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Irreversible Destructive Action</span>
+          </div>
+          <p class="text-xs mb-1" style="line-height: 1.5;">
+            This will permanently delete all uploaded datasets (customers, sales, inventory), processing jobs, clean records, validation errors, and stored CSV files.
+          </p>
+        </div>
+
+        <div class="reset-safety-notice mt-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span><strong>Safety Guarantee:</strong> Database schema, SQLite structure, system code, and platform configuration remain strictly intact.</span>
+        </div>
+      </div>
+
+      <div class="modal-footer flex-between">
+        <button id="cancelResetBtn" class="btn btn-secondary btn-sm">Cancel</button>
+        <button id="confirmResetBtn" class="btn btn-outline-danger btn-sm font-bold" style="background-color: var(--danger); color: #FFFFFF; border-color: var(--danger);">
+          <span>Confirm Delete All Imported Data</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Quality Score Methodology Modal -->
+  <div id="qualityScoreModal" class="modal-backdrop d-none" role="dialog" aria-modal="true" aria-labelledby="scoreModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-2">
+          <div class="kpi-icon-squircle squircle-teal" style="width: 34px; height: 34px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="modal-title" id="scoreModalTitle">Data Quality Score Methodology</h3>
+            <span class="text-xs text-muted">Standard Invariant Quality Rating Calculation</span>
+          </div>
+        </div>
+        <button id="closeScoreModalBtn" class="btn btn-text text-lg" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Big Score Display -->
+        <div class="score-summary-banner">
+          <div>
+            <span class="text-xs text-muted uppercase tracking-wider font-bold">Current Quality Pass Score</span>
+            <div class="score-modal-big" id="scoreModalBigNumber">99.8%</div>
+          </div>
+          <div class="score-status-badge badge-teal">
+            <span>&check; Enterprise Grade A+</span>
+          </div>
+        </div>
+
+        <!-- Formula Callout -->
+        <div class="methodology-formula-card mt-3">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-muted mb-2">Calculation Formula</h4>
+          <div class="formula-box">
+            <code>Quality Score = [ Accepted Records &divide; Total Records Ingested ] &times; 100%</code>
+          </div>
+          <p class="text-xs text-muted mt-2">
+            Measures the percentage of clean, schema-compliant rows ingested against all attempted data rows that passed initial parsing.
+          </p>
+        </div>
+
+        <!-- Accounting Invariant Callout -->
+        <div class="accounting-invariant-card mt-3">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-muted mb-2">Edvexa Accounting Invariant</h4>
+          <div class="formula-box-neutral">
+            <code>Total Ingested = Accepted Records + Validation Rejections + Duplicate Keys + Skipped Rows</code>
+          </div>
+          <p class="text-xs text-muted mt-2">
+            Every row processed by Edvexa must be strictly accounted for in exactly one category. Zero phantom records, zero silent drops.
+          </p>
+        </div>
+
+        <!-- Live Metrics Breakdown -->
+        <div class="mt-3">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-muted mb-2">Live Verification Telemetry</h4>
+          <div class="score-metric-grid">
+            <div class="score-metric-cell">
+              <span class="cell-label">Total Records</span>
+              <span class="cell-value" id="scoreModalTotal">0</span>
+            </div>
+            <div class="score-metric-cell text-success">
+              <span class="cell-label">Accepted</span>
+              <span class="cell-value" id="scoreModalAccepted">0</span>
+            </div>
+            <div class="score-metric-cell text-danger">
+              <span class="cell-label">Rejections</span>
+              <span class="cell-value" id="scoreModalRejected">0</span>
+            </div>
+            <div class="score-metric-cell text-warning">
+              <span class="cell-label">Duplicates</span>
+              <span class="cell-value" id="scoreModalDuplicates">0</span>
+            </div>
+          </div>
+          <div class="invariant-check-row mt-2">
+            <span class="text-xs text-muted">Invariant Status:</span>
+            <span class="badge-success text-xs font-bold" id="scoreModalInvariant">&check; Strict Accounting Verified (100% Accounted)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer flex-between">
+        <span class="text-xs text-muted">Edvexa SQLite Engine &bull; Verified Invariant</span>
+        <button id="dismissScoreModalBtn" class="btn btn-solid-brown btn-sm">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js?v=2.4"></script>
+  <script src="/static/js/dashboard.js?v=2.4"></script>
+</body>
+</html>

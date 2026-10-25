@@ -1,0 +1,6 @@
+product_id,product_name,quantity,unit_price,updated_at
+PROD101,Keyboard,10,899.00,2026-10-20
+PROD102,Broken Quantity,-5,199.00,2026-10-20
+PROD103,Bad Price,7,-20,2026-10-21
+PROD104,,4,99,2026-10-21
+PROD101,Duplicate Product,8,499,2026-10-22

@@ -1,0 +1,4 @@
+product_id,product_name,quantity,unit_price,updated_at
+PROD001,  Wireless Mouse ,25,599.00,2026-10-20
+PROD002,USB-C Cable,100,249.50,2026-10-21
+PROD003,Laptop Stand,12,1199.00,2026-10-22
