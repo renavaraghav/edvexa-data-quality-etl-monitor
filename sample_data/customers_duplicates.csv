@@ -1,0 +1,3 @@
+customer_id,name,email,phone,created_at
+CUST-001,  alexander pierce  ,ALEX.PIERCE@EXAMPLE.COM,+1-555-0101,2024-01-15
+CUST-001,Alexander Duplicate,alex.duplicate@example.com,555-9999,2024-01-16

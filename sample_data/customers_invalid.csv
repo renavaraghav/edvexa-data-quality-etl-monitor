@@ -1,0 +1,8 @@
+customer_id,name,email,phone,created_at
+CUST-006,Brian BadEmail,plainaddress,555-0106,2024-01-20
+CUST-007,Clara MissingAt,clara.example.com,555-0107,2024-01-22
+,Missing ID User,noid@example.com,555-0108,2024-01-25
+CUST-008,,noname@example.com,555-0109,2024-01-26
+CUST-009,Missing Email User,,555-0110,2024-01-27
+CUST-010,Felix LeapDayInvalid,felix@leap.com,555-0111,2023-02-29
+CUST-011,George BadDateString,george@baddate.com,555-0112,not-a-date

@@ -276,7 +276,7 @@ To maintain 100% technical integrity and transparency as requested in the assign
 - [x] In-file duplicate keys are rejected.
 - [x] Database pre-existing duplicate keys are rejected.
 - [x] Repeated uploads of identical files are audited without duplicating clean data.
-- [x] All 61 automated unit, integration, and API tests pass.
+- [x] All 65 automated unit, integration, and API tests pass.
 - [x] Interactive UI with KPI cards, Chart.js trends, jobs table, error logs, and records browser is fully connected to the live backend.
 - [x] Job-scoped Clean Records (CSV) download endpoint (`GET /api/jobs/{id}/download/clean`) with correct headers, dataset columns, CSV escaping, and HTTP 400 when 0 accepted rows.
 - [x] Job-scoped Validation Errors (CSV) download endpoint (`GET /api/jobs/{id}/download/errors`) with error tracking metadata, CSV escaping, and HTTP 400 when 0 errors.

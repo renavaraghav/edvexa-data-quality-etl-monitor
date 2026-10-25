@@ -1,4 +1,6 @@
 product_id,product_name,quantity,unit_price,updated_at
-PROD001,  Wireless Mouse ,25,599.00,2026-10-20
-PROD002,USB-C Cable,100,249.50,2026-10-21
-PROD003,Laptop Stand,12,1199.00,2026-10-22
+PROD-5001,  ultrawide 34-inch monitor  ,45,499.99,2024-03-01
+PROD-5002,Ergonomic Mechanical Keyboard,120,89.50,2024-03-02
+PROD-5003,Precision Wireless Mouse,250,45.00,03/05/2024
+PROD-5004,USB-C Dual 4K Docking Station,30,159.00,2024-03-10
+PROD-5005,Noise Cancelling Headphones,65,199.95,2024-03-12

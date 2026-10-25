@@ -1,4 +1,6 @@
 customer_id,name,email,phone,created_at
-CUST001,  RAHUL SHARMA ,RAHUL@example.com,9876543210,2026-10-01
-CUST002,Priya Singh,priya@example.com,9876501234,2026-10-02
-CUST003,Aman Kumar,aman@example.com,9123456780,2026-10-03
+CUST-001,  alexander pierce  ,ALEX.PIERCE@EXAMPLE.COM,+1-555-0101,2024-01-15
+CUST-002,Elena Rostova,elena.rostova@acme.org,555-0102,02/18/2024
+CUST-003,Marcus Aurelius Vance,m.vance@rome.io,+44-20-7946-0919,2023-11-30
+CUST-004,Sophia Lin,sophia.lin@techcorp.com,,2024-03-01
+CUST-005,David Kim,dkim@startup.co,555-0199,2024-02-14

@@ -1,0 +1,7 @@
+product_id,product_name,quantity,unit_price,updated_at
+PROD-5006,Defective Stock,-5,20.00,2024-03-14
+PROD-5007,Zero Worth Item,10,-50.00,2024-03-15
+PROD-5008,Fractional Box,12.75,15.00,2024-03-16
+,Nameless Product,50,10.00,2024-03-17
+PROD-5009,,100,5.00,2024-03-18
+PROD-5010,Time Traveler Hardware,10,100.00,2024-99-99

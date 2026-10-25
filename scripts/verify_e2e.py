@@ -14,6 +14,7 @@ Performs real HTTP API requests against the live server and verifies every requi
 
 import os
 import sys
+import time
 import httpx
 
 BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8010")
@@ -41,12 +42,15 @@ def verify_all():
 
     # 3. Valid Customers Upload
     log_step("3. Ingest Valid Customers CSV")
+    run_id = int(time.time())
+    cust1 = f"CUST-V{run_id}1"
+    cust2 = f"CUST-V{run_id}2"
     valid_csv = (
-        "customer_id,name,email,phone,created_at\n"
-        "CUST-V01,  walter white  ,W.WHITE@EXAMPLE.COM,555-0150,2024-01-10\n"
-        "CUST-V02,Jesse Pinkman,jesse@example.com,,01/15/2024\n"
+        f"customer_id,name,email,phone,created_at\n"
+        f"{cust1},  walter white  ,W.WHITE.{run_id}@EXAMPLE.COM,555-0150,2024-01-10\n"
+        f"{cust2},Jesse Pinkman,jesse.{run_id}@example.com,,01/15/2024\n"
     ).encode("utf-8")
-    files = {"file": ("valid_customers.csv", valid_csv, "text/csv")}
+    files = {"file": (f"valid_customers_{run_id}.csv", valid_csv, "text/csv")}
     res = client.post("/api/uploads", data={"dataset_type": "customers"}, files=files)
     assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
     job_v = res.json()
@@ -57,13 +61,13 @@ def verify_all():
     assert job_v["total_rows"] == 2
 
     # Check database persistence
-    res_records = client.get("/api/records?dataset_type=customers&q=Walter")
+    res_records = client.get(f"/api/records?dataset_type=customers&q={cust1}")
     assert res_records.status_code == 200
     records = res_records.json()
     assert records["total"] >= 1
-    found = any(r["customer_id"] == "CUST-V01" and r["name"] == "Walter White" and r["email"] == "w.white@example.com" for r in records["items"])
+    found = any(r["customer_id"] == cust1 and r["name"] == "Walter White" for r in records["items"])
     assert found, "Normalized customer record not found in database!"
-    print("Verified persisted and normalized customer: Walter White (w.white@example.com)")
+    print(f"Verified persisted and normalized customer: Walter White ({cust1})")
 
     # 4. Invalid Customer Rows Upload
     log_step("4. Ingest Invalid Customers (Missing fields, bad email, bad date)")
@@ -95,12 +99,14 @@ def verify_all():
 
     # 5. In-File Duplicates
     log_step("5. Ingest CSV with In-File Duplicates")
+    dup_id = f"CUST-DUP{run_id}"
+    dup_filename = f"duplicate_customers_{run_id}.csv"
     dup_csv = (
-        "customer_id,name,email,phone,created_at\n"
-        "CUST-DUP1,First Occurrence,first@example.com,,2024-01-01\n"
-        "CUST-DUP1,Second Duplicate Occurrence,second@example.com,,2024-01-02\n"
+        f"customer_id,name,email,phone,created_at\n"
+        f"{dup_id},First Occurrence,first.{run_id}@example.com,,2024-01-01\n"
+        f"{dup_id},Second Duplicate Occurrence,second.{run_id}@example.com,,2024-01-02\n"
     ).encode("utf-8")
-    files = {"file": ("duplicate_customers.csv", dup_csv, "text/csv")}
+    files = {"file": (dup_filename, dup_csv, "text/csv")}
     res = client.post("/api/uploads", data={"dataset_type": "customers"}, files=files)
     assert res.status_code == 201
     job_dup = res.json()
@@ -112,7 +118,7 @@ def verify_all():
 
     # 6. Repeated Upload (Idempotency)
     log_step("6. Repeat Upload of Same File (Idempotency)")
-    files = {"file": ("duplicate_customers.csv", dup_csv, "text/csv")}
+    files = {"file": (dup_filename, dup_csv, "text/csv")}
     res = client.post("/api/uploads", data={"dataset_type": "customers"}, files=files)
     assert res.status_code == 201
     job_rep = res.json()

@@ -52,6 +52,28 @@ def generate_customers_csv():
 
     print(f"[OK] Generated {customers_path} ({len(rows)} records)")
 
+    # Also generate specialized test sets
+    valid_path = SAMPLE_DATA_DIR / "customers_valid.csv"
+    with open(valid_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows[:5])
+    print(f"[OK] Generated {valid_path} (5 clean valid records)")
+
+    invalid_path = SAMPLE_DATA_DIR / "customers_invalid.csv"
+    with open(invalid_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows[6:])
+    print(f"[OK] Generated {invalid_path} (7 invalid records)")
+
+    dup_path = SAMPLE_DATA_DIR / "customers_duplicates.csv"
+    with open(dup_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows([rows[0], rows[5]])  # CUST-001 repeated
+    print(f"[OK] Generated {dup_path} (2 records with duplicate key CUST-001)")
+
 def generate_sales_csv():
     sales_path = SAMPLE_DATA_DIR / "sales.csv"
     headers = ["sale_id", "customer_id", "amount", "sale_date", "currency"]
@@ -90,6 +112,20 @@ def generate_sales_csv():
 
     print(f"[OK] Generated {sales_path} ({len(rows)} records)")
 
+    valid_sales_path = SAMPLE_DATA_DIR / "sales_valid.csv"
+    with open(valid_sales_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows[:5])
+    print(f"[OK] Generated {valid_sales_path} (5 clean valid records)")
+
+    invalid_sales_path = SAMPLE_DATA_DIR / "sales_invalid.csv"
+    with open(invalid_sales_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows[6:])
+    print(f"[OK] Generated {invalid_sales_path} (6 invalid records)")
+
 def generate_inventory_csv():
     inventory_path = SAMPLE_DATA_DIR / "inventory.csv"
     headers = ["product_id", "product_name", "quantity", "unit_price", "updated_at"]
@@ -125,6 +161,20 @@ def generate_inventory_csv():
         writer.writerows(rows)
 
     print(f"[OK] Generated {inventory_path} ({len(rows)} records)")
+
+    valid_inv_path = SAMPLE_DATA_DIR / "inventory_valid.csv"
+    with open(valid_inv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows[:5])
+    print(f"[OK] Generated {valid_inv_path} (5 clean valid records)")
+
+    invalid_inv_path = SAMPLE_DATA_DIR / "inventory_invalid.csv"
+    with open(invalid_inv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows[6:])
+    print(f"[OK] Generated {invalid_inv_path} (6 invalid records)")
 
 if __name__ == "__main__":
     generate_customers_csv()
