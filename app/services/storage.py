@@ -2,7 +2,7 @@
 Storage Abstraction Layer for EDVEXA Platform.
 Provides unified, interchangeable storage interfaces for:
 - Local Filesystem (development, tests, Windows local)
-- Cloudflare R2 S3-Compatible Object Storage (production persistent uploads)
+- Neon Object Storage / S3-Compatible Storage (production persistent uploads)
 """
 
 import logging
@@ -122,45 +122,62 @@ class LocalStorageBackend(StorageBackend):
         return removed
 
 
-class R2StorageBackend(StorageBackend):
-    """Cloudflare R2 S3-compatible persistent object storage."""
+class NeonObjectStorageBackend(StorageBackend):
+    """
+    S3-compatible persistent object storage for Neon Object Storage,
+    Cloudflare R2, or AWS S3.
+    """
 
     def __init__(
         self,
-        account_id: str | None = None,
         bucket_name: str | None = None,
         access_key_id: str | None = None,
         secret_access_key: str | None = None,
         endpoint_url: str | None = None,
+        region_name: str | None = None,
+        account_id: str | None = None,
+        **kwargs: Any,
     ):
         import boto3
         from botocore.config import Config
 
-        self.bucket_name = bucket_name or settings.R2_BUCKET_NAME
+        self.bucket_name = bucket_name or settings.S3_BUCKET_NAME or settings.R2_BUCKET_NAME
+        self.access_key = access_key_id or settings.S3_ACCESS_KEY_ID or settings.R2_ACCESS_KEY_ID
+        self.secret_key = secret_access_key or settings.S3_SECRET_ACCESS_KEY or settings.R2_SECRET_ACCESS_KEY
         self.account_id = account_id or settings.R2_ACCOUNT_ID
-        self.access_key = access_key_id or settings.R2_ACCESS_KEY_ID
-        self.secret_key = secret_access_key or settings.R2_SECRET_ACCESS_KEY
-        self.endpoint_url = endpoint_url or settings.effective_r2_endpoint
+
+        derived_endpoint = endpoint_url or settings.effective_s3_endpoint
+        if not derived_endpoint and self.account_id:
+            derived_endpoint = f"https://{self.account_id.strip()}.r2.cloudflarestorage.com"
+        self.endpoint_url = derived_endpoint
+
+        self.region_name = (
+            region_name
+            or settings.S3_REGION_NAME
+            or ("auto" if self.account_id else "ap-southeast-1")
+        )
 
         if not self.bucket_name:
-            raise ValueError("R2_BUCKET_NAME must be configured for R2StorageBackend.")
+            raise ValueError("S3_BUCKET_NAME or NEON_STORAGE_BUCKET_NAME must be configured for NeonObjectStorageBackend.")
         if not self.endpoint_url:
-            raise ValueError("R2 endpoint URL or R2_ACCOUNT_ID must be provided.")
+            raise ValueError("S3 endpoint URL or NEON_STORAGE_ENDPOINT must be provided.")
 
         self.s3_client = boto3.client(
             service_name="s3",
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self.access_key,
             aws_secret_access_key=self.secret_key,
-            region_name="auto",  # Cloudflare R2 standard region
+            region_name=self.region_name,
             config=Config(signature_version="s3v4"),
         )
-        logger.info(f"[R2Storage] Initialized for bucket '{self.bucket_name}' at {self.endpoint_url}")
+        logger.info(
+            f"[NeonObjectStorage] Initialized for bucket '{self.bucket_name}' at {self.endpoint_url} (region: {self.region_name})"
+        )
 
     def _sanitize_key(self, key: str) -> str:
         """Strip directory traversals and normalize object key."""
         clean = Path(key).name
-        # Store uploads under 'uploads/' namespace in R2
+        # Store uploads under 'uploads/' namespace in S3/Neon bucket
         return f"uploads/{clean}"
 
     def save(self, key: str, content: bytes, content_type: str = "text/csv") -> str:
@@ -172,7 +189,7 @@ class R2StorageBackend(StorageBackend):
                 Body=content,
                 ContentType=content_type,
             )
-            logger.info(f"[R2Storage] Uploaded {len(content)} bytes to s3://{self.bucket_name}/{obj_key}")
+            logger.info(f"[NeonObjectStorage] Uploaded {len(content)} bytes to s3://{self.bucket_name}/{obj_key}")
             # Also keep a local cache in UPLOADS_DIR if writable for fast local access
             try:
                 local_cache = settings.UPLOADS_DIR / Path(key).name
@@ -182,8 +199,8 @@ class R2StorageBackend(StorageBackend):
                 pass
             return Path(key).name
         except Exception as e:
-            logger.error(f"[R2Storage] Failed to upload {obj_key}: {e}")
-            raise RuntimeError(f"Cloudflare R2 storage write failure: {e}")
+            logger.error(f"[NeonObjectStorage] Failed to upload {obj_key}: {e}")
+            raise RuntimeError(f"Neon Object Storage write failure: {e}")
 
     def get(self, key: str) -> bytes:
         # Check local cache first
@@ -206,11 +223,11 @@ class R2StorageBackend(StorageBackend):
             except Exception:
                 pass
             return data
-        except self.s3_client.exceptions.NoSuchKey:
-            raise FileNotFoundError(f"Object '{obj_key}' not found in R2 bucket '{self.bucket_name}'.")
+        except getattr(self.s3_client.exceptions, "NoSuchKey", Exception):
+            raise FileNotFoundError(f"Object '{obj_key}' not found in bucket '{self.bucket_name}'.")
         except Exception as e:
-            logger.error(f"[R2Storage] Failed to read {obj_key}: {e}")
-            raise FileNotFoundError(f"Error reading '{obj_key}' from R2: {e}")
+            logger.error(f"[NeonObjectStorage] Failed to read {obj_key}: {e}")
+            raise FileNotFoundError(f"Error reading '{obj_key}' from object storage: {e}")
 
     def delete(self, key: str) -> bool:
         obj_key = self._sanitize_key(key)
@@ -224,10 +241,10 @@ class R2StorageBackend(StorageBackend):
 
         try:
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=obj_key)
-            logger.info(f"[R2Storage] Deleted s3://{self.bucket_name}/{obj_key}")
+            logger.info(f"[NeonObjectStorage] Deleted s3://{self.bucket_name}/{obj_key}")
             return True
         except Exception as e:
-            logger.error(f"[R2Storage] Failed to delete {obj_key}: {e}")
+            logger.error(f"[NeonObjectStorage] Failed to delete {obj_key}: {e}")
             return False
 
     def exists(self, key: str) -> bool:
@@ -253,7 +270,7 @@ class R2StorageBackend(StorageBackend):
                         keys.append(k)
             return keys
         except Exception as e:
-            logger.error(f"[R2Storage] Error listing keys: {e}")
+            logger.error(f"[NeonObjectStorage] Error listing keys: {e}")
             return []
 
     def clear_all(self) -> int:
@@ -265,8 +282,13 @@ class R2StorageBackend(StorageBackend):
                     removed += 1
             return removed
         except Exception as e:
-            logger.error(f"[R2Storage] Error clearing all objects: {e}")
+            logger.error(f"[NeonObjectStorage] Error clearing all objects: {e}")
             return removed
+
+
+# Backwards-compatibility aliases
+S3StorageBackend = NeonObjectStorageBackend
+R2StorageBackend = NeonObjectStorageBackend
 
 
 _storage_instance: StorageBackend | None = None
@@ -275,25 +297,66 @@ _storage_instance: StorageBackend | None = None
 def get_storage() -> StorageBackend:
     """
     Factory function returning the active storage backend.
-    Uses Cloudflare R2 if STORAGE_BACKEND == 'r2' and credentials are configured;
+    Uses Neon Object Storage (or S3-compatible backend) if
+    STORAGE_BACKEND in ('neon', 's3', 'r2') and credentials are configured;
     otherwise safely defaults to LocalStorageBackend.
     """
     global _storage_instance
     if _storage_instance is not None:
         return _storage_instance
 
-    if settings.STORAGE_BACKEND == "r2":
-        if settings.is_r2_configured:
+    backend_type = settings.STORAGE_BACKEND.lower()
+    if backend_type in ("neon", "s3", "r2"):
+        if settings.is_s3_configured:
             try:
-                _storage_instance = R2StorageBackend()
+                _storage_instance = NeonObjectStorageBackend()
                 return _storage_instance
             except Exception as e:
-                logger.error(f"Failed to initialize R2 storage backend: {e}. Falling back to local storage.")
+                logger.error(f"Failed to initialize Neon Object Storage backend: {e}. Falling back to local storage.")
         else:
-            logger.warning("STORAGE_BACKEND='r2' requested but R2 credentials are incomplete. Falling back to local storage.")
+            logger.warning(
+                f"STORAGE_BACKEND='{backend_type}' requested but S3/Neon credentials are incomplete. "
+                "Falling back to local storage."
+            )
 
     _storage_instance = LocalStorageBackend()
     return _storage_instance
+
+
+def reset_storage_instance() -> None:
+    """Reset cached storage singleton for testing purposes."""
+    global _storage_instance
+    _storage_instance = None
+
+
+def generate_artifact_key(job_id: int, file_hash: str) -> str:
+    """Generate canonical secure artifact key for an upload run."""
+    return f"job_{job_id}_{file_hash[:12]}.csv"
+
+
+def save_upload_artifact(job_id: int, file_hash: str, content: bytes) -> str:
+    """Save upload content using the active storage backend."""
+    storage = get_storage()
+    key = generate_artifact_key(job_id, file_hash)
+    return storage.save(key, content, content_type="text/csv")
+
+
+def get_upload_artifact(artifact_name: str) -> bytes:
+    """Retrieve raw upload content using the active storage backend."""
+    storage = get_storage()
+    return storage.get(artifact_name)
+
+
+def delete_upload_artifact(artifact_name: str) -> bool:
+    """Delete upload artifact using active storage backend."""
+    storage = get_storage()
+    return storage.delete(artifact_name)
+
+
+def clear_all_upload_artifacts() -> int:
+    """Clear all upload artifacts from active storage backend."""
+    storage = get_storage()
+    return storage.clear_all()
 
 
 def reset_storage_instance() -> None:

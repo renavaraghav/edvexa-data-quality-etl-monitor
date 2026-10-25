@@ -23,7 +23,9 @@ from app.config import (
 )
 from app.services.storage import (
     LocalStorageBackend,
+    NeonObjectStorageBackend,
     R2StorageBackend,
+    S3StorageBackend,
     generate_artifact_key,
     get_storage,
     reset_storage_instance,
@@ -147,11 +149,100 @@ def test_local_storage_clear_all(tmp_path: Path):
 
 
 # =====================================================================
-# 3. R2 STORAGE BACKEND TESTS (MOCKED BOTO3 S3 CLIENT)
+# 3. NEON OBJECT STORAGE & S3 BACKEND TESTS (MOCKED BOTO3 S3 CLIENT)
 # =====================================================================
 
+def test_neon_object_storage_backend_mocked(tmp_path: Path):
+    """Verify Neon Object Storage interactions with mocked boto3 S3 client."""
+    mock_s3 = MagicMock()
+    mock_s3.get_object.return_value = {
+        "Body": BytesIO(b"customer_id,name\nC1,Alice\n")
+    }
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.return_value = [
+        {"Contents": [{"Key": "uploads/job_10_abc.csv"}, {"Key": "uploads/job_11_def.csv"}]}
+    ]
+    mock_s3.get_paginator.return_value = mock_paginator
+
+    with patch.object(settings, "UPLOADS_DIR", tmp_path):
+        backend = NeonObjectStorageBackend(
+            bucket_name="edvexa-uploads",
+            access_key_id="neon-access-key-123",
+            secret_access_key="neon-secret-key-456",
+            endpoint_url="https://br-cool-branch.storage.ap-southeast-1.aws.neon.tech",
+            region_name="ap-southeast-1"
+        )
+        backend.s3_client = mock_s3
+
+        # Test save
+        saved_name = backend.save("job_10_abc.csv", b"sample csv content", content_type="text/csv")
+        assert saved_name == "job_10_abc.csv"
+        mock_s3.put_object.assert_called_once_with(
+            Bucket="edvexa-uploads",
+            Key="uploads/job_10_abc.csv",
+            Body=b"sample csv content",
+            ContentType="text/csv"
+        )
+
+        # Test exists
+        assert backend.exists("job_10_abc.csv") is True
+        mock_s3.head_object.assert_called_once_with(
+            Bucket="edvexa-uploads",
+            Key="uploads/job_10_abc.csv"
+        )
+
+        # Test list_keys
+        keys = backend.list_keys()
+        assert keys == ["job_10_abc.csv", "job_11_def.csv"]
+
+        # Test get (cached hit from save)
+        retrieved_cached = backend.get("job_10_abc.csv")
+        assert retrieved_cached == b"sample csv content"
+
+        # Test get (remote download when uncached)
+        retrieved_remote = backend.get("job_11_def.csv")
+        assert retrieved_remote == b"customer_id,name\nC1,Alice\n"
+        mock_s3.get_object.assert_called_once_with(
+            Bucket="edvexa-uploads",
+            Key="uploads/job_11_def.csv"
+        )
+
+        # Test delete
+        assert backend.delete("job_10_abc.csv") is True
+        mock_s3.delete_object.assert_called_once_with(
+            Bucket="edvexa-uploads",
+            Key="uploads/job_10_abc.csv"
+        )
+
+
+def test_neon_storage_factory_resolution(tmp_path: Path):
+    """Verify get_storage() properly resolves NeonObjectStorageBackend when configured."""
+    reset_storage_instance()
+    with patch.object(settings, "STORAGE_BACKEND", "neon"):
+        with patch.object(settings, "S3_BUCKET_NAME", "edvexa-uploads"):
+            with patch.object(settings, "S3_ACCESS_KEY_ID", "key123"):
+                with patch.object(settings, "S3_SECRET_ACCESS_KEY", "secret123"):
+                    with patch.object(settings, "S3_ENDPOINT_URL", "https://storage.neon.tech"):
+                        with patch("boto3.client") as mock_boto:
+                            storage = get_storage()
+                            assert isinstance(storage, NeonObjectStorageBackend)
+                            assert storage.bucket_name == "edvexa-uploads"
+    reset_storage_instance()
+
+
+def test_neon_storage_fallback_on_incomplete_credentials(tmp_path: Path):
+    """Verify get_storage() gracefully falls back to LocalStorageBackend if credentials missing."""
+    reset_storage_instance()
+    with patch.object(settings, "STORAGE_BACKEND", "neon"):
+        with patch.object(settings, "S3_ACCESS_KEY_ID", None):
+            with patch.object(settings, "UPLOADS_DIR", tmp_path):
+                storage = get_storage()
+                assert isinstance(storage, LocalStorageBackend)
+    reset_storage_instance()
+
+
 def test_r2_storage_backend_mocked(tmp_path: Path):
-    """Verify R2 storage interactions with mocked boto3 S3 client."""
+    """Verify backwards-compatible R2 storage interactions with mocked boto3 S3 client."""
     mock_s3 = MagicMock()
     mock_s3.get_object.return_value = {
         "Body": BytesIO(b"id,val\n1,test\n")

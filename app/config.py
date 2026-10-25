@@ -49,32 +49,70 @@ class Settings:
     ALLOWED_EXTENSIONS: set[str] = {"csv"}
     UPLOADS_DIR: Path = BASE_DIR / "uploads_storage"
     
-    # Storage Backend ('local' or 'r2')
+    # Storage Backend ('local', 'neon', 's3', 'r2')
     STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local").lower()
+    
+    # Neon Object Storage / S3-Compatible Credentials
+    S3_ENDPOINT_URL: str | None = (
+        os.getenv("NEON_STORAGE_ENDPOINT")
+        or os.getenv("AWS_ENDPOINT_URL_S3")
+        or os.getenv("S3_ENDPOINT_URL")
+        or os.getenv("R2_ENDPOINT_URL")
+    )
+    S3_BUCKET_NAME: str = (
+        os.getenv("NEON_STORAGE_BUCKET_NAME")
+        or os.getenv("S3_BUCKET_NAME")
+        or os.getenv("R2_BUCKET_NAME")
+        or "edvexa-uploads"
+    )
+    S3_ACCESS_KEY_ID: str | None = (
+        os.getenv("NEON_STORAGE_ACCESS_KEY_ID")
+        or os.getenv("AWS_ACCESS_KEY_ID")
+        or os.getenv("S3_ACCESS_KEY_ID")
+        or os.getenv("R2_ACCESS_KEY_ID")
+    )
+    S3_SECRET_ACCESS_KEY: str | None = (
+        os.getenv("NEON_STORAGE_SECRET_ACCESS_KEY")
+        or os.getenv("AWS_SECRET_ACCESS_KEY")
+        or os.getenv("S3_SECRET_ACCESS_KEY")
+        or os.getenv("R2_SECRET_ACCESS_KEY")
+    )
+    S3_REGION_NAME: str = (
+        os.getenv("NEON_STORAGE_REGION")
+        or os.getenv("AWS_REGION")
+        or "ap-southeast-1"
+    )
+
+    # Legacy Cloudflare R2 properties for backwards compatibility
     R2_ACCOUNT_ID: str | None = os.getenv("R2_ACCOUNT_ID")
-    R2_BUCKET_NAME: str | None = os.getenv("R2_BUCKET_NAME")
-    R2_ACCESS_KEY_ID: str | None = os.getenv("R2_ACCESS_KEY_ID")
-    R2_SECRET_ACCESS_KEY: str | None = os.getenv("R2_SECRET_ACCESS_KEY")
-    R2_ENDPOINT_URL: str | None = os.getenv("R2_ENDPOINT_URL")
+    R2_BUCKET_NAME: str | None = os.getenv("R2_BUCKET_NAME", S3_BUCKET_NAME)
+    R2_ACCESS_KEY_ID: str | None = os.getenv("R2_ACCESS_KEY_ID", S3_ACCESS_KEY_ID)
+    R2_SECRET_ACCESS_KEY: str | None = os.getenv("R2_SECRET_ACCESS_KEY", S3_SECRET_ACCESS_KEY)
+    R2_ENDPOINT_URL: str | None = os.getenv("R2_ENDPOINT_URL", S3_ENDPOINT_URL)
 
     @property
-    def effective_r2_endpoint(self) -> str | None:
-        """Derive the official S3-compatible Cloudflare R2 endpoint URL."""
-        if self.R2_ENDPOINT_URL:
-            return self.R2_ENDPOINT_URL.strip()
+    def effective_s3_endpoint(self) -> str | None:
+        """Derive the S3 endpoint URL (Neon Object Storage or generic S3)."""
+        if self.S3_ENDPOINT_URL:
+            return self.S3_ENDPOINT_URL.strip()
         if self.R2_ACCOUNT_ID:
             return f"https://{self.R2_ACCOUNT_ID.strip()}.r2.cloudflarestorage.com"
         return None
 
     @property
-    def is_r2_configured(self) -> bool:
-        """Check if all necessary Cloudflare R2 credentials and bucket details are present."""
+    def is_s3_configured(self) -> bool:
+        """Check if S3 / Neon Object Storage credentials and bucket details are present."""
         return bool(
-            self.R2_BUCKET_NAME
-            and self.R2_ACCESS_KEY_ID
-            and self.R2_SECRET_ACCESS_KEY
-            and (self.R2_ACCOUNT_ID or self.R2_ENDPOINT_URL)
+            self.S3_BUCKET_NAME
+            and self.S3_ACCESS_KEY_ID
+            and self.S3_SECRET_ACCESS_KEY
+            and self.effective_s3_endpoint
         )
+
+    @property
+    def is_r2_configured(self) -> bool:
+        """Backwards compatibility alias for is_s3_configured."""
+        return self.is_s3_configured
 
     # Security & Destructive Action Safeguards
     ADMIN_RESET_TOKEN: str | None = os.getenv("ADMIN_RESET_TOKEN")

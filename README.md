@@ -3,7 +3,7 @@
 > **Subtitle:** Reliable Data. Clean Pipelines. Trusted Decisions.  
 > **Author:** Raghav Kumar | Software Engineer  
 > **Platform Version:** 2.7.0  
-> **Technology Stack:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Pydantic, Pandas, SQLite / Neon PostgreSQL, Cloudflare R2, Render, Vanilla JS, Chart.js
+> **Technology Stack:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Pydantic, Pandas, SQLite / Neon PostgreSQL, Neon Object Storage, Render, Vanilla JS, Chart.js
 
 ---
 
@@ -49,7 +49,7 @@ edvexa-data-quality/
 │   │   ├── validation.py           # Schema rules, email regex, bounds checks & error generation
 │   │   ├── etl_pipeline.py         # Atomic ETL execution, transaction management & idempotency
 │   │   ├── export_service.py       # Job-scoped CSV & multi-sheet Excel (.xlsx) export generator
-│   │   └── storage.py              # Persistent storage abstraction (Local disk & Cloudflare R2 S3)
+│   │   └── storage.py              # Persistent storage abstraction (Local disk & Neon Object Storage S3)
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── uploads.py              # POST /api/uploads multipart CSV endpoint
@@ -203,7 +203,7 @@ Upon startup, the application initializes the SQLite database schema automatical
 
 ---
 
-## 6. Cloud Deployment Architecture (Render + Neon + Cloudflare R2)
+## 6. Cloud Deployment Architecture (Render + Neon PostgreSQL + Neon Object Storage)
 
 The platform is architected for zero-downtime, zero-cost production cloud deployment using three decoupled tiers:
 
@@ -225,10 +225,10 @@ The platform is architected for zero-downtime, zero-cost production cloud deploy
                    │ SQL (Pooled / SSL Required)       │ S3 API (boto3)
                    ▼                                   ▼
 ┌────────────────────────────────────┐ ┌─────────────────────────────────┐
-│     NEON SERVERLESS POSTGRESQL     │ │   CLOUDFLARE R2 OBJECT STORE    │
+│     NEON SERVERLESS POSTGRESQL     │ │   NEON OBJECT STORAGE (S3 API)  │
 │ - Managed PostgreSQL 16/17 Cluster │ │ - S3-Compatible Blob Storage    │
 │ - Zero Data Loss on Dyno Restart   │ │ - Preserves Uploaded CSV Files  │
-│ - Connection Pooling with SSL      │ │ - Zero Egress Fees / Free Tier  │
+│ - Connection Pooling with SSL      │ │ - Native to Neon Project        │
 │ - Drop-in Schema Compatibility     │ │ - Path-Traversal Sanitization   │
 └────────────────────────────────────┘ └─────────────────────────────────┘
 ```
@@ -238,47 +238,35 @@ The platform is architected for zero-downtime, zero-cost production cloud deploy
 | Variable | Required | Default | Purpose |
 | :--- | :--- | :--- | :--- |
 | `ENVIRONMENT` | Yes | `development` | Runtime environment (`development` or `production`). In production, destructive reset is blocked by default. |
-| `DATABASE_URL` | Yes | `sqlite:///./edvexa_data.db` | PostgreSQL connection string with SSL (e.g. `postgresql://user:pass@ep-cool-123.us-east-2.aws.neon.tech/neondb?sslmode=require`) or SQLite path. |
-| `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `r2` for Cloudflare R2 object storage. |
-| `R2_ACCOUNT_ID` | If R2 | `None` | Cloudflare Account ID used to construct the S3 endpoint. |
-| `R2_BUCKET_NAME` | If R2 | `None` | Target R2 bucket name (e.g. `edvexa-uploads`). |
-| `R2_ACCESS_KEY_ID` | If R2 | `None` | Cloudflare R2 S3 API Access Key ID. |
-| `R2_SECRET_ACCESS_KEY` | If R2 | `None` | Cloudflare R2 S3 API Secret Access Key. |
-| `R2_ENDPOINT_URL` | Optional | Derived | Custom S3 endpoint, defaults to `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`. |
+| `DATABASE_URL` | Yes | `sqlite:///./edvexa_data.db` | PostgreSQL connection string with SSL (e.g. `postgresql://user:pass@ep-cool-123.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`) or SQLite path. |
+| `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `neon` for Neon Object Storage. |
+| `NEON_STORAGE_ENDPOINT` | If Neon | `None` | Neon S3-compatible storage endpoint URL. |
+| `NEON_STORAGE_BUCKET_NAME` | If Neon | `edvexa-uploads` | Target bucket name. |
+| `NEON_STORAGE_ACCESS_KEY_ID` | If Neon | `None` | S3 API Access Key ID with `storage:read` and `storage:write` scopes. |
+| `NEON_STORAGE_SECRET_ACCESS_KEY` | If Neon | `None` | S3 API Secret Access Key. |
 | `ADMIN_RESET_TOKEN` | Optional | `None` | Secret administrative token required for `POST /api/dashboard/reset-data` in production. |
 | `ALLOW_DESTRUCTIVE_RESET` | Optional | `false` (prod) | Explicit boolean override to enable data reset in production without token. |
 | `CORS_ORIGINS` | Optional | `*` | Comma-delimited list of permitted CORS origins. |
 
 ### 6.2 Deployment Walkthrough
 
-#### Step 1: Create Neon Serverless PostgreSQL Database
-1. Sign up or log in at [neon.tech](https://neon.tech).
-2. Click **Create Project**, name it `edvexa-production-db`, and choose your preferred cloud region.
-3. In **Connection Details**, copy the connection string. Neon provides a pooled connection string with `sslmode=require` (e.g., `postgresql://[user]:[password]@[endpoint].neon.tech/neondb?sslmode=require`).
-4. Save this string for the `DATABASE_URL` environment variable.
+#### Step 1: Create Neon Serverless PostgreSQL Database & Object Storage Bucket
+1. Sign up or log in at [neon.tech](https://neon.tech) using your GitHub account (`rjha15491@gmail.com`).
+2. Open or create your project: `edvexa-production-db` (AWS Asia Pacific 1 - Singapore / `ap-southeast-1`).
+3. In **Connection Details**, copy the pooled connection string (with `sslmode=require`).
+4. In **Object Storage** / **Buckets**, create bucket `edvexa-uploads` (Access: `private`).
+5. Generate an S3-compatible Access Key ID and Secret Access Key with storage read/write permissions, and note the S3 Endpoint URL.
 
-#### Step 2: Create Cloudflare R2 Storage Bucket & Credentials
-1. Sign up or log in to the [Cloudflare Dashboard](https://dash.cloudflare.com) and navigate to **R2 Object Storage**.
-2. Click **Create bucket** and name it `edvexa-uploads`.
-3. In R2 Overview, click **Manage R2 API Tokens** > **Create API Token**.
-4. Set permissions to **Admin Read & Write**, click **Create API Token**, and copy the generated credentials:
-   - **Account ID** (from R2 Overview URL/sidebar)
-   - **Access Key ID**
-   - **Secret Access Key**
-   - **S3 Endpoint URL**
-
-#### Step 3: Deploy to Render via GitHub Blueprint
+#### Step 2: Deploy to Render via GitHub Blueprint
 1. Go to [render.com](https://render.com) and log in with GitHub.
 2. Click **New +** > **Blueprint**.
 3. Select your repository `https://github.com/renavaraghav/edvexa-data-quality-etl-monitor` and branch `main`.
 4. Render automatically reads `render.yaml`. When prompted for the non-synced environment variables, enter:
    - `DATABASE_URL`: Your Neon PostgreSQL connection string.
-   - `STORAGE_BACKEND`: `r2`
-   - `R2_ACCOUNT_ID`: Your Cloudflare Account ID.
-   - `R2_BUCKET_NAME`: `edvexa-uploads`
-   - `R2_ACCESS_KEY_ID`: Your R2 Access Key ID.
-   - `R2_SECRET_ACCESS_KEY`: Your R2 Secret Access Key.
-   - `ADMIN_RESET_TOKEN`: A secret token (e.g. `edvexa_adm_prod_991823`).
+   - `ADMIN_RESET_TOKEN`: A secret token (e.g. `edvexa_adm_c9c985cb4b64f9704662bdc05eccc2091cd35f3d796a5344`).
+   - `NEON_STORAGE_ENDPOINT`: Your Neon Object Storage S3 endpoint URL.
+   - `NEON_STORAGE_ACCESS_KEY_ID`: Your Neon storage Access Key ID.
+   - `NEON_STORAGE_SECRET_ACCESS_KEY`: Your Neon storage Secret Access Key.
 5. Click **Apply**. Render will trigger the build, install requirements, initialize tables on Neon, and assign a public `https://<service-name>.onrender.com` URL.
 
 ---
@@ -657,8 +645,8 @@ A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion,
 - **Author:** Raghav Kumar
 - **Role:** Software Engineer
 - **Project:** EDVEXA Data Quality and ETL Monitoring Platform
-- **Tools Used:** CodeZero, Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite / Neon PostgreSQL, Cloudflare R2, Render, openpyxl, pytest, Git and GitHub.
+- **Tools Used:** CodeZero, Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite / Neon PostgreSQL, Neon Object Storage, Render, openpyxl, pytest, Git and GitHub.
 
 ### Tooling Demarcation
-- **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including FastAPI backend implementation, SQLAlchemy relational schema, openpyxl multi-sheet Excel engine, dual-theme responsive frontend, date-range filtering, storage abstraction layer, Render + Neon + Cloudflare R2 cloud architecture, and the 81 automated regression tests.
+- **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including FastAPI backend implementation, SQLAlchemy relational schema, openpyxl multi-sheet Excel engine, dual-theme responsive frontend, date-range filtering, storage abstraction layer, Render + Neon cloud architecture, and the 84 automated regression tests.
 - **CodeZero:** Utilized during initial project exploration in repository `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the initial standalone CLI exercise (`csv_quality_checker.py`), analyze validation requirements, and author the initial architecture scope in `README.md` (commit `7983368`, plan `6adcf6109cb64fb3236a5352`).

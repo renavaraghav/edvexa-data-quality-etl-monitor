@@ -18,22 +18,20 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: STORAGE_BACKEND
-        value: r2
+        value: neon
       - key: ALLOW_DESTRUCTIVE_RESET
         value: "false"
       - key: DATABASE_URL
         sync: false
       - key: ADMIN_RESET_TOKEN
         sync: false
-      - key: R2_ACCOUNT_ID
+      - key: NEON_STORAGE_ENDPOINT
         sync: false
-      - key: R2_BUCKET_NAME
+      - key: NEON_STORAGE_BUCKET_NAME
+        value: edvexa-uploads
+      - key: NEON_STORAGE_ACCESS_KEY_ID
         sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: R2_ENDPOINT_URL
+      - key: NEON_STORAGE_SECRET_ACCESS_KEY
         sync: false
       - key: CORS_ORIGINS
         value: "*"

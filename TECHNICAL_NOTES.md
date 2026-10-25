@@ -1,6 +1,6 @@
 # TECHNICAL NOTES — EDVEXA DATA QUALITY & ETL MONITOR
 
-**Platform Version:** 2.7.0 (Cloud Deployment: Render + Neon PostgreSQL + Cloudflare R2)  
+**Platform Version:** 2.7.0 (Cloud Deployment: Render + Neon PostgreSQL + Neon Object Storage)  
 **Author:** Raghav Kumar | Software Engineer  
 **Project Workspace:** `c:\Users\rjha1\Downloads\csv_project`
 
@@ -47,7 +47,7 @@ To provide secure, isolated downloads on a per-job basis without corrupting or i
 5. **Deterministic CSV Generation:** `generate_clean_records_csv` and `generate_validation_errors_csv` stream isolated single-purpose CSV files.
 6. **Zero-Downtime Backwards-Compatibility:** For pre-existing historical jobs processed before `JobCleanRecord` was introduced, a fallback resolver (`backfill_job_clean_records_if_needed`) reconstructs the exact clean records from the securely stored source artifact in `uploads_storage/`, ensuring historical downloads remain 100% functional without mutating original data.
 
-### 1.6 Production Cloud Architecture: Render + Neon + Cloudflare R2
+### 1.6 Production Cloud Architecture: Render + Neon + Neon Object Storage
 To transition the platform from single-node local execution to a resilient, zero-cost cloud architecture while maintaining 100% local Windows development parity:
 
 ```
@@ -68,10 +68,10 @@ To transition the platform from single-node local execution to a resilient, zero
                    │ SQL (Async / Pooled)              │ S3 API (boto3)
                    ▼                                   ▼
 ┌─────────────────────────────────────┐ ┌─────────────────────────────────┐
-│       NEON SERVERLESS POSTGRES      │ │     CLOUDFLARE R2 STORAGE       │
+│       NEON SERVERLESS POSTGRES      │ │   NEON OBJECT STORAGE (S3 API)  │
 │  - Relational Models & Foreign Keys │ │  - Upload Artifact Persistence  │
 │  - Automated Table Initialization   │ │  - S3-Compatible Endpoint       │
-│  - Zero Data Loss on Dyno Restarts  │ │  - Zero Egress Fees / Free Tier │
+│  - Zero Data Loss on Dyno Restarts  │ │  - Native to Neon Project       │
 │  - sslmode=require Enforcement      │ │  - Path-Traversal Protection    │
 └─────────────────────────────────────┘ └─────────────────────────────────┘
 ```
@@ -88,10 +88,10 @@ To transition the platform from single-node local execution to a resilient, zero
    - Engine connection pooling (`pool_size=5`, `max_overflow=10`, `pool_recycle=300`, `pool_pre_ping=True`) handles Neon's serverless cold-start and idle connection termination gracefully.
    - Relational integrity, constraints, indexes, and cascade operations are preserved identically between local SQLite and remote PostgreSQL.
 
-3. **Object Storage Tier (Cloudflare R2 Persistent Storage):**
-   - Stores raw uploaded CSV files and reprocessing artifacts using Cloudflare R2 (S3-compatible API via `boto3`).
-   - Unlike AWS S3, Cloudflare R2 has **zero egress fees**, ensuring 100% free-tier sustainability for file downloads.
-   - Implemented via the `StorageBackend` abstraction in `app/services/storage.py`, supporting local filesystem storage (`LocalStorageBackend`) for offline development and `R2StorageBackend` for production.
+3. **Object Storage Tier (Neon Object Storage Persistent Storage):**
+   - Stores raw uploaded CSV files and reprocessing artifacts using Neon Object Storage (S3-compatible API via `boto3`).
+   - Sits natively alongside the PostgreSQL database in the same Neon project and AWS region (Singapore / `ap-southeast-1`), minimizing cross-cloud latencies and eliminating external vendor credentials.
+   - Implemented via the `StorageBackend` abstraction in `app/services/storage.py`, supporting local filesystem storage (`LocalStorageBackend`) for offline development and `NeonObjectStorageBackend` (with backward-compatible `S3StorageBackend` and `R2StorageBackend` aliases) for production.
    - Features automatic local caching, key sanitization against directory traversal, and idempotent clear operations.
 
 4. **Administrative Reset Protection:**
@@ -583,48 +583,43 @@ Processing history and audit tables (`.data-table-warm`) were upgraded with dedi
    - Dedicated multi-sheet Microsoft Excel reporting engine with automated column width calculations, cell formatting, frozen panes, and CWE-1236 spreadsheet injection mitigation.
 
 6. **pytest & httpx:**
-   - Comprehensive automated unit, integration, ETL, reset, date-filtering, storage abstraction, and API testing suite (81 passing tests) with in-memory SQLite isolation.
+   - Comprehensive automated unit, integration, ETL, reset, date-filtering, storage abstraction, and API testing suite (84 passing tests) with in-memory SQLite isolation.
 
 7. **Git & GitHub:**
    - Version control, remote repository hosting, and structured commit history tracking.
 
-8. **Cloud Infrastructure (Render, Neon & Cloudflare R2):**
-   - Zero-cost production cloud hosting architecture utilizing Render (ASGI compute), Neon (serverless PostgreSQL), and Cloudflare R2 (S3-compatible persistent object storage).
+8. **Cloud Infrastructure (Render, Neon & Neon Object Storage):**
+   - Zero-cost production cloud hosting architecture utilizing Render (ASGI compute), Neon (serverless PostgreSQL), and Neon Object Storage (S3-compatible persistent object storage).
 
 ---
 
 ## 13. Cloud Deployment & External Service Setup Guide
 
-This guide outlines the complete procedure to deploy EDVEXA to a production cloud environment on **Render**, backed by **Neon Serverless PostgreSQL** and **Cloudflare R2 Object Storage**, entirely within free-tier limits ($0/month).
+This guide outlines the complete procedure to deploy EDVEXA to a production cloud environment on **Render**, backed by **Neon Serverless PostgreSQL** and **Neon Object Storage**, entirely within free-tier limits ($0/month).
 
 ### 13.1 Neon Serverless PostgreSQL Setup
 1. **Create Free Account:** Sign up at [neon.tech](https://neon.tech) using GitHub or Google SSO.
 2. **Create New Project:**
    - Name: `edvexa-production-db`
-   - Region: Select nearest AWS region (e.g., `us-east-2` / Ohio or `eu-central-1` / Frankfurt).
+   - Region: Select nearest AWS region (e.g., `ap-southeast-1` / Singapore or `us-east-2` / Ohio).
    - PostgreSQL Version: `16` or `17` (default).
 3. **Obtain Connection String:**
    - On the Neon Dashboard, copy the connection string under **Connection Details**.
    - Select **Pooled connection** or direct connection string.
-   - Example format: `postgresql://neondb_owner:npg_sample_pass@ep-cool-fog-123456.us-east-2.aws.neon.tech/neondb?sslmode=require`
+   - Example format: `postgresql://neondb_owner:npg_sample_pass@ep-cool-fog-123456.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`
    - The application automatically ensures `postgresql://` protocol prefix and appends `sslmode=require`.
 
-### 13.2 Cloudflare R2 Persistent Object Storage Setup
-1. **Log in to Cloudflare:** Navigate to the [Cloudflare Dashboard](https://dash.cloudflare.com) and select **R2 Object Storage**.
+### 13.2 Neon Object Storage Setup
+1. **Navigate to Object Storage in Neon:** In the `edvexa-production-db` project console, select **Object Storage** (or **Buckets**).
 2. **Create Bucket:**
    - Click **Create bucket**.
-   - Bucket name: `edvexa-uploads` (or any globally unique name in your account).
-   - Location: `Automatic` (or choose closest jurisdiction).
+   - Bucket name: `edvexa-uploads` (Access: `private`).
 3. **Generate S3 API Credentials:**
-   - In R2 overview, click **Manage R2 API Tokens** > **Create API Token**.
-   - Permissions: `Admin Read & Write` (or custom scoped to `edvexa-uploads`).
-   - TTL: Leave unlimited or set desired expiration.
-   - Click **Create API Token**.
+   - Generate S3-compatible credentials with `storage:read` and `storage:write` scopes.
    - Securely record:
      - **Access Key ID**
      - **Secret Access Key**
-     - **Account ID** (visible on Cloudflare R2 overview page)
-     - **S3 Endpoint URL:** `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+     - **S3 Endpoint URL** (e.g., `https://<branch>.storage.<cell>.<region>.aws.neon.tech`)
 
 ### 13.3 Deploying to Render via GitHub Blueprint
 1. **Log in to Render:** Go to [render.com](https://render.com) and log in with GitHub.
@@ -634,12 +629,12 @@ This guide outlines the complete procedure to deploy EDVEXA to a production clou
    - Render detects `render.yaml` automatically.
    - When prompted for non-synced environment variables, supply:
      - `DATABASE_URL`: Your Neon PostgreSQL connection string.
-     - `ADMIN_RESET_TOKEN`: A secure random secret string (e.g., `edvexa_adm_991823`).
-     - `STORAGE_BACKEND`: `r2` (or keep `local` if evaluating without R2).
-     - `R2_ACCOUNT_ID`: Your Cloudflare Account ID.
-     - `R2_BUCKET_NAME`: `edvexa-uploads`
-     - `R2_ACCESS_KEY_ID`: Cloudflare Access Key ID.
-     - `R2_SECRET_ACCESS_KEY`: Cloudflare Secret Access Key.
+     - `ADMIN_RESET_TOKEN`: A secure random secret string (e.g., `edvexa_adm_c9c985cb4b64f9704662bdc05eccc2091cd35f3d796a5344`).
+     - `STORAGE_BACKEND`: `neon`
+     - `NEON_STORAGE_ENDPOINT`: Your Neon Object Storage S3 endpoint URL.
+     - `NEON_STORAGE_BUCKET_NAME`: `edvexa-uploads`
+     - `NEON_STORAGE_ACCESS_KEY_ID`: Neon storage Access Key ID.
+     - `NEON_STORAGE_SECRET_ACCESS_KEY`: Neon storage Secret Access Key.
    - Click **Apply**. Render will automatically build the service, run migrations/initialization on startup, and expose a live HTTPS URL.
 3. **Option B: Manual Web Service Creation:**
    - Click **New +** > **Web Service**.
@@ -658,18 +653,16 @@ This guide outlines the complete procedure to deploy EDVEXA to a production clou
 | :--- | :--- | :--- | :--- |
 | `ENVIRONMENT` | Yes | `development` | Runtime mode: `development` or `production`. Governs security policies. |
 | `DATABASE_URL` | Yes | `sqlite:///...` | Connection URI. PostgreSQL (`postgresql://...`) or SQLite. |
-| `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `r2` for Cloudflare R2 object storage. |
-| `R2_ACCOUNT_ID` | If R2 | `None` | Cloudflare Account ID for deriving endpoint. |
-| `R2_BUCKET_NAME` | If R2 | `None` | Target R2 bucket name (e.g. `edvexa-uploads`). |
-| `R2_ACCESS_KEY_ID` | If R2 | `None` | S3 API Access Key ID. |
-| `R2_SECRET_ACCESS_KEY` | If R2 | `None` | S3 API Secret Access Key. |
-| `R2_ENDPOINT_URL` | Optional | Derived | Custom S3 endpoint, defaults to `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`. |
+| `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `neon` for Neon Object Storage. |
+| `NEON_STORAGE_ENDPOINT` | If Neon | `None` | Neon S3-compatible endpoint URL. |
+| `NEON_STORAGE_BUCKET_NAME` | If Neon | `edvexa-uploads` | Target bucket name. |
+| `NEON_STORAGE_ACCESS_KEY_ID` | If Neon | `None` | S3 API Access Key ID. |
+| `NEON_STORAGE_SECRET_ACCESS_KEY` | If Neon | `None` | S3 API Secret Access Key. |
 | `ADMIN_RESET_TOKEN` | Optional | `None` | Secret token required to invoke `POST /api/dashboard/reset-data` in production. |
 | `ALLOW_DESTRUCTIVE_RESET` | Optional | `false` (prod) | Explicit boolean override (`true`/`false`) to enable data reset in production. |
 | `CORS_ORIGINS` | Optional | `*` | Comma-delimited list of permitted CORS origins. |
 | `UPLOAD_MAX_SIZE_BYTES` | Optional | `10485760` | Maximum file upload payload size (10 MB). |
 
 ### 13.5 Free-Tier Sustainability & Operational Boundaries
-- **Render Web Service:** In the free tier, Render automatically spins down services after 15 minutes of inactivity. When a new incoming request arrives, a cold start of 30-50 seconds occurs. Because database state is persisted on Neon and files are stored on Cloudflare R2, zero data is lost across spindowns.
-- **Neon PostgreSQL:** Neon provides 0.5 GiB of storage and 100 compute hours per month on the free tier, more than sufficient for thousands of CSV processing jobs. The platform utilizes connection pre-pings to gracefully handle serverless sleep states.
-- **Cloudflare R2:** Cloudflare provides 10 GB of monthly storage and zero egress charges, eliminating cloud bandwidth billing risks completely.
+- **Render Web Service:** In the free tier, Render automatically spins down services after 15 minutes of inactivity. When a new incoming request arrives, a cold start of 30-50 seconds occurs. Because database state is persisted on Neon and files are stored on Neon Object Storage, zero data is lost across spindowns.
+- **Neon PostgreSQL & Object Storage:** Neon provides free-tier storage and compute hours more than sufficient for thousands of CSV processing jobs. Both relational records and raw uploaded files reside in the same project and region (Singapore / `ap-southeast-1`), minimizing network hops and avoiding third-party egress overhead.
