@@ -410,10 +410,18 @@ Detailed engineering architecture notes, data models, trade-offs, and tooling de
 - **Local File:** `demo/edvexa-demo.mp4` *(249.86 MB, preserved locally)*
 
 ### Credits & Tooling Demarcation
-- **Author:** Raghav Kumar
-- **Role:** Software Engineer
-- **Platform:** Edvexa Data Quality & ETL Monitoring Platform
 
-#### Tooling Demarcation
-- **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including the FastAPI routing layer, SQLAlchemy 2.0 relational models, openpyxl multi-sheet Excel generator, dual-theme responsive frontend (Warm Ivory & Dark Espresso), date-range filtering engine, two-step slide-to-reset control, and the 99-test automated pytest suite.
-- **CodeZero:** Utilized during the initial project exploration phase within repository `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the standalone CLI script (`csv_quality_checker.py`), analyze baseline validation rules, and draft the initial architecture scope in `README.md` (Git commit `7983368`, plan `6adcf6109cb64fb3236a5352`).
+- **Author:** Raghav Kumar
+- **Project:** Edvexa Data Quality & ETL Monitoring Platform
+
+#### Development Tools
+- **CodeZero:** Used for initial project exploration, reviewing the existing CSV quality checker, analyzing validation requirements, and planning the initial architecture.
+- **Google Antigravity:** Used to assist with full-stack implementation, including backend APIs, database models, ETL processing, the dashboard, reporting, and automated tests.
+
+### Development Tools and Workflow
+
+- **CodeZero:** Used during the initial development phase for repository exploration, reviewing the existing `csv_quality_checker.py` script, analyzing baseline data-validation requirements, and planning the initial application architecture and README structure.
+
+- **Google Antigravity:** Used to support subsequent full-stack implementation, including FastAPI endpoints, SQLAlchemy models, ETL processing, the frontend dashboard, reporting functionality, and automated testing.
+
+- **Development Approach:** The project was developed iteratively, with attention to data validation, reliable ETL processing, testing, documentation, and deployment.
