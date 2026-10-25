@@ -3,653 +3,417 @@
 > **Subtitle:** Reliable Data. Clean Pipelines. Trusted Decisions.  
 > **Author:** Raghav Kumar | Software Engineer  
 > **Platform Version:** 2.7.0  
-> **Technology Stack:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Pydantic, Pandas, SQLite / Neon PostgreSQL, Neon Object Storage, Render, Vanilla JS, Chart.js  
-> **Live Production URL:** [https://edvexa-data-quality-etl-monitor.onrender.com](https://edvexa-data-quality-etl-monitor.onrender.com)  
-> **Live Swagger API Docs:** [https://edvexa-data-quality-etl-monitor.onrender.com/docs](https://edvexa-data-quality-etl-monitor.onrender.com/docs)  
-> **Live Health Verification:** [https://edvexa-data-quality-etl-monitor.onrender.com/api/health](https://edvexa-data-quality-etl-monitor.onrender.com/api/health)
+> **Live Production Application:** [https://edvexa-data-quality-etl-monitor.onrender.com](https://edvexa-data-quality-etl-monitor.onrender.com)  
+> **Interactive Swagger API Docs:** [https://edvexa-data-quality-etl-monitor.onrender.com/docs](https://edvexa-data-quality-etl-monitor.onrender.com/docs)  
+> **Live Health Verification:** [https://edvexa-data-quality-etl-monitor.onrender.com/api/health](https://edvexa-data-quality-etl-monitor.onrender.com/api/health)  
+> **Video Walkthrough (Google Drive):** [Watch Demonstration Video (4m 23s)](https://drive.google.com/file/d/1HU3dQvIffSwfCqCI_qd0JEIJ-RBXtmij/view?usp=sharing)
 
 ---
 
 ## 1. Project Overview
 
-**Edvexa Data Quality & ETL Monitor** is a production-grade, locally runnable web application and data quality observability engine designed to ingest, validate, sanitize, and load operational CSV datasets (Customers, Sales, and Inventory).
+**Edvexa Data Quality & ETL Monitor** is a production-grade web application and data quality observability engine designed to ingest, validate, sanitize, and load operational CSV datasets (Customers, Sales, and Inventory) into a relational database.
 
-It guarantees strict data integrity before raw records can enter downstream clean storage tables. Every ingested row is accounted for deterministically under the fundamental invariant:
+The platform guarantees strict data integrity before raw records can enter downstream clean storage tables. Every ingested row is accounted for deterministically under the fundamental invariant:
 
 $$\text{total\_rows} = \text{accepted\_rows} + \text{rejected\_rows} + \text{duplicate\_rows} + \text{skipped\_rows}$$
 
-The application provides:
-- **Resilient CSV Ingestion:** Automatic charset detection (UTF-8, UTF-8 BOM, Latin-1), schema enforcement, and 10 MB upload guardrails.
-- **Granular Field Validation:** Standardized email validation, calendar date verification, whitespace stripping, title capitalization, numeric bounds checking, and supported currency enforcement.
-- **Idempotency & Duplicate Prevention:** SHA-256 file checksum tracking, in-file duplicate detection, and database unique key constraints that prevent double-insertion on repeated uploads.
-- **Interactive Visual Dashboard:** Real-time KPI summary cards, historical ingestion quality trend charts (Chart.js), dataset breakdowns, paginated job history, validation error reports, and a clean records browser.
+The application provides multi-encoding CSV parsing, automated field normalization, duplicate prevention, an interactive dashboard with real-time quality metrics and historical trends, downloadable audit workbooks (CSV and Excel `.xlsx`), and a safe two-step slide-to-reset interaction.
+
+---
+
+## 2. Main Features
+
+- **Multi-Format CSV Ingestion:** Automatic charset detection (UTF-8, UTF-8 with BOM, ISO-8859-1/Latin-1) with a 10 MB upload guardrail and structural header validation.
+- **Granular Field Validation:** Standardized RFC 5322 email validation, calendar date verification (correctly rejecting non-leap year February 29th), whitespace stripping, title capitalization, numeric bounds checking, and ISO currency code enforcement.
+- **Deduplication & Idempotency:** Distinguishes in-file duplicate keys (`DUPLICATE_KEY_IN_FILE`) from pre-existing database duplicates (`DUPLICATE_KEY_IN_DB`), backed by SHA-256 file hashing so repeated uploads never create duplicate records.
+- **Interactive Observability Dashboard:** Real-time KPI summary cards, historical ingestion quality trend charts (Chart.js), dataset breakdowns, paginated job history, validation error reports, and a clean records browser.
+- **Synchronized Date-Range Filtering:** Synchronized date filtering across dashboard summary, trend charts, jobs, clean records, and validation errors with strict empty-state displays.
+- **Export & Download Engine:** Direct job-scoped downloads for Clean Records (CSV), Validation Errors (CSV), and comprehensive Job Audit Workbooks in Microsoft Excel format (`.xlsx`).
+- **Two-Step Slide-to-Reset:** A physical slider gesture unlocks a confirmation checkbox; ticking the checkbox enables the "Permanently Delete" button; clicking the button permanently deletes uploaded records while strictly preserving database schemas, followed by an automatic full website reload.
+- **Dual Themes & Accessibility:** Warm Ivory default theme and Dark Espresso mode with audited WCAG AA 4.5:1 text contrast across all form controls, drop zones, and data tables.
 - **Interactive OpenAPI Documentation:** Fully typed Swagger UI (`/docs`) and ReDoc (`/redoc`) endpoints.
-- **Export & Download Engine:** Direct job-scoped downloads for Clean Records (CSV), Validation Errors (CSV), and comprehensive Job Audit Workbooks (Excel `.xlsx`).
-- **Administrative Destructive Reset:** iPhone-style compact slide-to-reset with concurrency-locked transactional data deletion (`POST /api/dashboard/reset-data`) clearing uploaded records while strictly preserving database schema, with idempotent empty-state handling (`HTTP 200`).
-- **End-to-End Date Range Filtering:** Synchronized date filtering across dashboard summary, trends, jobs, clean records, and validation errors with strict empty-state displays.
-- **Dynamic Real-Event Notifications:** Event-driven notification store tracking uploads, exports, reprocessing, and reset actions with unread badge count and individual item dismissal.
-- **Dual Aesthetic Themes & WCAG AA Contrast:** Warm beige & ivory default theme and dark espresso mode with audited 4.5:1 text contrast across all form controls, drop zones, and data tables.
-- **Automated Test Suite:** 84 comprehensive unit, integration, ETL, reset, date-filtering, storage abstraction, and security tests executed via `pytest`.
 
 ---
 
-## 2. System Architecture
+## 3. Live Demo and Screenshots
 
-```
-edvexa-data-quality/
-│
-├── app/
-│   ├── __init__.py
-│   ├── main.py                     # FastAPI application factory, middleware, lifecycle & routing
-│   ├── config.py                   # Pydantic & environment configuration settings
-│   ├── database.py                 # SQLAlchemy engine, session maker & schema initialization
-│   ├── models.py                   # SQLAlchemy 2.x models (ProcessingJob, ValidationError, Clean Tables)
-│   ├── schemas.py                  # Pydantic v2 validation models & response serialization
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── csv_import.py           # Robust file parsing, header verification & charset decoding
-│   │   ├── transformation.py       # Deterministic cleaning, casing, date & numeric parsers
-│   │   ├── validation.py           # Schema rules, email regex, bounds checks & error generation
-│   │   ├── etl_pipeline.py         # Atomic ETL execution, transaction management & idempotency
-│   │   ├── export_service.py       # Job-scoped CSV & multi-sheet Excel (.xlsx) export generator
-│   │   └── storage.py              # Persistent storage abstraction (Local disk & Neon Object Storage S3)
-│   ├── routers/
-│   │   ├── __init__.py
-│   │   ├── uploads.py              # POST /api/uploads multipart CSV endpoint
-│   │   ├── jobs.py                 # GET /api/jobs, GET /api/jobs/{id}, POST /api/jobs/{id}/reprocess
-│   │   ├── errors.py               # GET /api/jobs/{id}/errors, GET /api/errors
-│   │   ├── records.py              # GET /api/records (Customers, Sales, Inventory)
-│   │   └── dashboard.py            # GET /api/dashboard/summary, trends, reset-status & reset-data
-│   ├── templates/
-│   │   └── index.html              # Responsive SPA layout (Sidebar, Overview, Ingestion, Browser)
-│   └── static/
-│       ├── css/
-│       │   └── styles.css          # Navy typography, light backgrounds, restrained blue accents
-│       └── js/
-│           ├── app.js              # SPA navigation, modal dialogs, health polling & toast alerts
-│           └── dashboard.js        # Chart.js charts, filters, upload drag-and-drop & tables
-│
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py                 # Test fixtures, in-memory SQLite isolation & TestClient
-│   ├── test_transformation.py      # Tests for cleaners, string normalizers & date/numeric parsers
-│   ├── test_validation.py          # Field validation rules, regex, bounds & CSV structural tests
-│   ├── test_etl.py                 # ETL load, duplicate detection, accounting rule & idempotency
-│   ├── test_api.py                 # Health, upload, jobs, errors, records, dashboard & downloads
-│   ├── test_dashboard_upgrade.py   # Preference resets & dashboard date-range filtering tests
-│   ├── test_reset_and_filter.py    # Destructive reset safety, concurrency lock, OpenAPI, idempotency & joins
-│   └── test_deployment_storage_and_security.py # Database normalization, R2 storage abstraction & reset guards
-│
-├── sample_data/
-│   ├── customers_valid.csv         # 5 clean valid customer records
-│   ├── customers_invalid.csv       # 7 invalid records (bad email, invalid dates, missing required fields)
-│   ├── customers_duplicates.csv    # 2 records with duplicate customer_id CUST-001
-│   ├── sales_valid.csv             # 5 clean valid sales transactions
-│   ├── sales_invalid.csv           # 6 invalid sales (negative amounts, non-numeric, unsupported currency)
-│   ├── inventory_valid.csv         # 5 clean valid inventory items
-│   ├── inventory_invalid.csv       # 6 invalid inventory items (negative stock/price, fractional quantities)
-│   ├── customers.csv               # 13 comprehensive mixed records
-│   ├── sales.csv                   # 12 comprehensive mixed records
-│   └── inventory.csv               # 12 comprehensive mixed records
-│
-├── demo/
-│   ├── README.md                   # Video metadata & scenario walkthrough notes
-│   └── edvexa-demo.mp4             # 4m23s full demonstration video (local file, excluded from Git)
-│
-├── screenshots/
-│   ├── 01_dashboard_overview_light.png   # Full light theme overview (KPIs, donut, trends, recent jobs)
-│   ├── 02_dashboard_overview_dark.png    # Full dark espresso theme overview (WCAG AA compliant)
-│   ├── 03_import_data_workflow.png       # CSV drag-and-drop upload zone, dataset schema selector
-│   ├── 04_processing_jobs_audit.png      # Processing jobs history table, status badges, durations
-│   ├── 05_slide_to_reset_modal.png       # iPhone-style compact slide-to-reset & confirmation modal
-│   └── 06_mobile_responsive_view.png     # Mobile viewport rendering (375x812 iPhone view)
-│
-├── scripts/
-│   ├── generate_sample_data.py     # Deterministic sample dataset generator
-│   ├── generate_pdf.py             # Script to render publication-grade TECHNICAL_NOTES.pdf
-│   ├── verify_pdf.py               # Automated PDF page count and section extractor verification
-│   └── verify_e2e.py               # Automated 9-step end-to-end API verification script
-│
-├── render.yaml                     # Render Blueprint infrastructure-as-code specification
-├── schema.sql                      # Standalone ANSI SQL DDL schema definitions & indexes
-├── requirements.txt                # Pinned dependencies
-├── .env.example                    # Non-secret environment defaults
-├── .gitignore                      # Git exclusions (venv, databases, caches, logs)
-├── README.md                       # Comprehensive operational guide
-├── TECHNICAL_NOTES.md              # Engineering decisions, trade-offs & development notes
-├── TECHNICAL_NOTES.pdf             # Formatted, printable technical documentation (PDF)
-└── DEMO_CHECKLIST.md               # 13-step verification walkthrough
-```
+### Live Links
+- **Live Application:** [https://edvexa-data-quality-etl-monitor.onrender.com](https://edvexa-data-quality-etl-monitor.onrender.com)
+- **Interactive Swagger Docs:** [https://edvexa-data-quality-etl-monitor.onrender.com/docs](https://edvexa-data-quality-etl-monitor.onrender.com/docs)
+- **Health Endpoint:** [https://edvexa-data-quality-etl-monitor.onrender.com/api/health](https://edvexa-data-quality-etl-monitor.onrender.com/api/health)
+- **Demonstration Video Walkthrough:** [Watch on Google Drive (4m 23s)](https://drive.google.com/file/d/1HU3dQvIffSwfCqCI_qd0JEIJ-RBXtmij/view?usp=sharing)  
+  *(The uncompressed 250 MB video file `demo/edvexa-demo.mp4` exists locally and is excluded from Git to comply with GitHub's 100 MB per-file limit).*
+
+### Screenshots Gallery
+
+#### 1. Dashboard Overview — Light Theme (Warm Ivory)
+![Dashboard Overview Light](screenshots/01_dashboard_overview_light.png)
+*Real-time KPI summary cards, quality pass rate, distribution donut chart, and 14-day ingestion trendline.*
+
+#### 2. Dashboard Overview — Dark Theme (Dark Espresso)
+![Dashboard Overview Dark](screenshots/02_dashboard_overview_dark.png)
+*WCAG AA-compliant dark espresso theme with 4.5:1 text contrast and high-contrast status tokens.*
+
+#### 3. Data Ingestion & Drag-and-Drop Workflow
+![Import Data Workflow](screenshots/03_import_data_workflow.png)
+*Dataset selection, drag-and-drop CSV drop zone, schema rules guide, and instant pipeline execution.*
+
+#### 4. Processing Job Audit & Job Details
+![Processing Jobs Audit](screenshots/04_processing_jobs_audit.png)
+*Comprehensive processing jobs audit log with status badges, row counts, durations, and modal actions.*
+
+#### 5. Two-Step Slide-to-Reset Modal
+![Slide-to-Reset Modal](screenshots/05_slide_to_reset_modal.png)
+*Compact slide-to-reset interaction control with secondary confirmation checkbox and transactional data cleanup.*
+
+#### 6. Mobile Responsive Viewport (375x812 iPhone)
+![Mobile Responsive View](screenshots/06_mobile_responsive_view.png)
+*Mobile layout with responsive slide-out navigation drawer, stacked KPI cards, and touch-friendly controls.*
 
 ---
 
-## Technical Documentation
+## 4. Technologies Used
 
-Detailed engineering architecture notes, data models, trade-offs, and tooling demarcations are published in both Markdown and printable PDF formats:
-
-- 📄 [Read Technical Notes (Markdown)](TECHNICAL_NOTES.md)
-- 📑 [Download Technical Notes (PDF)](TECHNICAL_NOTES.pdf)
+- **Application Framework:** Python 3.11+, FastAPI, Uvicorn (ASGI server)
+- **Data Validation & Schemas:** Pydantic v2
+- **Database & ORM:** SQLAlchemy 2.0 with connection pooling
+  - **Local Development:** SQLite (`edvexa_data.db`)
+  - **Production Deployment:** Neon Serverless PostgreSQL (`postgresql://...sslmode=require`)
+- **File Storage Abstraction:**
+  - **Local Development:** Local filesystem (`uploads_storage/`)
+  - **Production Deployment:** Neon Object Storage (S3-compatible via `boto3`)
+- **Reporting Engine:** openpyxl (multi-sheet `.xlsx` workbooks with CWE-1236 formula sanitization)
+- **Frontend:** Vanilla JavaScript (ES6+), custom CSS3 design tokens, Chart.js
+- **Testing & Quality Assurance:** pytest, pytest-asyncio, httpx, Playwright
+- **Hosting & Infrastructure:** Render (Web Service), GitHub Actions / Git version control
 
 ---
 
-## 3. Prerequisites
+## 5. Prerequisites
 
-- **Operating System:** Windows 10/11, macOS, or Linux.
-- **Python:** Python 3.11, 3.12, or newer.
-- **Git:** Installed and available on system PATH.
-- **Modern Web Browser:** Chrome, Edge, Firefox, or Safari with JavaScript enabled.
+- **Operating System:** Windows 10/11, macOS, or Linux
+- **Python:** Python 3.11, 3.12, or newer
+- **Git:** Installed and available on your system `PATH`
+- **Modern Web Browser:** Google Chrome, Microsoft Edge, Mozilla Firefox, or Apple Safari with JavaScript enabled
 
 ---
 
-## 4. Local Setup & Installation (Windows PowerShell / Command Prompt)
+## 6. Simple Installation and Startup Instructions
 
-### Step 1: Clone or Navigate to the Workspace
+Follow these step-by-step instructions to run the application locally on your computer.
+
+### Step 1: Clone or Navigate to the Project Directory
 ```powershell
-cd c:\Users\rjha1\Downloads\csv_project
+git clone https://github.com/renavaraghav/edvexa-data-quality-etl-monitor.git
+cd edvexa-data-quality-etl-monitor
 ```
 
-### Step 2: Create an Isolated Virtual Environment
+### Step 2: Create a Virtual Environment
 ```powershell
 python -m venv .venv
 ```
 
 ### Step 3: Activate the Virtual Environment
-- **PowerShell:**
+- **Windows (PowerShell):**
   ```powershell
   .\.venv\Scripts\Activate.ps1
   ```
-- **Command Prompt (`cmd.exe`):**
+- **Windows (Command Prompt):**
   ```cmd
-  .venv\Scripts\activate.bat
+  .\.venv\Scripts\activate.bat
+  ```
+- **macOS / Linux:**
+  ```bash
+  source .venv/bin/activate
   ```
 
-### Step 4: Upgrade Pip & Install Dependencies
+### Step 4: Install Dependencies
 ```powershell
-python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Step 5: Configure Environment Variables (Optional)
-Copy `.env.example` to `.env`:
-```powershell
-Copy-Item .env.example .env
-```
-*(By default, the platform runs using a local SQLite file database `edvexa_data.db`. PostgreSQL connection strings are fully supported via the `DATABASE_URL` setting).*
-
-### Step 6: Database Initialization (Automatic or Manual DDL)
-The platform initializes all required tables, constraints, and indexes automatically on application boot via SQLAlchemy (`init_db()` in `app/database.py`).
-
-For external database inspection or standalone deployment, an ANSI SQL DDL script is provided in the repository root as `schema.sql`:
-```powershell
-# Optional manual initialization / inspection with SQLite CLI:
-sqlite3 edvexa_data.db ".read schema.sql"
-```
-
----
-
-## 5. Application Startup & Browser Access
-
-### Start the Application Server
+### Step 5: Start the Application Server
 Run Uvicorn from the project root:
 ```powershell
 uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload
 ```
-*Or double-click `start_server.bat` on Windows for one-click startup.*
+*(On Windows, you can also double-click `start_server.bat` for one-click startup).*
 
-Upon startup, the application initializes the SQLite database schema automatically.
+Upon startup, the application automatically initializes the SQLite database tables.
 
-### Access Endpoints
-- **Primary Dashboard UI:** [http://127.0.0.1:8010](http://127.0.0.1:8010)
-- **Interactive Swagger API Docs:** [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs)
-- **ReDoc Technical Schema:** [http://127.0.0.1:8010/redoc](http://127.0.0.1:8010/redoc)
+### Step 6: Open the Dashboard
+Open your web browser and navigate to:
+- **Dashboard UI:** [http://127.0.0.1:8010](http://127.0.0.1:8010)
+- **Interactive Swagger Docs:** [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs)
 - **Health Verification:** [http://127.0.0.1:8010/api/health](http://127.0.0.1:8010/api/health)
 
 ---
 
-## 6. Cloud Deployment Architecture (Render + Neon PostgreSQL + Neon Object Storage)
+## 7. How to Upload Sample CSV Files
 
-The platform is architected for zero-downtime, zero-cost production cloud deployment using three decoupled tiers:
+Synthetic sample datasets are provided in the `sample_data/` directory.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        WEB APPLICATION CLIENT                          │
-│     Responsive SPA, Upload Dropzone, Chart.js Metrics, Excel Export    │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ HTTPS (Port 443)
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                   RENDER WEB SERVICE (FASTAPI / ASGI)                  │
-│   - Python 3.11/3.12 Runtime with Uvicorn ASGI Server                  │
-│   - Infrastructure-as-Code via render.yaml Blueprint                   │
-│   - Automatic Deployments on GitHub main Branch Pushes                 │
-│   - Health Check Probe (/api/health) & Dialect-Aware Connection Pool   │
-│   - Administrative Reset Token Guard & Storage Abstraction Layer       │
-└──────────────────┬───────────────────────────────────┬─────────────────┘
-                   │ SQL (Pooled / SSL Required)       │ S3 API (boto3)
-                   ▼                                   ▼
-┌────────────────────────────────────┐ ┌─────────────────────────────────┐
-│     NEON SERVERLESS POSTGRESQL     │ │   NEON OBJECT STORAGE (S3 API)  │
-│ - Managed PostgreSQL 16/17 Cluster │ │ - S3-Compatible Blob Storage    │
-│ - Zero Data Loss on Dyno Restart   │ │ - Preserves Uploaded CSV Files  │
-│ - Connection Pooling with SSL      │ │ - Native to Neon Project        │
-│ - Drop-in Schema Compatibility     │ │ - Path-Traversal Sanitization   │
-└────────────────────────────────────┘ └─────────────────────────────────┘
-```
+### Upload Steps
+1. Open the dashboard at [http://127.0.0.1:8010](http://127.0.0.1:8010).
+2. Click **Import Data** in the left sidebar navigation.
+3. Select the dataset type (**Customers**, **Sales**, or **Inventory**) from the dropdown.
+4. Drag and drop a sample CSV file into the designated drop zone (or click to browse).
+5. Click **Run Ingestion Pipeline**.
+6. The feedback card immediately displays the results: accepted records, rejected records, and duplicate keys prevented.
 
-### 6.1 Environment Variables Reference
-
-| Variable | Required | Default | Purpose |
-| :--- | :--- | :--- | :--- |
-| `ENVIRONMENT` | Yes | `development` | Runtime environment (`development` or `production`). In production, destructive reset is blocked by default. |
-| `DATABASE_URL` | Yes | `sqlite:///./edvexa_data.db` | PostgreSQL connection string with SSL (e.g. `postgresql://user:pass@ep-cool-123.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`) or SQLite path. |
-| `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `neon` for Neon Object Storage. |
-| `NEON_STORAGE_ENDPOINT` | If Neon | `None` | Neon S3-compatible storage endpoint URL. |
-| `NEON_STORAGE_BUCKET_NAME` | If Neon | `edvexa-uploads` | Target bucket name. |
-| `NEON_STORAGE_ACCESS_KEY_ID` | If Neon | `None` | S3 API Access Key ID with `storage:read` and `storage:write` scopes. |
-| `NEON_STORAGE_SECRET_ACCESS_KEY` | If Neon | `None` | S3 API Secret Access Key. |
-| `ADMIN_RESET_TOKEN` | Optional | `None` | Secret administrative token required for `POST /api/dashboard/reset-data` in production. |
-| `ALLOW_DESTRUCTIVE_RESET` | Optional | `false` (prod) | Explicit boolean override to enable data reset in production without token. |
-| `CORS_ORIGINS` | Optional | `*` | Comma-delimited list of permitted CORS origins. |
-
-### 6.2 Deployment Walkthrough
-
-#### Step 1: Create Neon Serverless PostgreSQL Database & Object Storage Bucket
-1. Sign up or log in at [neon.tech](https://neon.tech) using your GitHub account (`rjha15491@gmail.com`).
-2. Open or create your project: `edvexa-production-db` (AWS Asia Pacific 1 - Singapore / `ap-southeast-1`).
-3. In **Connection Details**, copy the pooled connection string (with `sslmode=require`).
-4. In **Object Storage** / **Buckets**, create bucket `edvexa-uploads` (Access: `private`).
-5. Generate an S3-compatible Access Key ID and Secret Access Key with storage read/write permissions, and note the S3 Endpoint URL.
-
-#### Step 2: Deploy to Render via GitHub Blueprint
-1. Go to [render.com](https://render.com) and log in with GitHub.
-2. Click **New +** > **Blueprint**.
-3. Select your repository `https://github.com/renavaraghav/edvexa-data-quality-etl-monitor` and branch `main`.
-4. Render automatically reads `render.yaml`. When prompted for the non-synced environment variables, enter:
-   - `DATABASE_URL`: Your Neon PostgreSQL connection string.
-   - `ADMIN_RESET_TOKEN`: A secret token (e.g. `edvexa_adm_c9c985cb4b64f9704662bdc05eccc2091cd35f3d796a5344`).
-   - `NEON_STORAGE_ENDPOINT`: Your Neon Object Storage S3 endpoint URL.
-   - `NEON_STORAGE_ACCESS_KEY_ID`: Your Neon storage Access Key ID.
-   - `NEON_STORAGE_SECRET_ACCESS_KEY`: Your Neon storage Secret Access Key.
-5. Click **Apply**. Render will trigger the build, install requirements, initialize tables on Neon, and assign a public `https://<service-name>.onrender.com` URL.
-
----
-
-## 7. Sample Datasets & Ingestion Instructions
-
-Synthetic test datasets are located in `sample_data/`. You can regenerate all files deterministically at any time:
-```powershell
-python scripts\generate_sample_data.py
-```
-
-### Catalog of Sample Datasets
+### Catalog of Sample Datasets (`sample_data/`)
 
 | Filename | Dataset Type | Records | Purpose & Scenarios Tested |
 | :--- | :--- | :--- | :--- |
-| `customers_valid.csv` | Customers | 5 | 100% clean records with whitespace normalization, email lowercasing, and date parsing. |
-| `customers_invalid.csv` | Customers | 7 | Invalid email addresses (`plainaddress`, missing `@`), missing required fields, non-leap year Feb 29 dates (`2023-02-29`), and unparseable strings. |
-| `customers_duplicates.csv` | Customers | 2 | Duplicate in-file business primary key (`CUST-001`). Row 1 is accepted, Row 2 is flagged as duplicate. |
-| `sales_valid.csv` | Sales | 5 | 100% clean sales transactions with valid amounts, dates, and ISO currency codes (`USD, EUR, GBP, JPY`). |
-| `sales_invalid.csv` | Sales | 6 | Prohibited negative amounts (`-150.00`), non-numeric amounts, unsupported currencies (`BITCOIN`), missing IDs, and invalid calendar dates. |
-| `inventory_valid.csv` | Inventory | 5 | 100% clean products with valid integer quantities and unit prices. |
-| `inventory_invalid.csv` | Inventory | 6 | Prohibited negative quantities (`-5`), negative prices, fractional box counts (`12.75`), missing product names, and invalid date strings. |
-| `customers.csv` | Customers | 13 | Comprehensive mixed dataset containing clean records, normalization checks, duplicate keys, and invalid values in a single file. |
-| `sales.csv` | Sales | 12 | Comprehensive mixed sales dataset with negative amounts, invalid currency, and date boundary checks. |
+| `customers_valid.csv` | Customers | 5 | Clean records; tests whitespace normalization, email lowercasing, and date parsing. |
+| `customers_invalid.csv` | Customers | 7 | Invalid records; tests malformed emails, non-leap year Feb 29 dates (`2023-02-29`), and missing fields. |
+| `customers_duplicates.csv` | Customers | 2 | In-file duplicate primary key (`CUST-001`). Row 1 is accepted, Row 2 is flagged as duplicate. |
+| `sales_valid.csv` | Sales | 5 | Clean sales transactions with valid amounts, dates, and ISO currency codes (`USD, EUR, GBP, JPY`). |
+| `sales_invalid.csv` | Sales | 6 | Invalid sales; tests negative amounts (`-150.00`), unsupported currencies (`BITCOIN`), and bad dates. |
+| `inventory_valid.csv` | Inventory | 5 | Clean products with valid integer quantities and unit prices. |
+| `inventory_invalid.csv` | Inventory | 6 | Invalid inventory; tests negative stock (`-5`), fractional counts (`12.75`), and blank names. |
+| `customers.csv` | Customers | 13 | Comprehensive mixed dataset testing clean records, duplicates, and errors in a single file. |
+| `sales.csv` | Sales | 12 | Comprehensive mixed sales dataset with negative amounts, currency, and date boundary checks. |
 | `inventory.csv` | Inventory | 12 | Comprehensive mixed inventory dataset testing negative stock, decimal quantities, and blank names. |
 
-### Ingestion via Web Interface:
-1. Open [http://127.0.0.1:8010](http://127.0.0.1:8010) in your browser.
-2. Click **Import Data** in the left sidebar navigation.
-3. Select **Customers** in the dataset dropdown.
-4. Drag and drop `sample_data/customers_valid.csv` (or click to browse).
-5. Click **Run Ingestion Pipeline**. The UI immediately displays 5 accepted records.
-6. Now upload `sample_data/customers_invalid.csv`: The UI displays 7 rejected records with detailed line-by-line validation diagnostics.
-7. Upload `sample_data/customers_duplicates.csv`: Row 1 is accepted, Row 2 is reported as `DUPLICATE_KEY_IN_FILE`.
-8. Re-upload `sample_data/customers_valid.csv` to demonstrate **Database Idempotency**:
-   - 0 clean records inserted, 5 duplicate keys detected (`DUPLICATE_KEY_IN_DB`), 0 rejected, database clean tables remain untouched.
+---
+
+## 8. Viewing Records, Errors, Jobs, and Exporting Reports
+
+The left sidebar gives you instant access to all observability sections:
+
+### 1. View Accepted Records
+- Click **Clean Records** in the sidebar.
+- Switch between **Customers**, **Sales**, and **Inventory** tabs.
+- Clean records display normalized formatting: names in Title Case, trimmed whitespace, lowercase emails, and standardized `YYYY-MM-DD` dates.
+
+### 2. View Rejected Records & Validation Errors
+- Click **Validation Errors** in the sidebar.
+- The table displays exact CSV row numbers, dataset types, field names, error codes (e.g., `INVALID_EMAIL_FORMAT`, `MISSING_REQUIRED_FIELD`), human-readable error messages, and original invalid values.
+
+### 3. Review Processing Jobs & Download Reports
+- Click **Processing Jobs** in the sidebar.
+- Each job displays the original filename, dataset type, status badge, row breakdown, SHA-256 checksum, and processing duration.
+- Click **Details** on any job to open the Job Details modal:
+  - **Clean Records (CSV):** Downloads accepted records for that specific job. (Disabled if 0 clean records).
+  - **Validation Errors (CSV):** Downloads validation error diagnostics for that job. (Disabled if 0 errors).
+  - **Download Excel Report (.xlsx):** Downloads a 3-sheet Microsoft Excel workbook containing:
+    1. *Job Summary:* Job metadata, row counts, and mathematical reconciliation audit.
+    2. *Clean Records:* Formatted table of accepted rows with auto-filters.
+    3. *Validation Errors:* Formatted table of rejected rows with failure reasons.
+
+### 4. Overview Metrics & Trend Charts
+- Click **Overview** in the sidebar.
+- Live KPI cards display: Total Records Processed, Accepted Clean Records, Rejected Records, Duplicate Records, Total Processing Jobs, and Data Quality Pass Rate.
+- Trend percentages compare current metrics against previous periods when genuine historical data exists. When prior data is not available, the dashboard clearly displays *"No previous-period comparison available"* with an explanatory tooltip.
 
 ---
 
-## 8. Export & Download Job Artifacts
+## 9. How to Run Tests
 
-The platform provides dedicated, job-scoped export capabilities for every processing run. Users can download artifacts directly after uploading via the ingestion feedback card, or anytime from the **Job Details** modal.
+The test suite runs against an isolated, in-memory SQLite database (`sqlite:///:memory:`) so your operational database is never modified.
 
-### Available Download Actions & Endpoints
-
-| Endpoint | Method | Output Format | Description |
-| :--- | :--- | :--- | :--- |
-| `/api/jobs/{id}/download/clean` | `GET` | CSV (`text/csv`) | Exports only clean, normalized records accepted in this specific job with exact dataset column names. Returns `HTTP 400` if 0 rows accepted. |
-| `/api/jobs/{id}/download/errors` | `GET` | CSV (`text/csv`) | Exports all validation errors recorded for this job (`job_id, row_number, dataset_type, field_name, error_code, error_message, original_value`). Returns `HTTP 400` if 0 errors. |
-| `/api/jobs/{id}/download/summary` | `GET` | Excel (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`) | Exports a multi-sheet Microsoft Excel workbook (`job_<id>_report.xlsx`) containing Job Summary, Clean Records, and Validation Errors. |
-
-### UI Behavior & Features
-- **Clean Records (CSV):** Disabled with a tooltip (`No clean records were accepted from this job`) if accepted rows equal 0.
-- **Validation Errors (CSV):** Disabled with a tooltip (`No validation errors were recorded for this job`) if the run had zero validation errors.
-- **Download Excel Report (.xlsx):** Always available for completed jobs, even if clean records or validation errors are empty.
-- **Double-Click Prevention:** Download buttons enter a loading state during export and re-enable upon file delivery.
-
-### Excel Report Structure (`job_<id>_report.xlsx`)
-The exported workbook contains three formatted worksheets:
-1. **`Job Summary`:**
-   - **Execution Metadata:** Job ID, original filename, dataset type, status, SHA-256 checksum, timestamps, and duration.
-   - **Pipeline Metrics:** Total rows, accepted records, rejections, duplicate keys prevented, skipped rows, validation error count, and data quality pass rate.
-   - **Accounting Reconciliation Audit:** Verifies $\text{total\_rows} = \text{accepted} + \text{rejected} + \text{duplicates} + \text{skipped}$. Displays sum of categories, difference, and reconciliation status (`PASSED`).
-2. **`Clean Records`:**
-   - Contains only the normalized records accepted by the specific job.
-   - Dataset columns (`customers`, `sales`, `inventory`) with frozen header row (`A2`), auto-filters, and formatted numbers/currencies.
-   - If 0 clean records were accepted, displays an explanatory notice.
-3. **`Validation Errors`:**
-   - Itemizes all errors: `job_id, row_number, dataset_type, field_name, error_code, error_message, original_value`.
-   - Frozen header row (`A2`), auto-filters, and wrapped error descriptions.
-   - If clean run (0 errors), displays an explanatory notice.
-
----
-
-## 9. Data Validation & Business Rules
-
-| Dataset | Field | Type / Requirement | Normalization Applied | Rejection Error Code |
-| :--- | :--- | :--- | :--- | :--- |
-| **Customers** | `customer_id` | Required string | Trimmed | `MISSING_REQUIRED_FIELD` |
-| | `name` | Required string | Trimmed, internal spaces collapsed, Title Case | `MISSING_REQUIRED_FIELD` |
-| | `email` | Required RFC 5322 pattern | Trimmed, Lowercase | `MISSING_REQUIRED_FIELD`, `INVALID_EMAIL_FORMAT` |
-| | `phone` | Optional string | Trimmed | N/A |
-| | `created_at` | Required calendar date | Normalized to ISO `YYYY-MM-DD` | `MISSING_REQUIRED_FIELD`, `INVALID_DATE_FORMAT` |
-| **Sales** | `sale_id` | Required unique PK | Trimmed | `MISSING_REQUIRED_FIELD` |
-| | `customer_id` | Required foreign ref | Trimmed | `MISSING_REQUIRED_FIELD` |
-| | `amount` | Required numeric $\ge 0.0$ | Parsed float, rounded to 2 decimals | `MISSING_REQUIRED_FIELD`, `INVALID_NUMERIC_VALUE`, `NEGATIVE_VALUE` |
-| | `sale_date` | Required calendar date | Normalized to ISO `YYYY-MM-DD` | `MISSING_REQUIRED_FIELD`, `INVALID_DATE_FORMAT` |
-| | `currency` | Required supported ISO code | Trimmed, Uppercase (`USD, EUR, GBP, CAD, AUD, JPY, INR`) | `MISSING_REQUIRED_FIELD`, `INVALID_CURRENCY` |
-| **Inventory** | `product_id` | Required unique PK | Trimmed | `MISSING_REQUIRED_FIELD` |
-| | `product_name`| Required string | Trimmed, Title Case | `MISSING_REQUIRED_FIELD` |
-| | `quantity` | Required integer $\ge 0$ | Parsed integer | `MISSING_REQUIRED_FIELD`, `INVALID_NUMERIC_VALUE`, `NEGATIVE_VALUE` |
-| | `unit_price` | Required numeric $\ge 0.0$ | Parsed float, rounded to 2 decimals | `MISSING_REQUIRED_FIELD`, `INVALID_NUMERIC_VALUE`, `NEGATIVE_VALUE` |
-| | `updated_at` | Required calendar date | Normalized to ISO `YYYY-MM-DD` | `MISSING_REQUIRED_FIELD`, `INVALID_DATE_FORMAT` |
-
----
-
-## 10. Duplicate Handling & Idempotency Policy
-
-1. **In-File Duplicates:** If a primary business key (`customer_id`, `sale_id`, or `product_id`) appears more than once within the same uploaded file, the first valid occurrence is accepted, and all subsequent occurrences are classified as `duplicate_rows` with error code `DUPLICATE_KEY_IN_FILE`.
-2. **Database Duplicates:** If an uploaded record contains a primary key that already exists in the clean database table, it is classified as `duplicate_rows` with error code `DUPLICATE_KEY_IN_DB`.
-3. **Repeated File Uploads:** Uploaded raw bytes are hashed via SHA-256 and matched against previous runs. The repeated run is recorded in `processing_jobs` for audit transparency, but clean records are never double-inserted or overwritten.
-4. **Mutual Exclusion Accounting:**
-   $$\text{total\_rows} = \text{accepted\_rows} + \text{rejected\_rows} + \text{duplicate\_rows} + \text{skipped\_rows}$$
-   Every row belongs to exactly one category.
-
----
-
-## 11. REST API Endpoints & `curl` Request Examples
-
-All endpoints return standard JSON responses and status codes. Interactive Swagger API documentation is available at [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs).
-
-### 11.1 System Health
+### Run the Full Test Suite
 ```powershell
+pytest -v
+```
+
+### Verified Test Results (Executed October 26, 2026)
+- **Command:** `.venv\Scripts\pytest -v`
+- **Items Collected:** 99
+- **Passed:** **99**
+- **Failed:** **0**
+- **Skipped:** **0**
+- **Warnings:** **17** *(library deprecation notices in FastAPI/Starlette testclient)*
+- **Execution Time:** ~48 seconds
+
+```text
+============================= test session starts =============================
+platform win32 -- Python 3.12.5, pytest-9.1.1, pluggy-1.7.0
+rootdir: C:\Users\rjha1\Downloads\csv_project
+collected 99 items
+
+tests/test_api.py ........................                               [ 24%]
+tests/test_dashboard_upgrade.py ..                                      [ 26%]
+tests/test_deployment_storage_and_security.py .....................      [ 47%]
+tests/test_etl.py .........                                              [ 56%]
+tests/test_playwright_reset_flow.py ......                               [ 62%]
+tests/test_public_reset_and_safety.py .......                            [ 69%]
+tests/test_reset_and_filter.py ...........                               [ 80%]
+tests/test_transformation.py .......                                     [ 87%]
+tests/test_validation.py .............                                   [100%]
+
+====================== 99 passed, 17 warnings in 48.52s =======================
+```
+
+---
+
+## 10. Important REST API Endpoints
+
+All endpoints return standard JSON responses and status codes. Interactive documentation is available at [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs).
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/health` | Health probe returning status, app version, database dialect, and storage backend. |
+| `POST` | `/api/uploads` | Multipart CSV upload endpoint with `dataset_type` query parameter (`customers`, `sales`, `inventory`). |
+| `GET` | `/api/jobs` | Paginated list of processing jobs with filtering by dataset and date range. |
+| `GET` | `/api/jobs/{id}` | Detailed execution metadata, error itemization, and row counts for a specific job. |
+| `POST` | `/api/jobs/{id}/reprocess` | Reprocesses a previously uploaded CSV file using stored file artifacts. |
+| `GET` | `/api/jobs/{id}/download/clean` | Exports accepted records for a specific job as a CSV file. |
+| `GET` | `/api/jobs/{id}/download/errors` | Exports validation errors for a specific job as a CSV file. |
+| `GET` | `/api/jobs/{id}/download/summary` | Exports a multi-sheet Microsoft Excel report (`.xlsx`) for a specific job. |
+| `GET` | `/api/records` | Paginated browser for clean stored records by dataset type (`customers`, `sales`, `inventory`). |
+| `GET` | `/api/errors` | Paginated listing of validation errors across all jobs with filtering options. |
+| `GET` | `/api/dashboard/summary` | Real-time aggregate KPIs, dataset metrics, quality score, and trend calculations. |
+| `GET` | `/api/dashboard/trends` | Daily/job-level ingestion trends for Chart.js visualization. |
+| `GET` | `/api/dashboard/reset-status` | Reports whether destructive data reset is enabled and policy status. |
+| `POST` | `/api/dashboard/reset-data` | Destructive reset endpoint clearing all uploaded data while preserving database schema. |
+| `POST` | `/api/dashboard/reset-preferences` | Resets client UI view preferences, filters, and theme. |
+
+### Example `curl` Commands
+
+```powershell
+# Check System Health:
 curl.exe -s http://127.0.0.1:8010/api/health
-```
-**Response:**
-```json
-{
-  "status": "healthy",
-  "version": "2.7.0",
-  "database_connected": true,
-  "timestamp": "2026-10-25T14:41:23.000000Z"
-}
-```
 
-### 11.2 Ingest CSV Dataset
-```powershell
-curl.exe -X POST "http://127.0.0.1:8010/api/uploads?dataset_type=customers" `
-  -F "file=@sample_data/customers_valid.csv"
-```
-**Response:**
-```json
-{
-  "job_id": 8,
-  "filename": "customers_valid.csv",
-  "dataset_type": "customers",
-  "status": "completed",
-  "total_rows": 5,
-  "accepted_rows": 5,
-  "rejected_rows": 0,
-  "duplicate_rows": 0,
-  "skipped_rows": 0,
-  "processing_duration": 0.008
-}
-```
+# Upload a Customers CSV file:
+curl.exe -X POST "http://127.0.0.1:8010/api/uploads?dataset_type=customers" -F "file=@sample_data/customers_valid.csv"
 
-### 11.3 Dashboard KPI Summary & Analytics
-```powershell
-# Real-time summary across all jobs:
+# Fetch Dashboard Summary KPIs:
 curl.exe -s http://127.0.0.1:8010/api/dashboard/summary
 
-# Optional date-range filtering:
-curl.exe -s "http://127.0.0.1:8010/api/dashboard/summary?start_date=2026-10-01&end_date=2026-10-31"
-```
-
-### 11.4 Processing Job Audit & Detail
-```powershell
-# List jobs with pagination:
-curl.exe -s "http://127.0.0.1:8010/api/jobs?limit=10&offset=0"
-
-# Get single job details:
-curl.exe -s http://127.0.0.1:8010/api/jobs/1
-```
-
-### 11.5 Validation Errors Catalog
-```powershell
-# List errors across all jobs:
-curl.exe -s "http://127.0.0.1:8010/api/errors?limit=20"
-
-# List errors for a specific job:
-curl.exe -s http://127.0.0.1:8010/api/jobs/1/errors
-```
-
-### 11.6 Clean Business Records Browser
-```powershell
-# Retrieve clean customers:
-curl.exe -s "http://127.0.0.1:8010/api/records?dataset_type=customers&limit=10"
-```
-
-### 11.7 Export & Download Job Artifacts
-```powershell
-# Download Clean Records CSV:
-curl.exe -O -J "http://127.0.0.1:8010/api/jobs/1/download/clean"
-
-# Download Validation Errors CSV:
-curl.exe -O -J "http://127.0.0.1:8010/api/jobs/1/download/errors"
-
-# Download Multi-Sheet Excel Audit Report (.xlsx):
+# Download Excel Job Audit Report:
 curl.exe -O -J "http://127.0.0.1:8010/api/jobs/1/download/summary"
 ```
 
-### 11.8 Destructive Data Reset
-```powershell
-# Development (default):
-curl.exe -X POST http://127.0.0.1:8010/api/dashboard/reset-data
-
-# Production (requires admin token header or query parameter):
-curl.exe -X POST http://127.0.0.1:8010/api/dashboard/reset-data -H "X-Admin-Reset-Token: your_admin_token"
-```
-
-### 11.9 Administrative Reset Security Status
-```powershell
-curl.exe -s http://127.0.0.1:8010/api/dashboard/reset-status
-```
-
 ---
 
-## 12. Automated Testing Suite
+## 11. Database Setup, Environment Configuration & Reset Safety
 
-The test suite runs against an isolated, in-memory SQLite database via temporary test fixtures so your local development database is never altered.
+### Database Architecture
+- **Local Development:** The application uses SQLite (`edvexa_data.db`) located in the project root. The schema initializes automatically on first run; no external database server is needed.
+- **Production Deployment:** The live application on Render connects to Neon Serverless PostgreSQL (`ep-lingering-meadow-a50j79j9.us-east-2.aws.neon.tech`). Connections automatically enforce SSL (`sslmode=require`) and connection pooling.
+- **File Storage:** Uploaded CSV files are saved to `uploads_storage/` locally, and to Neon Object Storage (S3-compatible) in production.
 
-### Run All Tests:
-```powershell
-python -m pytest -v
-```
+### Environment Variables Reference
 
-### Test Coverage Summary (81 Passing Tests):
-- **`tests/test_transformation.py`:** String cleaning, name title-casing, email lowercasing, currency normalizers, ISO date parsers, leap-year boundary checks, numeric float/int parsers.
-- **`tests/test_validation.py`:** Field-level validation rules for all 3 schemas, regex conformance, non-negative value checks, CSV header inspection, missing column detection, empty file handling, and UTF-8 BOM encoding.
-- **`tests/test_etl.py`:** End-to-end ETL execution, clean table insertion, validation error persistence, in-file duplicate detection, database duplicate prevention, repeated upload idempotency, and transactional rollbacks.
-- **`tests/test_api.py`:** Full HTTP endpoint coverage: `/api/health`, `/api/uploads` (success, 400 empty, 415 invalid type, 422 bad dataset), `/api/jobs`, `/api/jobs/{id}`, `/api/jobs/{id}/errors`, `/api/errors`, `/api/records`, `/api/dashboard/summary`, `/api/dashboard/trends`, `/api/jobs/{id}/reprocess`, and download endpoints (`/download/clean`, `/download/errors`, `/download/summary`, edge cases, isolation, escaping).
-- **`tests/test_dashboard_upgrade.py`:** UI preferences reset (`POST /api/dashboard/reset-preferences`) and dashboard summary/trends date-range filtering.
-- **`tests/test_reset_and_filter.py`:** Destructive data reset (`POST /api/dashboard/reset-data`), physical artifact cleanup, path traversal protection, concurrency lock enforcement, OpenAPI schema presence, idempotent empty-database responses, transaction rollback on failure, records/errors date-range filtering, and KPI mathematical invariants.
-- **`tests/test_deployment_storage_and_security.py`:** Neon PostgreSQL URL normalization (`postgres://` to `postgresql://` and `sslmode=require`), credential redaction logging, `LocalStorageBackend` traversal prevention, `R2StorageBackend` S3 operations with boto3 mock, storage singleton factory, `GET /api/dashboard/reset-status`, and production authorization safeguards (403/401 checks).
+| Variable | Required | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `ENVIRONMENT` | Yes | `development` | Runtime environment (`development` or `production`). |
+| `DATABASE_URL` | Yes | `sqlite:///./edvexa_data.db` | Database connection string. Supports SQLite and PostgreSQL with SSL. |
+| `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `neon` for Neon Object Storage. |
+| `ALLOW_DESTRUCTIVE_RESET` | Optional | `true` | Boolean flag enabling the destructive data reset feature (active for evaluation demo). |
+| `CORS_ORIGINS` | Optional | `*` | Comma-delimited list of permitted CORS origins. |
+| `UPLOAD_MAX_SIZE_BYTES` | Optional | `10485760` | Maximum file upload payload size (10 MB). |
 
----
+### Two-Step Destructive Data Reset
+The platform includes an iPhone-style Slide-to-Reset control to clear uploaded data without dropping database tables:
 
-## 13. Database Schema & Entity Relationships
-
-The schema is defined via SQLAlchemy in `app/models.py` and exported as standalone ANSI SQL in `schema.sql`.
-
-```mermaid
-erDiagram
-    PROCESSING_JOBS ||--o{ VALIDATION_ERRORS : "has"
-    PROCESSING_JOBS ||--o{ JOB_CLEAN_RECORDS : "stores"
-    PROCESSING_JOBS {
-        int id PK
-        string filename
-        string dataset_type
-        string file_hash
-        string status
-        int total_rows
-        int accepted_rows
-        int rejected_rows
-        int duplicate_rows
-        int skipped_rows
-        text error_message
-        datetime started_at
-        datetime completed_at
-        float processing_duration
-    }
-    JOB_CLEAN_RECORDS {
-        int id PK
-        int job_id FK
-        int row_number
-        string dataset_type
-        string business_key
-        text record_json
-        datetime created_at
-    }
-    VALIDATION_ERRORS {
-        int id PK
-        int job_id FK
-        int row_number
-        string field_name
-        string error_code
-        text error_message
-        text original_value
-        text original_row_json
-        datetime created_at
-    }
-    CUSTOMERS {
-        string customer_id PK
-        string name
-        string email
-        string phone
-        string created_at
-        datetime created_timestamp
-    }
-    SALES {
-        string sale_id PK
-        string customer_id
-        float amount
-        string sale_date
-        string currency
-    }
-    INVENTORY {
-        string product_id PK
-        string product_name
-        int quantity
-        float unit_price
-        string updated_at
-    }
-```
-
----
-
-## 14. Application Screenshots Gallery
-
-Genuine, unedited full-resolution screenshots captured from the running application:
-
-### 1. Dashboard Overview — Light Theme (Warm Ivory)
-![Dashboard Overview Light](screenshots/01_dashboard_overview_light.png)
-*Real-time KPI metrics, data quality pass rate, quality distribution donut, and 14-day ingestion trendline.*
-
-### 2. Dashboard Overview — Dark Theme (Dark Espresso)
-![Dashboard Overview Dark](screenshots/02_dashboard_overview_dark.png)
-*WCAG AA-compliant dark espresso theme with audited 4.5:1 text contrast and high-contrast status tokens.*
-
-### 3. Data Ingestion & Drag-and-Drop Workflow
-![Import Data Workflow](screenshots/03_import_data_workflow.png)
-*Dataset selection, drag-and-drop CSV drop zone, schema rules guide, and instant pipeline execution.*
-
-### 4. Processing Job Audit & Job Details
-![Processing Jobs Audit](screenshots/04_processing_jobs_audit.png)
-*Comprehensive processing jobs audit log with status badges, row counts, durations, and modal inspect/reprocess actions.*
-
-### 5. iPhone-Style Slide-to-Reset & Safety Modal
-![Slide-to-Reset Modal](screenshots/05_slide_to_reset_modal.png)
-*Compact slide-to-reset interaction control with secondary confirmation modal and concurrency-safe deletion.*
-
-### 6. Mobile Responsive Viewport (375x812 iPhone)
-![Mobile Responsive View](screenshots/06_mobile_responsive_view.png)
-*Seamless mobile experience with responsive slide-out navigation drawer, stacked KPI cards, and scrollable tables.*
-
----
-
-## 15. Application Demonstration Video
-
-A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion, data validation diagnostics, duplicate detection, date-range filtering, dark espresso mode contrast, iPhone-style slide-to-reset, and multi-sheet Excel reports is provided for evaluators:
-
-- **Online Video Stream (Google Drive):** [Watch EDVEXA Video Walkthrough (4m 23s)](https://drive.google.com/file/d/1HU3dQvIffSwfCqCI_qd0JEIJ-RBXtmij/view?usp=sharing)
-- **Demo Documentation:** [`demo/README.md`](demo/README.md)
-- **Local Workspace File:** `demo/edvexa-demo.mp4` *(retained locally, excluded from Git repository)*
-- **Format:** MP4 Video (`video/mp4`)
-- **Duration:** 4 minutes 23 seconds
-- **File Size:** 249.86 MB (261,994,262 bytes)
+1. **Slide to Unlock:** The user drags the slider thumb past 85% of track width to the end.
+2. **Confirmation Checkbox:** Reaching the end opens the confirmation modal and unlocks the confirmation checkbox (*"I understand that this action will permanently delete the selected uploaded data and associated processing history."*).
+3. **Button Activation:** Ticking the checkbox enables the red **"Permanently Delete"** button. Ticking the box alone never deletes data.
+4. **Explicit Execution:** Deletion happens only when the user explicitly clicks the enabled **"Permanently Delete"** button.
+5. **Atomic Purge & Automatic Refresh:** The backend purges records inside an atomic transaction, unlinks uploaded files, and confirms success. The frontend then executes `window.location.reload()`, performing an automatic full page refresh so all dashboard numbers and tables display the fresh updated state.
 
 > [!NOTE]
-> Due to GitHub's strict 100 MB per-file repository limit, the uncompressed 250 MB recording is preserved locally in `demo/edvexa-demo.mp4` and intentionally excluded from Git via `.gitignore`. Evaluators can stream the full recording directly using the [Google Drive Demonstration Link](https://drive.google.com/file/d/1HU3dQvIffSwfCqCI_qd0JEIJ-RBXtmij/view?usp=sharing) above.
+> **Assignment Demo Configuration:**  
+> In the current configuration, `ALLOW_DESTRUCTIVE_RESET=true` and `public_reset_enabled=true` are active so evaluators can test data deletion directly from the UI without an administrative token or login.  
+> Direct API requests to `POST /api/dashboard/reset-data` bypass the frontend slider and checkbox controls because backend token enforcement is disabled in this evaluation mode. (A complete, session-based admin authentication module is implemented in `app/routers/auth.py` for enterprise production deployments).
 
 ---
 
-## 16. Known Limitations & Production Considerations
+## 12. Project Folder Structure
 
-1. **Authentication & Authorization:** The assignment explicitly specifies no multi-user admin authentication for local development simplicity. In a production cloud deployment, JWT / OAuth2 bearer tokens and role-based access control (RBAC) should protect upload and administrative endpoints.
-2. **Synchronous Execution:** Uploads are processed synchronously in the local environment, which is fast and deterministic for files under 10 MB. For files exceeding hundreds of thousands of rows, processing should be offloaded to an asynchronous message broker (e.g., Celery + Redis).
-3. **Database Dialect:** Defaults to SQLite for zero-configuration local execution on Windows. SQLAlchemy 2.x models and queries are dialect-agnostic and compatible with PostgreSQL.
+```
+edvexa-data-quality/
+├── app/
+│   ├── main.py                     # FastAPI application factory, middleware & route registration
+│   ├── config.py                   # Pydantic settings, environment variables & DB URL normalization
+│   ├── database.py                 # SQLAlchemy engine, session maker & schema initialization
+│   ├── models.py                   # SQLAlchemy 2.0 ORM models (Jobs, Errors, Clean Tables)
+│   ├── schemas.py                  # Pydantic validation models & response serialization
+│   ├── services/
+│   │   ├── csv_import.py           # Multi-encoding file parsing & header verification
+│   │   ├── transformation.py       # Deterministic cleaning, casing, date & numeric normalizers
+│   │   ├── validation.py           # Schema rules, email regex, bounds checks & error generation
+│   │   ├── etl_pipeline.py         # Atomic ETL execution, transaction management & idempotency
+│   │   ├── export_service.py       # Job-scoped CSV & multi-sheet Excel (.xlsx) export generator
+│   │   ├── storage.py              # Storage abstraction (Local filesystem & Neon Object Storage S3)
+│   │   └── auth.py                 # Password hashing & session-based authentication service
+│   ├── routers/
+│   │   ├── uploads.py              # POST /api/uploads multipart CSV endpoint
+│   │   ├── jobs.py                 # Processing jobs listing, details & reprocess endpoints
+│   │   ├── errors.py               # Validation errors listing & CSV export endpoints
+│   │   ├── records.py              # Clean records browser (Customers, Sales, Inventory)
+│   │   ├── dashboard.py            # Summary KPIs, trends, reset-status & reset-data
+│   │   └── auth.py                 # Admin login, logout & session status endpoints
+│   ├── templates/
+│   │   └── index.html              # Responsive SPA layout (Sidebar, Overview, Ingestion, Tables)
+│   └── static/
+│       ├── css/styles.css          # Design tokens, Warm Ivory theme, Dark Espresso mode
+│       └── js/app.js               # SPA navigation, modals, upload dropzone, Chart.js & slider
+│
+├── sample_data/                    # 10 synthetic test CSV datasets (valid, invalid, duplicates, mixed)
+├── screenshots/                    # 6 high-resolution application screenshots
+├── demo/
+│   ├── README.md                   # Video walkthrough documentation & streaming link
+│   └── edvexa-demo.mp4             # 4m 23s demonstration video (local file, gitignored)
+├── tests/                          # 99 automated tests covering API, ETL, validation, reset, and storage
+├── schema.sql                      # Standalone ANSI SQL DDL schema definitions & indexes
+├── requirements.txt                # Pinned dependencies
+├── render.yaml                     # Render Blueprint infrastructure specification
+├── TECHNICAL_NOTES.md              # In-depth architectural notes & trade-offs
+├── TECHNICAL_NOTES.pdf             # Publication-grade printable technical documentation
+├── DEMO_CHECKLIST.md               # 14-step evaluator verification sequence
+└── README.md                       # This comprehensive operational guide
+```
 
 ---
 
-## 17. Troubleshooting Guide
+## 13. Known Limitations and Troubleshooting
 
+### Known Limitations
+1. **Synchronous Ingestion:** File uploads are processed synchronously within the request lifecycle. This is fast and deterministic for files under 10 MB. In high-volume enterprise pipelines, processing would be offloaded to an asynchronous background worker (e.g., Celery + Redis).
+2. **Public Reset in Demo Mode:** To allow evaluators to test data reset without credentials, destructive reset is currently open in production. In enterprise deployments, `ALLOW_DESTRUCTIVE_RESET=false` blocks the endpoint.
+
+### Common Troubleshooting Tips
 - **Port 8010 Already in Use:**
-  Run on a different port:
+  Run the server on a different port:
   ```powershell
   uvicorn app.main:app --port 8080 --reload
   ```
 - **PowerShell Script Execution Policy Error:**
-  If `.venv\Scripts\Activate.ps1` gives an execution policy warning:
+  If activating `.venv\Scripts\Activate.ps1` produces a script execution restriction warning:
   ```powershell
   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
   ```
-- **Resetting the Local Database:**
-  To start with a clean slate:
+- **Resetting the Local Database Manually:**
+  To start with a fresh empty database:
   ```powershell
   Remove-Item edvexa_data.db -ErrorAction SilentlyContinue
   Remove-Item uploads_storage\*.csv -ErrorAction SilentlyContinue
   ```
-  Restarting the server will recreate fresh empty tables.
+  Restarting the server recreates fresh empty tables automatically.
 
 ---
 
-## 18. Credits & Tools Used
+## 14. Technical Notes, Demo Video, and Credits
 
+### Technical Documentation
+Detailed engineering architecture notes, data models, trade-offs, and tooling demarcations are published in both Markdown and printable PDF formats:
+- 📄 [Read Technical Notes (Markdown)](TECHNICAL_NOTES.md)
+- 📑 [Download Technical Notes (PDF)](TECHNICAL_NOTES.pdf)
+
+### Demonstration Video
+- **Online Stream (Google Drive):** [Watch EDVEXA Video Walkthrough (4m 23s)](https://drive.google.com/file/d/1HU3dQvIffSwfCqCI_qd0JEIJ-RBXtmij/view?usp=sharing)
+- **Local File:** `demo/edvexa-demo.mp4` *(249.86 MB, preserved locally)*
+
+### Credits & Tooling Demarcation
 - **Author:** Raghav Kumar
 - **Role:** Software Engineer
-- **Project:** EDVEXA Data Quality and ETL Monitoring Platform
-- **Tools Used:** CodeZero, Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite / Neon PostgreSQL, Neon Object Storage, Render, openpyxl, pytest, Git and GitHub.
+- **Platform:** Edvexa Data Quality & ETL Monitoring Platform
 
-### Tooling Demarcation
-- **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including FastAPI backend implementation, SQLAlchemy relational schema, openpyxl multi-sheet Excel engine, dual-theme responsive frontend, date-range filtering, storage abstraction layer, Render + Neon cloud architecture, and the 84 automated regression tests.
-- **CodeZero:** Utilized during initial project exploration in repository `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the initial standalone CLI exercise (`csv_quality_checker.py`), analyze validation requirements, and author the initial architecture scope in `README.md` (commit `7983368`, plan `6adcf6109cb64fb3236a5352`).
+#### Tooling Demarcation
+- **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including the FastAPI routing layer, SQLAlchemy 2.0 relational models, openpyxl multi-sheet Excel generator, dual-theme responsive frontend (Warm Ivory & Dark Espresso), date-range filtering engine, two-step slide-to-reset control, and the 99-test automated pytest suite.
+- **CodeZero:** Utilized during the initial project exploration phase within repository `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the standalone CLI script (`csv_quality_checker.py`), analyze baseline validation rules, and draft the initial architecture scope in `README.md` (Git commit `7983368`, plan `6adcf6109cb64fb3236a5352`).

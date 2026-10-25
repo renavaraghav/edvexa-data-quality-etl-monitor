@@ -146,9 +146,9 @@ Open a terminal and run:
 ```powershell
 python -m pytest -v
 ```
-- **Expected Outcome:** All 65 tests pass with 100% success rate:
+- **Expected Outcome:** All 99 tests pass with 100% success rate:
   ```
-  ======================= 65 passed, 6 warnings in 1.93s ========================
+  ====================== 99 passed, 17 warnings in 48.52s =======================
   ```
 
 ---
