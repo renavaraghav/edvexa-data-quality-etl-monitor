@@ -303,7 +303,7 @@ curl.exe -O -J "http://127.0.0.1:8010/api/jobs/1/download/summary"
 | `ENVIRONMENT` | Yes | `development` | Runtime environment (`development` or `production`). |
 | `DATABASE_URL` | Yes | `sqlite:///./edvexa_data.db` | Database connection string. Supports SQLite and PostgreSQL with SSL. |
 | `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `neon` for Neon Object Storage. |
-| `ALLOW_DESTRUCTIVE_RESET` | Optional | `true` | Boolean flag enabling the destructive data reset feature (active for evaluation demo). |
+| `FORCE_DISABLE_DESTRUCTIVE_RESET` | Optional | `false` | Set to `true` to disable the destructive reset endpoint. When unset or `false`, reset remains enabled in the assignment demo configuration. |
 | `CORS_ORIGINS` | Optional | `*` | Comma-delimited list of permitted CORS origins. |
 | `UPLOAD_MAX_SIZE_BYTES` | Optional | `10485760` | Maximum file upload payload size (10 MB). |
 
@@ -318,7 +318,7 @@ The platform includes an iPhone-style Slide-to-Reset control to clear uploaded d
 
 > [!NOTE]
 > **Assignment Demo Configuration:**  
-> In the current configuration, `ALLOW_DESTRUCTIVE_RESET=true` and `public_reset_enabled=true` are active so evaluators can test data deletion directly from the UI without an administrative token or login.  
+> The app computes its internal `ALLOW_DESTRUCTIVE_RESET` setting from `FORCE_DISABLE_DESTRUCTIVE_RESET`. In the current assignment-demo configuration, `FORCE_DISABLE_DESTRUCTIVE_RESET` is unset or `false`, so reset is enabled without an administrative token or login.  
 > Direct API requests to `POST /api/dashboard/reset-data` bypass the frontend slider and checkbox controls because backend token enforcement is disabled in this evaluation mode. (A complete, session-based admin authentication module is implemented in `app/routers/auth.py` for enterprise production deployments).
 
 ---
@@ -375,7 +375,7 @@ edvexa-data-quality/
 
 ### Known Limitations
 1. **Synchronous Ingestion:** File uploads are processed synchronously within the request lifecycle. This is fast and deterministic for files under 10 MB. In high-volume enterprise pipelines, processing would be offloaded to an asynchronous background worker (e.g., Celery + Redis).
-2. **Public Reset in Demo Mode:** To allow evaluators to test data reset without credentials, destructive reset is currently open in production. In enterprise deployments, `ALLOW_DESTRUCTIVE_RESET=false` blocks the endpoint.
+2. **Public Reset in Demo Mode:** To allow evaluators to test data reset without credentials, destructive reset is currently open in production. Setting `FORCE_DISABLE_DESTRUCTIVE_RESET=true` disables the reset endpoint.
 
 ### Common Troubleshooting Tips
 - **Port 8010 Already in Use:**
