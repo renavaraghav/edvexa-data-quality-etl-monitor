@@ -1,7 +1,7 @@
 # Edvexa Data Quality & ETL Monitor
 
 > **Subtitle:** Reliable Data. Clean Pipelines. Trusted Decisions.  
-> **Author:** Edvexa Software Engineering Intern Candidate  
+> **Author:** Raghav Kumar | Software Engineer  
 > **Platform Version:** 2.6.0  
 > **Technology Stack:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Pydantic, Pandas, SQLite / PostgreSQL, Vanilla JS, Chart.js
 
@@ -87,7 +87,8 @@ edvexa-data-quality/
 │   └── inventory.csv               # 12 comprehensive mixed records
 │
 ├── demo/
-│   └── edvexa-demo.mp4             # 4m23s full application demonstration walkthrough (250 MB)
+│   ├── README.md                   # Video metadata & scenario walkthrough notes
+│   └── edvexa-demo.mp4             # 4m23s full demonstration video (local file, excluded from Git)
 │
 ├── screenshots/
 │   ├── 01_dashboard_overview_light.png   # Full light theme overview (KPIs, donut, trends, recent jobs)
@@ -99,6 +100,7 @@ edvexa-data-quality/
 │
 ├── scripts/
 │   ├── generate_sample_data.py     # Deterministic sample dataset generator
+│   ├── generate_pdf.py             # Script to render publication-grade TECHNICAL_NOTES.pdf
 │   └── verify_e2e.py               # Automated 9-step end-to-end API verification script
 │
 ├── schema.sql                      # Standalone ANSI SQL DDL schema definitions & indexes
@@ -107,8 +109,18 @@ edvexa-data-quality/
 ├── .gitignore                      # Git exclusions (venv, databases, caches, logs)
 ├── README.md                       # Comprehensive operational guide
 ├── TECHNICAL_NOTES.md              # Engineering decisions, trade-offs & development notes
+├── TECHNICAL_NOTES.pdf             # Formatted, printable technical documentation (PDF)
 └── DEMO_CHECKLIST.md               # 13-step verification walkthrough
 ```
+
+---
+
+## Technical Documentation
+
+Detailed engineering architecture notes, data models, trade-offs, and tooling demarcations are published in both Markdown and printable PDF formats:
+
+- 📄 [Read Technical Notes (Markdown)](TECHNICAL_NOTES.md)
+- 📑 [Download Technical Notes (PDF)](TECHNICAL_NOTES.pdf)
 
 ---
 
@@ -503,15 +515,15 @@ Genuine, unedited full-resolution screenshots captured from the running applicat
 
 A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion, data validation diagnostics, duplicate detection, date-range filtering, dark espresso mode contrast, iPhone-style slide-to-reset, and multi-sheet Excel reports is provided for evaluators:
 
-- **Local Video Path:** [`demo/edvexa-demo.mp4`](demo/edvexa-demo.mp4) *(preserved locally in workspace)*
+- **Online Video Stream (Google Drive):** [Watch EDVEXA Video Walkthrough (4m 23s)](https://drive.google.com/file/d/1HU3dQvIffSwfCqCI_qd0JEIJ-RBXtmij/view?usp=sharing)
 - **Demo Documentation:** [`demo/README.md`](demo/README.md)
+- **Local Workspace File:** `demo/edvexa-demo.mp4` *(retained locally, excluded from Git repository)*
 - **Format:** MP4 Video (`video/mp4`)
 - **Duration:** 4 minutes 23 seconds
 - **File Size:** 249.86 MB (261,994,262 bytes)
-- **External Streaming Link:** [Watch EDVEXA Video Walkthrough (Google Drive / GitHub Release)](https://github.com/renavaraghav/edvexa-data-quality-etl-monitor/releases) *(Recommended for instant playback without downloading 250 MB)*
 
 > [!NOTE]
-> For offline local evaluation, open [`demo/edvexa-demo.mp4`](demo/edvexa-demo.mp4) in any media player (VLC, Windows Media Player, QuickTime, or directly in Chrome/Edge). Because GitHub enforces a strict 100 MB per-file limit on standard Git repositories, the uncompressed 250 MB recording is preserved locally in `demo/` and linked via the external streaming URL above for zero-friction evaluation.
+> Due to GitHub's strict 100 MB per-file repository limit, the uncompressed 250 MB recording is preserved locally in `demo/edvexa-demo.mp4` and intentionally excluded from Git via `.gitignore`. Evaluators can stream the full recording directly using the [Google Drive Demonstration Link](https://drive.google.com/file/d/1HU3dQvIffSwfCqCI_qd0JEIJ-RBXtmij/view?usp=sharing) above.
 
 ---
 
@@ -545,8 +557,13 @@ A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion,
 
 ---
 
-## 17. AI Engineering Tooling & CodeZero Demarcation
+## 17. Credits & Tools Used
 
-In compliance with assignment evaluation criteria:
-- **CodeZero:** Employed during initial project exploration in repository `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the initial CSV checker CLI requirements and draft the feature specification (commit `7983368`, plan `6adcf6109cb64fb3236a5352`).
-- **Google Antigravity:** Served as the pair programmer for complete end-to-end full-stack implementation, FastAPI REST architecture, openpyxl multi-sheet Excel engine, dual-theme frontend, and 65 automated regression tests.
+- **Author:** Raghav Kumar
+- **Role:** Software Engineer
+- **Project:** EDVEXA Data Quality and ETL Monitoring Platform
+- **Tools Used:** Google Antigravity, CodeZero, Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite, openpyxl, pytest, Git and GitHub.
+
+### Tooling Demarcation
+- **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including FastAPI backend implementation, SQLAlchemy relational schema, openpyxl multi-sheet Excel engine, dual-theme responsive frontend, date-range filtering, and the 65 automated regression tests.
+- **CodeZero:** Utilized during initial project exploration in repository `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the initial standalone CLI exercise (`csv_quality_checker.py`), analyze validation requirements, and author the initial architecture scope in `README.md` (commit `7983368`, plan `6adcf6109cb64fb3236a5352`).

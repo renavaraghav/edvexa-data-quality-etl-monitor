@@ -1,5 +1,8 @@
 # DEMO CHECKLIST & EVALUATION WALKTHROUGH
 
+> **Author:** Raghav Kumar | Software Engineer  
+> **Project:** EDVEXA Data Quality & ETL Monitoring Platform  
+
 This document outlines the step-by-step verification sequence to test the **Edvexa Data Quality & ETL Monitor** platform.
 
 ---
@@ -159,6 +162,3 @@ Verified high-resolution application screenshots are saved directly in the `scre
 - `04_processing_jobs_audit.png`: Processing job history table in dark mode with high-contrast status badges.
 - `05_slide_to_reset_modal.png`: iPhone-style compact slide-to-reset secondary confirmation modal.
 - `06_mobile_responsive_view.png`: 375px mobile viewport rendering.
-   - `screenshot_05_clean_records.png`: Clean records browser showing sanitized Customers.
-   - `screenshot_06_swagger_docs.png`: The interactive OpenAPI `/docs` page.
-4. Save the captured PNG images in a `screenshots/` directory for your submission.

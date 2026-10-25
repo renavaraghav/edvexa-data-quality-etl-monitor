@@ -1,7 +1,7 @@
 # TECHNICAL NOTES — EDVEXA DATA QUALITY & ETL MONITOR
 
 **Platform Version:** 2.6.0 (Enterprise Hotfix & Regression Hardening)  
-**Author:** Senior Full-Stack Python Engineer & Data Platform Architect  
+**Author:** Raghav Kumar | Software Engineer  
 **Project Workspace:** `c:\Users\rjha1\Downloads\csv_project`
 
 ---
@@ -503,3 +503,34 @@ Processing history and audit tables (`.data-table-warm`) were upgraded with dedi
   - `.badge-danger`: Crimson tint `#2E1818`, red text `#F87171`, border `#522323`.
   - `.badge-warning`: Amber tint `#2D2314`, warm amber `#FBBF24`, border `#543E1B`.
   - `.badge-info`: Deep slate `#19232F`, blue text `#60A5FA`, border `#243A52`.
+
+---
+
+## 12. Credits & Tools Used
+
+- **Project:** EDVEXA Data Quality and ETL Monitoring Platform
+- **Author:** Raghav Kumar
+- **Role:** Software Engineer
+
+### Development Tools & Genuine Engineering Contributions
+
+1. **Google Antigravity (Advanced Agentic Pair Programming):**
+   - Served as the primary engineering assistant for the complete end-to-end full-stack implementation, backend REST API routing, SQLAlchemy 2.x relational persistence, openpyxl multi-sheet Excel workbook generator, responsive HTML5/Vanilla JS frontend with dual themes (Warm Ivory & Dark Espresso), date-range filtering engine, iPhone-style slide-to-reset control, automated verification scripts, and the 65 automated pytest test suite.
+
+2. **CodeZero:**
+   - Assisted in the initial project exploration phase within repository `renavaraghav/edvexa-data-quality-etl-monitor`, specifically for inspecting the initial standalone CLI exercise (`csv_quality_checker.py`), analyzing baseline validation requirements, and authoring the initial planned architecture scope in `README.md` (Git commit `7983368`, Plan `6adcf6109cb64fb3236a5352`).
+
+3. **Python 3.12, FastAPI & Uvicorn:**
+   - Core application runtime, asynchronous REST API transport layer, Pydantic v2 data validation, and OpenAPI documentation endpoints (`/docs`, `/redoc`).
+
+4. **SQLAlchemy 2.x & SQLite:**
+   - Relational database models with declarative mapping, cascade relationships, index definitions, and transactional boundary isolation.
+
+5. **openpyxl:**
+   - Dedicated multi-sheet Microsoft Excel reporting engine with automated column width calculations, cell formatting, frozen panes, and CWE-1236 spreadsheet injection mitigation.
+
+6. **pytest & httpx:**
+   - Comprehensive automated unit, integration, ETL, reset, date-filtering, and API testing suite (65 passing tests) with in-memory SQLite isolation.
+
+7. **Git & GitHub:**
+   - Version control, remote repository hosting, and structured commit history tracking.

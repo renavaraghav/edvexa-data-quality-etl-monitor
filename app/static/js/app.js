@@ -715,7 +715,7 @@ const App = {
     const userBtn = document.getElementById('userProfileBtn');
     if (userBtn) {
       userBtn.addEventListener('click', () => {
-        App.showToast('Logged in as Raghav Kumar (Data Operations Lead)', 'info');
+        App.showToast('Logged in as Raghav Kumar (Software Engineer)', 'info');
       });
     }
 
