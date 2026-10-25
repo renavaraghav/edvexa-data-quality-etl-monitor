@@ -43,17 +43,16 @@ def backfill_job_clean_records_if_needed(job: ProcessingJob, db: Session) -> lis
         return []
 
     artifact_name = f"job_{job.id}_{job.file_hash[:12]}.csv"
-    artifact_path = settings.UPLOADS_DIR / artifact_name
-    if not artifact_path.exists():
+    from app.services.storage import get_upload_artifact
+    try:
+        content = get_upload_artifact(artifact_name)
+    except Exception:
         return []
 
     try:
         from app.services.csv_import import parse_and_validate_csv
         from app.services.validation import validate_row_by_dataset, DATASET_PRIMARY_KEYS
         from app.models import utc_now
-
-        with open(artifact_path, "rb") as f:
-            content = f.read()
 
         extraction = parse_and_validate_csv(content, job.filename, job.dataset_type)
         if not extraction.is_valid:

@@ -1,0 +1,39 @@
+# Render Blueprint Specification for EDVEXA Data Quality & ETL Monitor
+# Reference: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: edvexa-data-quality-etl-monitor
+    runtime: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: STORAGE_BACKEND
+        value: local
+      - key: ALLOW_DESTRUCTIVE_RESET
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_RESET_TOKEN
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_ENDPOINT_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: "*"

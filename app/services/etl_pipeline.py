@@ -29,13 +29,10 @@ class ETLProcessingError(Exception):
     """Raised when an unrecoverable error happens during ETL processing."""
     pass
 
-def save_upload_artifact(job_id: int, file_hash: str, content: bytes) -> Path:
-    """Save uploaded CSV content securely to the storage directory."""
-    clean_filename = f"job_{job_id}_{file_hash[:12]}.csv"
-    destination = settings.UPLOADS_DIR / clean_filename
-    with open(destination, "wb") as f:
-        f.write(content)
-    return destination
+def save_upload_artifact(job_id: int, file_hash: str, content: bytes) -> str:
+    """Save uploaded CSV content securely using the configured storage abstraction."""
+    from app.services.storage import save_upload_artifact as storage_save_artifact
+    return storage_save_artifact(job_id, file_hash, content)
 
 def get_existing_business_keys(db: Session, dataset_type: str, keys: set[str]) -> set[str]:
     """Fetch subset of keys that already exist in clean database tables."""
@@ -288,13 +285,11 @@ def reprocess_existing_job(job_id: int, db: Session) -> ProcessingJob:
         raise ValueError(f"Job with ID {job_id} not found.")
 
     artifact_name = f"job_{job.id}_{job.file_hash[:12]}.csv"
-    artifact_path = settings.UPLOADS_DIR / artifact_name
-
-    if not artifact_path.exists():
-        raise FileNotFoundError(f"Source file artifact for job {job_id} is no longer available.")
-
-    with open(artifact_path, "rb") as f:
-        content = f.read()
+    from app.services.storage import get_upload_artifact
+    try:
+        content = get_upload_artifact(artifact_name)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Source file artifact for job {job_id} is no longer available in storage.")
 
     # Clear previous validation errors and clean records for this job before re-running
     db.query(ValidationError).filter(ValidationError.job_id == job.id).delete()

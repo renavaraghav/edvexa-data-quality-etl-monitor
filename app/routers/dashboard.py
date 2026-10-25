@@ -1,11 +1,12 @@
 from datetime import datetime, time
 import threading
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, Header, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
 from app.config import settings
 from app.database import get_db
+from app.services.storage import clear_all_upload_artifacts
 from app.models import (
     ProcessingJob,
     ValidationError,
@@ -196,13 +197,71 @@ def reset_dashboard_preferences():
 reset_lock = threading.Lock()
 
 
+def verify_reset_authorization(
+    x_admin_reset_token: str | None = Header(None, alias="X-Admin-Reset-Token"),
+    token: str | None = Query(None, description="Administrative reset token"),
+) -> bool:
+    """
+    Validate authorization for destructive data reset operations.
+    - If ADMIN_RESET_TOKEN is configured: requires valid token in header or query parameter.
+    - If ENVIRONMENT == 'production': forbids reset unless explicitly ALLOW_DESTRUCTIVE_RESET or token matches.
+    - In development: allowed by default unless ALLOW_DESTRUCTIVE_RESET is explicitly set to false.
+    """
+    supplied_token = (x_admin_reset_token or token or "").strip()
+    configured_token = (settings.ADMIN_RESET_TOKEN or "").strip()
+    is_prod = settings.ENVIRONMENT == "production"
+
+    if configured_token:
+        if not supplied_token or supplied_token != configured_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or missing administrative reset token."
+            )
+        return True
+
+    if is_prod and not settings.ALLOW_DESTRUCTIVE_RESET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Destructive data reset is disabled in production environment."
+        )
+
+    if not settings.ALLOW_DESTRUCTIVE_RESET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Destructive data reset is currently disabled by configuration."
+        )
+
+    return True
+
+
+@router.get("/reset-status")
+def get_reset_status():
+    """
+    Returns whether destructive data reset is allowed in the current environment
+    and whether an admin reset token is required.
+    """
+    requires_token = bool(settings.ADMIN_RESET_TOKEN)
+    is_prod = settings.ENVIRONMENT == "production"
+    is_allowed = settings.ALLOW_DESTRUCTIVE_RESET or requires_token
+    return {
+        "status": "ready",
+        "environment": settings.ENVIRONMENT,
+        "destructive_reset_allowed": is_allowed,
+        "admin_token_required": requires_token or (is_prod and not settings.ALLOW_DESTRUCTIVE_RESET),
+        "storage_backend": settings.STORAGE_BACKEND,
+    }
+
+
 @router.post("/reset-data")
-def reset_all_uploaded_data(db: Session = Depends(get_db)):
+def reset_all_uploaded_data(
+    db: Session = Depends(get_db),
+    _authorized: bool = Depends(verify_reset_authorization),
+):
     """
     Destructive administrative operation:
     Permanently deletes all imported business records (customers, sales, inventory),
     job-scoped clean records, validation errors, and processing jobs history from the database,
-    along with upload files stored in uploads_storage.
+    along with upload files stored in persistent storage (local or Cloudflare R2).
     The database schema and configuration remain strictly intact.
     """
     if not reset_lock.acquire(blocking=False):
@@ -225,21 +284,9 @@ def reset_all_uploaded_data(db: Session = Depends(get_db)):
             count_sales + count_inventory + count_jobs
         )
 
-        # Safely remove files inside settings.UPLOADS_DIR
-        deleted_files = 0
-        failed_files = []
-        uploads_dir = settings.UPLOADS_DIR.resolve()
-        if uploads_dir.exists() and uploads_dir.is_dir():
-            for item in uploads_dir.iterdir():
-                if item.is_file():
-                    resolved_item = item.resolve()
-                    # Security check: verify item is strictly inside uploads_dir
-                    if resolved_item.is_relative_to(uploads_dir):
-                        try:
-                            resolved_item.unlink()
-                            deleted_files += 1
-                        except OSError as os_err:
-                            failed_files.append({"file": item.name, "error": str(os_err)})
+        # Safely remove upload artifacts via storage abstraction
+        deleted_files = clear_all_upload_artifacts()
+        failed_files: list[dict] = []
 
         # If database was already completely empty
         if total_data_count == 0:

@@ -2,8 +2,8 @@
 
 > **Subtitle:** Reliable Data. Clean Pipelines. Trusted Decisions.  
 > **Author:** Raghav Kumar | Software Engineer  
-> **Platform Version:** 2.6.0  
-> **Technology Stack:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Pydantic, Pandas, SQLite / PostgreSQL, Vanilla JS, Chart.js
+> **Platform Version:** 2.7.0  
+> **Technology Stack:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Pydantic, Pandas, SQLite / Neon PostgreSQL, Cloudflare R2, Render, Vanilla JS, Chart.js
 
 ---
 
@@ -26,7 +26,7 @@ The application provides:
 - **End-to-End Date Range Filtering:** Synchronized date filtering across dashboard summary, trends, jobs, clean records, and validation errors with strict empty-state displays.
 - **Dynamic Real-Event Notifications:** Event-driven notification store tracking uploads, exports, reprocessing, and reset actions with unread badge count and individual item dismissal.
 - **Dual Aesthetic Themes & WCAG AA Contrast:** Warm beige & ivory default theme and dark espresso mode with audited 4.5:1 text contrast across all form controls, drop zones, and data tables.
-- **Automated Test Suite:** 65 comprehensive unit, integration, ETL, reset, date-filtering, and API tests executed via `pytest`.
+- **Automated Test Suite:** 81 comprehensive unit, integration, ETL, reset, date-filtering, storage abstraction, and security tests executed via `pytest`.
 
 ---
 
@@ -47,14 +47,16 @@ edvexa-data-quality/
 │   │   ├── csv_import.py           # Robust file parsing, header verification & charset decoding
 │   │   ├── transformation.py       # Deterministic cleaning, casing, date & numeric parsers
 │   │   ├── validation.py           # Schema rules, email regex, bounds checks & error generation
-│   │   └── etl_pipeline.py         # Atomic ETL execution, transaction management & idempotency
+│   │   ├── etl_pipeline.py         # Atomic ETL execution, transaction management & idempotency
+│   │   ├── export_service.py       # Job-scoped CSV & multi-sheet Excel (.xlsx) export generator
+│   │   └── storage.py              # Persistent storage abstraction (Local disk & Cloudflare R2 S3)
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── uploads.py              # POST /api/uploads multipart CSV endpoint
 │   │   ├── jobs.py                 # GET /api/jobs, GET /api/jobs/{id}, POST /api/jobs/{id}/reprocess
 │   │   ├── errors.py               # GET /api/jobs/{id}/errors, GET /api/errors
 │   │   ├── records.py              # GET /api/records (Customers, Sales, Inventory)
-│   │   └── dashboard.py            # GET /api/dashboard/summary, GET /api/dashboard/trends
+│   │   └── dashboard.py            # GET /api/dashboard/summary, trends, reset-status & reset-data
 │   ├── templates/
 │   │   └── index.html              # Responsive SPA layout (Sidebar, Overview, Ingestion, Browser)
 │   └── static/
@@ -72,7 +74,8 @@ edvexa-data-quality/
 │   ├── test_etl.py                 # ETL load, duplicate detection, accounting rule & idempotency
 │   ├── test_api.py                 # Health, upload, jobs, errors, records, dashboard & downloads
 │   ├── test_dashboard_upgrade.py   # Preference resets & dashboard date-range filtering tests
-│   └── test_reset_and_filter.py    # Destructive reset safety, concurrency lock, OpenAPI, idempotency & joins
+│   ├── test_reset_and_filter.py    # Destructive reset safety, concurrency lock, OpenAPI, idempotency & joins
+│   └── test_deployment_storage_and_security.py # Database normalization, R2 storage abstraction & reset guards
 │
 ├── sample_data/
 │   ├── customers_valid.csv         # 5 clean valid customer records
@@ -101,8 +104,10 @@ edvexa-data-quality/
 ├── scripts/
 │   ├── generate_sample_data.py     # Deterministic sample dataset generator
 │   ├── generate_pdf.py             # Script to render publication-grade TECHNICAL_NOTES.pdf
+│   ├── verify_pdf.py               # Automated PDF page count and section extractor verification
 │   └── verify_e2e.py               # Automated 9-step end-to-end API verification script
 │
+├── render.yaml                     # Render Blueprint infrastructure-as-code specification
 ├── schema.sql                      # Standalone ANSI SQL DDL schema definitions & indexes
 ├── requirements.txt                # Pinned dependencies
 ├── .env.example                    # Non-secret environment defaults
@@ -198,7 +203,87 @@ Upon startup, the application initializes the SQLite database schema automatical
 
 ---
 
-## 6. Sample Datasets & Ingestion Instructions
+## 6. Cloud Deployment Architecture (Render + Neon + Cloudflare R2)
+
+The platform is architected for zero-downtime, zero-cost production cloud deployment using three decoupled tiers:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        WEB APPLICATION CLIENT                          │
+│     Responsive SPA, Upload Dropzone, Chart.js Metrics, Excel Export    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ HTTPS (Port 443)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                   RENDER WEB SERVICE (FASTAPI / ASGI)                  │
+│   - Python 3.11/3.12 Runtime with Uvicorn ASGI Server                  │
+│   - Infrastructure-as-Code via render.yaml Blueprint                   │
+│   - Automatic Deployments on GitHub main Branch Pushes                 │
+│   - Health Check Probe (/api/health) & Dialect-Aware Connection Pool   │
+│   - Administrative Reset Token Guard & Storage Abstraction Layer       │
+└──────────────────┬───────────────────────────────────┬─────────────────┘
+                   │ SQL (Pooled / SSL Required)       │ S3 API (boto3)
+                   ▼                                   ▼
+┌────────────────────────────────────┐ ┌─────────────────────────────────┐
+│     NEON SERVERLESS POSTGRESQL     │ │   CLOUDFLARE R2 OBJECT STORE    │
+│ - Managed PostgreSQL 16/17 Cluster │ │ - S3-Compatible Blob Storage    │
+│ - Zero Data Loss on Dyno Restart   │ │ - Preserves Uploaded CSV Files  │
+│ - Connection Pooling with SSL      │ │ - Zero Egress Fees / Free Tier  │
+│ - Drop-in Schema Compatibility     │ │ - Path-Traversal Sanitization   │
+└────────────────────────────────────┘ └─────────────────────────────────┘
+```
+
+### 6.1 Environment Variables Reference
+
+| Variable | Required | Default | Purpose |
+| :--- | :--- | :--- | :--- |
+| `ENVIRONMENT` | Yes | `development` | Runtime environment (`development` or `production`). In production, destructive reset is blocked by default. |
+| `DATABASE_URL` | Yes | `sqlite:///./edvexa_data.db` | PostgreSQL connection string with SSL (e.g. `postgresql://user:pass@ep-cool-123.us-east-2.aws.neon.tech/neondb?sslmode=require`) or SQLite path. |
+| `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `r2` for Cloudflare R2 object storage. |
+| `R2_ACCOUNT_ID` | If R2 | `None` | Cloudflare Account ID used to construct the S3 endpoint. |
+| `R2_BUCKET_NAME` | If R2 | `None` | Target R2 bucket name (e.g. `edvexa-uploads`). |
+| `R2_ACCESS_KEY_ID` | If R2 | `None` | Cloudflare R2 S3 API Access Key ID. |
+| `R2_SECRET_ACCESS_KEY` | If R2 | `None` | Cloudflare R2 S3 API Secret Access Key. |
+| `R2_ENDPOINT_URL` | Optional | Derived | Custom S3 endpoint, defaults to `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`. |
+| `ADMIN_RESET_TOKEN` | Optional | `None` | Secret administrative token required for `POST /api/dashboard/reset-data` in production. |
+| `ALLOW_DESTRUCTIVE_RESET` | Optional | `false` (prod) | Explicit boolean override to enable data reset in production without token. |
+| `CORS_ORIGINS` | Optional | `*` | Comma-delimited list of permitted CORS origins. |
+
+### 6.2 Deployment Walkthrough
+
+#### Step 1: Create Neon Serverless PostgreSQL Database
+1. Sign up or log in at [neon.tech](https://neon.tech).
+2. Click **Create Project**, name it `edvexa-production-db`, and choose your preferred cloud region.
+3. In **Connection Details**, copy the connection string. Neon provides a pooled connection string with `sslmode=require` (e.g., `postgresql://[user]:[password]@[endpoint].neon.tech/neondb?sslmode=require`).
+4. Save this string for the `DATABASE_URL` environment variable.
+
+#### Step 2: Create Cloudflare R2 Storage Bucket & Credentials
+1. Sign up or log in to the [Cloudflare Dashboard](https://dash.cloudflare.com) and navigate to **R2 Object Storage**.
+2. Click **Create bucket** and name it `edvexa-uploads`.
+3. In R2 Overview, click **Manage R2 API Tokens** > **Create API Token**.
+4. Set permissions to **Admin Read & Write**, click **Create API Token**, and copy the generated credentials:
+   - **Account ID** (from R2 Overview URL/sidebar)
+   - **Access Key ID**
+   - **Secret Access Key**
+   - **S3 Endpoint URL**
+
+#### Step 3: Deploy to Render via GitHub Blueprint
+1. Go to [render.com](https://render.com) and log in with GitHub.
+2. Click **New +** > **Blueprint**.
+3. Select your repository `https://github.com/renavaraghav/edvexa-data-quality-etl-monitor` and branch `main`.
+4. Render automatically reads `render.yaml`. When prompted for the non-synced environment variables, enter:
+   - `DATABASE_URL`: Your Neon PostgreSQL connection string.
+   - `STORAGE_BACKEND`: `r2`
+   - `R2_ACCOUNT_ID`: Your Cloudflare Account ID.
+   - `R2_BUCKET_NAME`: `edvexa-uploads`
+   - `R2_ACCESS_KEY_ID`: Your R2 Access Key ID.
+   - `R2_SECRET_ACCESS_KEY`: Your R2 Secret Access Key.
+   - `ADMIN_RESET_TOKEN`: A secret token (e.g. `edvexa_adm_prod_991823`).
+5. Click **Apply**. Render will trigger the build, install requirements, initialize tables on Neon, and assign a public `https://<service-name>.onrender.com` URL.
+
+---
+
+## 7. Sample Datasets & Ingestion Instructions
 
 Synthetic test datasets are located in `sample_data/`. You can regenerate all files deterministically at any time:
 ```powershell
@@ -233,7 +318,7 @@ python scripts\generate_sample_data.py
 
 ---
 
-## 7. Export & Download Job Artifacts
+## 8. Export & Download Job Artifacts
 
 The platform provides dedicated, job-scoped export capabilities for every processing run. Users can download artifacts directly after uploading via the ingestion feedback card, or anytime from the **Job Details** modal.
 
@@ -268,7 +353,7 @@ The exported workbook contains three formatted worksheets:
 
 ---
 
-## 8. Data Validation & Business Rules
+## 9. Data Validation & Business Rules
 
 | Dataset | Field | Type / Requirement | Normalization Applied | Rejection Error Code |
 | :--- | :--- | :--- | :--- | :--- |
@@ -290,7 +375,7 @@ The exported workbook contains three formatted worksheets:
 
 ---
 
-## 9. Duplicate Handling & Idempotency Policy
+## 10. Duplicate Handling & Idempotency Policy
 
 1. **In-File Duplicates:** If a primary business key (`customer_id`, `sale_id`, or `product_id`) appears more than once within the same uploaded file, the first valid occurrence is accepted, and all subsequent occurrences are classified as `duplicate_rows` with error code `DUPLICATE_KEY_IN_FILE`.
 2. **Database Duplicates:** If an uploaded record contains a primary key that already exists in the clean database table, it is classified as `duplicate_rows` with error code `DUPLICATE_KEY_IN_DB`.
@@ -301,11 +386,11 @@ The exported workbook contains three formatted worksheets:
 
 ---
 
-## 10. REST API Endpoints & `curl` Request Examples
+## 11. REST API Endpoints & `curl` Request Examples
 
 All endpoints return standard JSON responses and status codes. Interactive Swagger API documentation is available at [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs).
 
-### 10.1 System Health
+### 11.1 System Health
 ```powershell
 curl.exe -s http://127.0.0.1:8010/api/health
 ```
@@ -313,13 +398,13 @@ curl.exe -s http://127.0.0.1:8010/api/health
 ```json
 {
   "status": "healthy",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "database_connected": true,
   "timestamp": "2026-10-25T14:41:23.000000Z"
 }
 ```
 
-### 10.2 Ingest CSV Dataset
+### 11.2 Ingest CSV Dataset
 ```powershell
 curl.exe -X POST "http://127.0.0.1:8010/api/uploads?dataset_type=customers" `
   -F "file=@sample_data/customers_valid.csv"
@@ -340,7 +425,7 @@ curl.exe -X POST "http://127.0.0.1:8010/api/uploads?dataset_type=customers" `
 }
 ```
 
-### 10.3 Dashboard KPI Summary & Analytics
+### 11.3 Dashboard KPI Summary & Analytics
 ```powershell
 # Real-time summary across all jobs:
 curl.exe -s http://127.0.0.1:8010/api/dashboard/summary
@@ -349,7 +434,7 @@ curl.exe -s http://127.0.0.1:8010/api/dashboard/summary
 curl.exe -s "http://127.0.0.1:8010/api/dashboard/summary?start_date=2026-10-01&end_date=2026-10-31"
 ```
 
-### 10.4 Processing Job Audit & Detail
+### 11.4 Processing Job Audit & Detail
 ```powershell
 # List jobs with pagination:
 curl.exe -s "http://127.0.0.1:8010/api/jobs?limit=10&offset=0"
@@ -358,7 +443,7 @@ curl.exe -s "http://127.0.0.1:8010/api/jobs?limit=10&offset=0"
 curl.exe -s http://127.0.0.1:8010/api/jobs/1
 ```
 
-### 10.5 Validation Errors Catalog
+### 11.5 Validation Errors Catalog
 ```powershell
 # List errors across all jobs:
 curl.exe -s "http://127.0.0.1:8010/api/errors?limit=20"
@@ -367,13 +452,13 @@ curl.exe -s "http://127.0.0.1:8010/api/errors?limit=20"
 curl.exe -s http://127.0.0.1:8010/api/jobs/1/errors
 ```
 
-### 10.6 Clean Business Records Browser
+### 11.6 Clean Business Records Browser
 ```powershell
 # Retrieve clean customers:
 curl.exe -s "http://127.0.0.1:8010/api/records?dataset_type=customers&limit=10"
 ```
 
-### 10.7 Export & Download Job Artifacts
+### 11.7 Export & Download Job Artifacts
 ```powershell
 # Download Clean Records CSV:
 curl.exe -O -J "http://127.0.0.1:8010/api/jobs/1/download/clean"
@@ -385,14 +470,23 @@ curl.exe -O -J "http://127.0.0.1:8010/api/jobs/1/download/errors"
 curl.exe -O -J "http://127.0.0.1:8010/api/jobs/1/download/summary"
 ```
 
-### 10.8 Destructive Data Reset
+### 11.8 Destructive Data Reset
 ```powershell
+# Development (default):
 curl.exe -X POST http://127.0.0.1:8010/api/dashboard/reset-data
+
+# Production (requires admin token header or query parameter):
+curl.exe -X POST http://127.0.0.1:8010/api/dashboard/reset-data -H "X-Admin-Reset-Token: your_admin_token"
+```
+
+### 11.9 Administrative Reset Security Status
+```powershell
+curl.exe -s http://127.0.0.1:8010/api/dashboard/reset-status
 ```
 
 ---
 
-## 11. Automated Testing Suite
+## 12. Automated Testing Suite
 
 The test suite runs against an isolated, in-memory SQLite database via temporary test fixtures so your local development database is never altered.
 
@@ -401,17 +495,18 @@ The test suite runs against an isolated, in-memory SQLite database via temporary
 python -m pytest -v
 ```
 
-### Test Coverage Summary (65 Passing Tests):
+### Test Coverage Summary (81 Passing Tests):
 - **`tests/test_transformation.py`:** String cleaning, name title-casing, email lowercasing, currency normalizers, ISO date parsers, leap-year boundary checks, numeric float/int parsers.
 - **`tests/test_validation.py`:** Field-level validation rules for all 3 schemas, regex conformance, non-negative value checks, CSV header inspection, missing column detection, empty file handling, and UTF-8 BOM encoding.
 - **`tests/test_etl.py`:** End-to-end ETL execution, clean table insertion, validation error persistence, in-file duplicate detection, database duplicate prevention, repeated upload idempotency, and transactional rollbacks.
 - **`tests/test_api.py`:** Full HTTP endpoint coverage: `/api/health`, `/api/uploads` (success, 400 empty, 415 invalid type, 422 bad dataset), `/api/jobs`, `/api/jobs/{id}`, `/api/jobs/{id}/errors`, `/api/errors`, `/api/records`, `/api/dashboard/summary`, `/api/dashboard/trends`, `/api/jobs/{id}/reprocess`, and download endpoints (`/download/clean`, `/download/errors`, `/download/summary`, edge cases, isolation, escaping).
 - **`tests/test_dashboard_upgrade.py`:** UI preferences reset (`POST /api/dashboard/reset-preferences`) and dashboard summary/trends date-range filtering.
 - **`tests/test_reset_and_filter.py`:** Destructive data reset (`POST /api/dashboard/reset-data`), physical artifact cleanup, path traversal protection, concurrency lock enforcement, OpenAPI schema presence, idempotent empty-database responses, transaction rollback on failure, records/errors date-range filtering, and KPI mathematical invariants.
+- **`tests/test_deployment_storage_and_security.py`:** Neon PostgreSQL URL normalization (`postgres://` to `postgresql://` and `sslmode=require`), credential redaction logging, `LocalStorageBackend` traversal prevention, `R2StorageBackend` S3 operations with boto3 mock, storage singleton factory, `GET /api/dashboard/reset-status`, and production authorization safeguards (403/401 checks).
 
 ---
 
-## 12. Database Schema & Entity Relationships
+## 13. Database Schema & Entity Relationships
 
 The schema is defined via SQLAlchemy in `app/models.py` and exported as standalone ANSI SQL in `schema.sql`.
 
@@ -481,7 +576,7 @@ erDiagram
 
 ---
 
-## 13. Application Screenshots Gallery
+## 14. Application Screenshots Gallery
 
 Genuine, unedited full-resolution screenshots captured from the running application:
 
@@ -511,7 +606,7 @@ Genuine, unedited full-resolution screenshots captured from the running applicat
 
 ---
 
-## 14. Application Demonstration Video
+## 15. Application Demonstration Video
 
 A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion, data validation diagnostics, duplicate detection, date-range filtering, dark espresso mode contrast, iPhone-style slide-to-reset, and multi-sheet Excel reports is provided for evaluators:
 
@@ -527,7 +622,7 @@ A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion,
 
 ---
 
-## 15. Known Limitations & Production Considerations
+## 16. Known Limitations & Production Considerations
 
 1. **Authentication & Authorization:** The assignment explicitly specifies no multi-user admin authentication for local development simplicity. In a production cloud deployment, JWT / OAuth2 bearer tokens and role-based access control (RBAC) should protect upload and administrative endpoints.
 2. **Synchronous Execution:** Uploads are processed synchronously in the local environment, which is fast and deterministic for files under 10 MB. For files exceeding hundreds of thousands of rows, processing should be offloaded to an asynchronous message broker (e.g., Celery + Redis).
@@ -535,7 +630,7 @@ A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion,
 
 ---
 
-## 16. Troubleshooting Guide
+## 17. Troubleshooting Guide
 
 - **Port 8010 Already in Use:**
   Run on a different port:
@@ -557,13 +652,13 @@ A comprehensive 4-minute-23-second walkthrough demonstrating live CSV ingestion,
 
 ---
 
-## 17. Credits & Tools Used
+## 18. Credits & Tools Used
 
 - **Author:** Raghav Kumar
 - **Role:** Software Engineer
 - **Project:** EDVEXA Data Quality and ETL Monitoring Platform
-- **Tools Used:** Google Antigravity, CodeZero, Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite, openpyxl, pytest, Git and GitHub.
+- **Tools Used:** Google Antigravity, CodeZero, Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite / Neon PostgreSQL, Cloudflare R2, Render, openpyxl, pytest, Git and GitHub.
 
 ### Tooling Demarcation
-- **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including FastAPI backend implementation, SQLAlchemy relational schema, openpyxl multi-sheet Excel engine, dual-theme responsive frontend, date-range filtering, and the 65 automated regression tests.
+- **Google Antigravity:** Served as the primary AI pair programmer for full-stack application development, including FastAPI backend implementation, SQLAlchemy relational schema, openpyxl multi-sheet Excel engine, dual-theme responsive frontend, date-range filtering, storage abstraction layer, Render + Neon + Cloudflare R2 cloud architecture, and the 81 automated regression tests.
 - **CodeZero:** Utilized during initial project exploration in repository `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the initial standalone CLI exercise (`csv_quality_checker.py`), analyze validation requirements, and author the initial architecture scope in `README.md` (commit `7983368`, plan `6adcf6109cb64fb3236a5352`).
