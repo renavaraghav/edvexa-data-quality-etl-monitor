@@ -3,7 +3,10 @@
 > **Subtitle:** Reliable Data. Clean Pipelines. Trusted Decisions.  
 > **Author:** Raghav Kumar | Software Engineer  
 > **Platform Version:** 2.7.0  
-> **Technology Stack:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Pydantic, Pandas, SQLite / Neon PostgreSQL, Neon Object Storage, Render, Vanilla JS, Chart.js
+> **Technology Stack:** Python 3.11+, FastAPI, SQLAlchemy 2.x, Pydantic, Pandas, SQLite / Neon PostgreSQL, Neon Object Storage, Render, Vanilla JS, Chart.js  
+> **Live Production URL:** [https://edvexa-data-quality-etl-monitor.onrender.com](https://edvexa-data-quality-etl-monitor.onrender.com)  
+> **Live Swagger API Docs:** [https://edvexa-data-quality-etl-monitor.onrender.com/docs](https://edvexa-data-quality-etl-monitor.onrender.com/docs)  
+> **Live Health Verification:** [https://edvexa-data-quality-etl-monitor.onrender.com/api/health](https://edvexa-data-quality-etl-monitor.onrender.com/api/health)
 
 ---
 
@@ -26,7 +29,7 @@ The application provides:
 - **End-to-End Date Range Filtering:** Synchronized date filtering across dashboard summary, trends, jobs, clean records, and validation errors with strict empty-state displays.
 - **Dynamic Real-Event Notifications:** Event-driven notification store tracking uploads, exports, reprocessing, and reset actions with unread badge count and individual item dismissal.
 - **Dual Aesthetic Themes & WCAG AA Contrast:** Warm beige & ivory default theme and dark espresso mode with audited 4.5:1 text contrast across all form controls, drop zones, and data tables.
-- **Automated Test Suite:** 81 comprehensive unit, integration, ETL, reset, date-filtering, storage abstraction, and security tests executed via `pytest`.
+- **Automated Test Suite:** 84 comprehensive unit, integration, ETL, reset, date-filtering, storage abstraction, and security tests executed via `pytest`.
 
 ---
 

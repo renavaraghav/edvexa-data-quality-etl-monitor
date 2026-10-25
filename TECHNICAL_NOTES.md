@@ -3,6 +3,9 @@
 **Platform Version:** 2.7.0 (Cloud Deployment: Render + Neon PostgreSQL + Neon Object Storage)  
 **Author:** Raghav Kumar | Software Engineer  
 **Project Workspace:** `c:\Users\rjha1\Downloads\csv_project`
+**Live Production URL:** [https://edvexa-data-quality-etl-monitor.onrender.com](https://edvexa-data-quality-etl-monitor.onrender.com)  
+**Live Swagger API Docs:** [https://edvexa-data-quality-etl-monitor.onrender.com/docs](https://edvexa-data-quality-etl-monitor.onrender.com/docs)  
+**Live Health Verification:** [https://edvexa-data-quality-etl-monitor.onrender.com/api/health](https://edvexa-data-quality-etl-monitor.onrender.com/api/health)  
 
 ---
 
