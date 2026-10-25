@@ -1448,10 +1448,17 @@
           </p>
         </div>
 
-        <div id="adminResetTokenGroup" class="form-group mb-3 d-none">
-          <label for="adminResetTokenInput" class="form-label text-xs font-bold text-muted uppercase">Admin Reset Authorization Token</label>
-          <input type="password" id="adminResetTokenInput" class="form-control form-control-sm" placeholder="Enter ADMIN_RESET_TOKEN..." autocomplete="off">
-          <span class="text-xs text-muted" id="adminResetTokenHelp">Required to authorize destructive reset in production environments.</span>
+        <!-- Production Reset Protection Notice (shown dynamically in production when unauthenticated) -->
+        <div id="resetProdDisabledNotice" class="d-none alert alert-danger p-3 mb-3" style="background-color: rgba(217, 83, 79, 0.12); border: 1px solid rgba(217, 83, 79, 0.35); border-radius: var(--radius-md);">
+          <div class="d-flex align-items-center gap-2 font-bold text-danger text-sm mb-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>Destructive Reset Disabled in Production</span>
+          </div>
+          <p class="text-xs mb-0" style="color: var(--text-secondary); line-height: 1.5;">
+            Destructive data reset is disabled in production. Anonymous visitors cannot delete production data. Only an authenticated administrator session can authorize data deletion.
+          </p>
         </div>
 
         <div class="reset-safety-notice mt-2">

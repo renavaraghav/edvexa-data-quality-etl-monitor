@@ -350,34 +350,35 @@ def test_reset_data_forbidden_in_production_without_token(client: TestClient):
 
 
 def test_reset_data_requires_admin_token_when_configured(client: TestClient):
-    """When ADMIN_RESET_TOKEN is set, unauthorized requests return 401."""
-    with patch.object(settings, "ADMIN_RESET_TOKEN", "prod-super-secret-token"):
-        # 1. No token supplied -> 401
-        res_no_tok = client.post("/api/dashboard/reset-data")
-        assert res_no_tok.status_code == 401
-        assert "invalid or missing" in res_no_tok.json()["detail"].lower()
+    """In production, unauthorized requests return 403, and valid session/token returns 200."""
+    with patch.object(settings, "ENVIRONMENT", "production"):
+        with patch.object(settings, "ADMIN_RESET_TOKEN", "prod-super-secret-token"):
+            # 1. No token or session supplied -> 403 Forbidden
+            res_no_tok = client.post("/api/dashboard/reset-data")
+            assert res_no_tok.status_code == 403
+            assert "disabled in production" in res_no_tok.json()["detail"].lower()
 
-        # 2. Wrong token supplied -> 401
-        res_bad_tok = client.post(
-            "/api/dashboard/reset-data",
-            headers={"X-Admin-Reset-Token": "wrong-token"}
-        )
-        assert res_bad_tok.status_code == 401
+            # 2. Wrong token supplied -> 403 Forbidden
+            res_bad_tok = client.post(
+                "/api/dashboard/reset-data",
+                headers={"X-Admin-Reset-Token": "wrong-token"}
+            )
+            assert res_bad_tok.status_code == 403
 
-        # 3. Valid token via header -> 200
-        res_good_header = client.post(
-            "/api/dashboard/reset-data",
-            headers={"X-Admin-Reset-Token": "prod-super-secret-token"}
-        )
-        assert res_good_header.status_code == 200
-        assert res_good_header.json()["status"] == "success"
+            # 3. Valid authenticated session via login -> 200
+            login_res = client.post("/api/auth/login", json={"token": "prod-super-secret-token"})
+            assert login_res.status_code == 200
+            res_good_session = client.post("/api/dashboard/reset-data")
+            assert res_good_session.status_code == 200
+            assert res_good_session.json()["status"] == "success"
 
-        # 4. Valid token via query param -> 200
-        res_good_query = client.post(
-            "/api/dashboard/reset-data?token=prod-super-secret-token"
-        )
-        assert res_good_query.status_code == 200
-        assert res_good_query.json()["status"] == "success"
+            # 4. Valid token via header -> 200
+            res_good_header = client.post(
+                "/api/dashboard/reset-data",
+                headers={"X-Admin-Reset-Token": "prod-super-secret-token"}
+            )
+            assert res_good_header.status_code == 200
+            assert res_good_header.json()["status"] == "success"
 
 
 def test_reset_data_forbidden_when_explicitly_disabled_in_dev(client: TestClient):
@@ -436,8 +437,17 @@ def test_production_reset_status_reflection(client: TestClient):
             assert "database_type" in data
 
         with patch.object(settings, "ADMIN_RESET_TOKEN", "prod-secret-999"):
+            # Anonymous visitor
             res = client.get("/api/dashboard/reset-status")
             assert res.status_code == 200
             data = res.json()
-            assert data["destructive_reset_allowed"] is True
-            assert data["admin_token_required"] is True
+            assert data["destructive_reset_allowed"] is False
+            assert data["authenticated_admin"] is False
+
+            # Authenticated admin
+            login_res = client.post("/api/auth/login", json={"token": "prod-secret-999"})
+            assert login_res.status_code == 200
+            res_auth = client.get("/api/dashboard/reset-status")
+            assert res_auth.status_code == 200
+            assert res_auth.json()["destructive_reset_allowed"] is True
+            assert res_auth.json()["authenticated_admin"] is True

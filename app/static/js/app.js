@@ -336,41 +336,27 @@ const App = {
     if (!modal) return;
     modal.classList.remove('d-none');
 
-    const tokenInput = document.getElementById('adminResetTokenInput');
-    if (tokenInput) tokenInput.value = '';
-
-    // Inspect reset status to configure token requirements dynamically
+    // Inspect reset status to configure UI state
     try {
       const res = await fetch(`${window.API_BASE}/api/dashboard/reset-status`);
       if (res.ok) {
         const data = await res.json();
-        const tokenGroup = document.getElementById('adminResetTokenGroup');
+        const noticeEl = document.getElementById('resetProdDisabledNotice');
         const confirmBtn = document.getElementById('confirmResetBtn');
-        const helpText = document.getElementById('adminResetTokenHelp');
 
-        if (tokenGroup) {
-          if (data.admin_token_required) {
-            tokenGroup.classList.remove('d-none');
-          } else {
-            tokenGroup.classList.add('d-none');
-          }
-        }
-
-        if (confirmBtn) {
-          if (!data.destructive_reset_allowed) {
+        if (data.environment === 'production' && !data.destructive_reset_allowed) {
+          if (noticeEl) noticeEl.classList.remove('d-none');
+          if (confirmBtn) {
             confirmBtn.disabled = true;
-            confirmBtn.title = 'Destructive data reset is disabled in production.';
-            if (helpText) {
-              helpText.textContent = 'Destructive data reset is disabled in production.';
-              helpText.classList.add('text-danger');
-            }
-          } else {
+            confirmBtn.title = 'Destructive reset is disabled in production.';
+            confirmBtn.innerHTML = `<span>Reset Disabled in Production</span>`;
+          }
+        } else {
+          if (noticeEl) noticeEl.classList.add('d-none');
+          if (confirmBtn) {
             confirmBtn.disabled = false;
             confirmBtn.title = '';
-            if (helpText) {
-              helpText.textContent = 'Required to authorize destructive reset in production environments.';
-              helpText.classList.remove('text-danger');
-            }
+            confirmBtn.innerHTML = `<span>Confirm Delete All Imported Data</span>`;
           }
         }
       }
@@ -380,8 +366,6 @@ const App = {
   closeResetModal() {
     const modal = document.getElementById('resetConfirmModal');
     if (modal) modal.classList.add('d-none');
-    const tokenInput = document.getElementById('adminResetTokenInput');
-    if (tokenInput) tokenInput.value = '';
   },
 
   bindResetModal() {
@@ -417,18 +401,12 @@ const App = {
 
         try {
           let res;
-          const tokenInput = document.getElementById('adminResetTokenInput');
-          const adminToken = tokenInput ? tokenInput.value.trim() : '';
-          const resetHeaders = { 'Accept': 'application/json' };
-          if (adminToken) {
-            resetHeaders['X-Admin-Reset-Token'] = adminToken;
-          }
-          if (tokenInput) tokenInput.value = '';
-
           try {
             res = await fetch(`${window.API_BASE}/api/dashboard/reset-data`, {
               method: 'POST',
-              headers: resetHeaders
+              headers: {
+                'Accept': 'application/json'
+              }
             });
           } catch (netErr) {
             this.closeResetModal();

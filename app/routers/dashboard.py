@@ -1,11 +1,12 @@
 import secrets
 from datetime import datetime, time
 import threading
-from fastapi import APIRouter, Depends, Query, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Query, Header, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
 from app.config import settings
+from app.services.auth import is_authenticated_admin
 from app.database import get_db
 from app.services.storage import clear_all_upload_artifacts
 from app.models import (
@@ -199,47 +200,27 @@ reset_lock = threading.Lock()
 
 
 def verify_reset_authorization(
-    x_admin_reset_token: str | None = Header(None, alias="X-Admin-Reset-Token"),
-    token: str | None = Query(None, description="Administrative reset token"),
+    request: Request,
 ) -> bool:
     """
     Validate authorization for destructive data reset operations.
-    - In production: strictly disabled by default. Requires ADMIN_RESET_TOKEN configured and
-      verified via constant-time comparison against supplied token. Cannot bypass authorization.
-    - In non-production: allowed by default unless ALLOW_DESTRUCTIVE_RESET is explicitly false.
-    - If ADMIN_RESET_TOKEN is configured in any environment, matching token is required.
+    - In production: strictly disabled unless requester has an active authenticated administrator session.
+      Anonymous visitors cannot delete production data under any circumstances.
+    - In local development: allowed by default for testing with test data.
     """
-    supplied_token = (x_admin_reset_token or token or "").strip()
-    configured_token = (settings.ADMIN_RESET_TOKEN or "").strip()
     is_prod = settings.ENVIRONMENT == "production"
+    is_admin = is_authenticated_admin(request)
 
     if is_prod:
-        if not configured_token:
+        if not is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Destructive data reset is disabled in production. An administrative reset token must be configured."
-            )
-        if not supplied_token:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Destructive data reset requires an administrative reset token in production."
-            )
-        if not secrets.compare_digest(supplied_token, configured_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid administrative reset token."
+                detail="Destructive data reset is disabled in production. An authenticated administrator session is required."
             )
         return True
 
-    if configured_token:
-        if not supplied_token or not secrets.compare_digest(supplied_token, configured_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or missing administrative reset token."
-            )
-        return True
-
-    if not settings.ALLOW_DESTRUCTIVE_RESET:
+    # In local development / non-production
+    if not settings.ALLOW_DESTRUCTIVE_RESET and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Destructive data reset is currently disabled by configuration."
@@ -249,26 +230,27 @@ def verify_reset_authorization(
 
 
 @router.get("/reset-status")
-def get_reset_status():
+def get_reset_status(request: Request):
     """
     Returns whether destructive data reset is allowed in the current environment,
-    whether an admin reset token is required, and current database dialect.
+    whether the requester has an authenticated administrator session, and database dialect.
     """
     is_prod = settings.ENVIRONMENT == "production"
-    has_token = bool(settings.ADMIN_RESET_TOKEN and settings.ADMIN_RESET_TOKEN.strip())
+    is_admin = is_authenticated_admin(request)
 
     if is_prod:
-        destructive_allowed = has_token
-        token_required = True
+        # In production: destructive reset is ONLY allowed if the requester is an authenticated administrator
+        destructive_allowed = is_admin
     else:
-        destructive_allowed = settings.ALLOW_DESTRUCTIVE_RESET or has_token
-        token_required = has_token
+        destructive_allowed = settings.ALLOW_DESTRUCTIVE_RESET or is_admin
 
     return {
         "status": "ready",
         "environment": settings.ENVIRONMENT,
         "destructive_reset_allowed": destructive_allowed,
-        "admin_token_required": token_required,
+        "authenticated_admin": is_admin,
+        "admin_auth_required": is_prod,
+        "admin_token_required": is_prod and not is_admin,
         "storage_backend": settings.STORAGE_BACKEND,
         "database_type": settings.database_type,
     }
