@@ -337,6 +337,7 @@ const App = {
     modal.classList.remove('d-none');
 
     const checkbox = document.getElementById('confirmResetCheckbox');
+    const confirmBtn = document.getElementById('confirmResetBtn');
     const hint = document.getElementById('resetCheckboxHint');
     const wrapper = document.getElementById('resetCheckboxWrapper');
     const loadingState = document.getElementById('resetLoadingState');
@@ -351,6 +352,12 @@ const App = {
     if (checkbox) {
       checkbox.checked = false;
       checkbox.disabled = !App._sliderCompleted;
+    }
+
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.6';
+      confirmBtn.style.cursor = 'not-allowed';
     }
 
     if (hint) {
@@ -380,6 +387,12 @@ const App = {
       checkbox.checked = false;
       checkbox.disabled = true;
     }
+    const confirmBtn = document.getElementById('confirmResetBtn');
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.6';
+      confirmBtn.style.cursor = 'not-allowed';
+    }
     App._sliderCompleted = false;
     const loadingState = document.getElementById('resetLoadingState');
     if (loadingState) loadingState.classList.add('d-none');
@@ -405,18 +418,30 @@ const App = {
       if (e.target === modal) this.closeResetModal();
     });
 
-    // When the visitor ticks the checkbox, immediately execute reset API request
+    // Ticking the confirmation checkbox enables the "Permanently Delete" button.
+    // Simply ticking the checkbox must NOT delete any data.
     if (checkbox) {
-      checkbox.addEventListener('change', async () => {
-        if (!checkbox.checked) return;
-        if (checkbox.disabled) return;
-        await this.executeResetData();
+      checkbox.addEventListener('change', () => {
+        const btn = document.getElementById('confirmResetBtn');
+        if (!btn) return;
+        if (checkbox.checked && !checkbox.disabled) {
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          btn.style.cursor = 'pointer';
+        } else {
+          btn.disabled = true;
+          btn.style.opacity = '0.6';
+          btn.style.cursor = 'not-allowed';
+        }
       });
     }
 
-    // Keep fallback support on confirm button if present
+    // Data is deleted ONLY when the visitor clicks the "Permanently Delete" button after checking the box
     if (confirmBtn) {
       confirmBtn.addEventListener('click', async () => {
+        if (confirmBtn.disabled) return;
+        const cb = document.getElementById('confirmResetCheckbox');
+        if (!cb || !cb.checked || cb.disabled) return;
         await this.executeResetData();
       });
     }
@@ -427,6 +452,7 @@ const App = {
     App._isResetting = true;
 
     const checkbox = document.getElementById('confirmResetCheckbox');
+    const confirmBtn = document.getElementById('confirmResetBtn');
     const cancelBtn = document.getElementById('cancelResetBtn');
     const loadingState = document.getElementById('resetLoadingState');
     const thumb = document.getElementById('slideResetThumb');
@@ -434,6 +460,11 @@ const App = {
 
     // Display loading state while deletion is running
     if (checkbox) checkbox.disabled = true;
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.6';
+      confirmBtn.style.cursor = 'not-allowed';
+    }
     if (cancelBtn) cancelBtn.disabled = true;
     if (loadingState) loadingState.classList.remove('d-none');
     if (thumb) thumb.style.pointerEvents = 'none';
@@ -548,13 +579,19 @@ const App = {
 
   resetModalFailureUI() {
     const checkbox = document.getElementById('confirmResetCheckbox');
+    const confirmBtn = document.getElementById('confirmResetBtn');
     const cancelBtn = document.getElementById('cancelResetBtn');
     const loadingState = document.getElementById('resetLoadingState');
     if (loadingState) loadingState.classList.add('d-none');
     if (cancelBtn) cancelBtn.disabled = false;
     if (checkbox) {
-      checkbox.checked = false;
       checkbox.disabled = false;
+    }
+    if (confirmBtn) {
+      const isChecked = Boolean(checkbox && checkbox.checked);
+      confirmBtn.disabled = !isChecked;
+      confirmBtn.style.opacity = isChecked ? '1' : '0.6';
+      confirmBtn.style.cursor = isChecked ? 'pointer' : 'not-allowed';
     }
   },
 

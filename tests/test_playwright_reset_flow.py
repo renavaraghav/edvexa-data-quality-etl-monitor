@@ -1,16 +1,19 @@
 """
-Playwright End-to-End Tests for Public Destructive Reset with Slider and Confirmation Checkbox.
-Verifies the complete frontend user interaction on a local server:
+Playwright End-to-End Tests for Public Destructive Reset with Slider, Checkbox, and "Permanently Delete" Button.
+Verifies the complete frontend user interaction:
 1. Reset modal design, styling, and text matches exact specification:
    - "I understand that this will permanently delete all uploaded data and processing history."
    - Irreversible action warning is displayed.
    - Destructive reset disabled notice and admin token fields are removed.
 2. Checkbox is disabled until the slider reaches completed position.
-3. Dragging slider to end enables the checkbox.
-4. Ticking the checkbox immediately executes the reset API request without any extra button clicks.
-5. Loading indicator is displayed during deletion.
-6. Successful reset closes modal and refreshes dashboard stats.
-7. UI recovery on reset failure preserves modal state and re-enables controls.
+3. Dragging slider to end enables the confirmation checkbox.
+4. Ticking the checkbox enables the "Permanently Delete" button.
+   - Simply ticking the checkbox does NOT delete any data.
+5. Unticking the checkbox disables the "Permanently Delete" button.
+6. The data is deleted ONLY when the user clicks the "Permanently Delete" button after checking the box.
+7. Loading indicator is displayed during deletion.
+8. Successful reset closes modal and refreshes dashboard stats.
+9. UI recovery on reset failure preserves modal state and re-enables controls.
 """
 import datetime
 import os
@@ -95,7 +98,7 @@ def seed_local_db():
         db.close()
 
 
-def test_e2e_slider_and_checkbox_reset_interaction(local_server):
+def test_e2e_slider_checkbox_and_permanently_delete_button_interaction(local_server):
     seed_local_db()
 
     with sync_playwright() as p:
@@ -103,7 +106,11 @@ def test_e2e_slider_and_checkbox_reset_interaction(local_server):
         page = browser.new_page()
         page.goto(local_server, wait_until="networkidle")
 
-        # 1. Verify modal without slider completion: checkbox is disabled
+        # Track any reset API requests to ensure ticking checkbox does NOT call reset
+        reset_requests = []
+        page.on("request", lambda req: reset_requests.append(req.url) if "reset-data" in req.url else None)
+
+        # 1. Verify modal without slider completion: checkbox is disabled and button is disabled
         page.evaluate("App.openResetModal(false)")
         modal = page.locator("#resetConfirmModal")
         assert modal.is_visible()
@@ -122,11 +129,17 @@ def test_e2e_slider_and_checkbox_reset_interaction(local_server):
         checkbox = page.locator("#confirmResetCheckbox")
         assert checkbox.is_disabled()
 
+        # Verify "Permanently Delete" button exists and is disabled
+        delete_btn = page.locator("#confirmResetBtn")
+        assert delete_btn.is_visible()
+        assert delete_btn.is_disabled()
+        assert "Permanently Delete" in delete_btn.inner_text()
+
         # Close modal
         page.locator("#cancelResetBtn").click()
         assert not modal.is_visible()
 
-        # 2. Test slider completion via keyboard or drag
+        # 2. Test slider completion via keyboard on thumb
         thumb = page.locator("#slideResetThumb")
         thumb.focus()
         page.keyboard.press("Enter")
@@ -135,12 +148,34 @@ def test_e2e_slider_and_checkbox_reset_interaction(local_server):
         assert modal.is_visible()
         assert not checkbox.is_disabled()
         assert not checkbox.is_checked()
+        # Button must remain disabled until checkbox is checked
+        assert delete_btn.is_disabled()
 
-        # 3. Ticking checkbox immediately triggers execution without another button click
+        # 3. Ticking checkbox: "Permanently Delete" button becomes enabled.
+        # CRITICAL REQUIREMENT: Simply ticking the checkbox MUST NOT delete any data!
         checkbox.check()
+        assert checkbox.is_checked()
+        assert not delete_btn.is_disabled()
+        # Wait 500ms to guarantee no reset API call was fired on check
+        page.wait_for_timeout(500)
+        assert len(reset_requests) == 0, "Simply ticking the checkbox must NOT trigger any reset API request!"
+        assert modal.is_visible()
+
+        # 4. Unticking checkbox: "Permanently Delete" button becomes disabled again
+        checkbox.uncheck()
+        assert not checkbox.is_checked()
+        assert delete_btn.is_disabled()
+
+        # 5. Re-checking checkbox: "Permanently Delete" button becomes enabled again
+        checkbox.check()
+        assert not delete_btn.is_disabled()
+
+        # 6. Click "Permanently Delete" button: Now deletion executes!
+        delete_btn.click()
 
         # Modal should close after successful deletion
         page.wait_for_selector("#resetConfirmModal", state="hidden", timeout=6000)
+        assert len(reset_requests) >= 1, "Clicking the 'Permanently Delete' button must execute the reset request!"
 
         # Verify toast message
         toast = page.locator(".toast")
@@ -178,6 +213,10 @@ def test_e2e_slider_drag_gesture(local_server):
         assert not checkbox.is_disabled()
         assert not checkbox.is_checked()
 
+        # Delete button is disabled until checkbox is checked
+        delete_btn = page.locator("#confirmResetBtn")
+        assert delete_btn.is_disabled()
+
         # Close modal
         page.locator("#cancelResetBtn").click()
         page.wait_for_selector("#resetConfirmModal", state="hidden", timeout=3000)
@@ -204,10 +243,16 @@ def test_e2e_reset_failure_ui_recovery(local_server):
         assert modal.is_visible()
 
         checkbox = page.locator("#confirmResetCheckbox")
+        delete_btn = page.locator("#confirmResetBtn")
         assert not checkbox.is_disabled()
+        assert delete_btn.is_disabled()
 
-        # Check checkbox to trigger reset
+        # Check checkbox to enable delete button
         checkbox.check()
+        assert not delete_btn.is_disabled()
+
+        # Click Permanently Delete button to trigger reset
+        delete_btn.click()
 
         # Wait for failure response and toast
         page.wait_for_selector(".toast.danger", timeout=4000)
@@ -215,9 +260,9 @@ def test_e2e_reset_failure_ui_recovery(local_server):
         # Modal must remain open to preserve UI state
         assert modal.is_visible()
 
-        # Controls must be re-enabled and checkbox unchecked for retry
-        assert not checkbox.is_checked()
+        # Controls must be re-enabled for retry
         assert not checkbox.is_disabled()
+        assert not delete_btn.is_disabled()
         cancel_btn = page.locator("#cancelResetBtn")
         assert not cancel_btn.is_disabled()
 
