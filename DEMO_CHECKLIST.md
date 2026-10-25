@@ -101,14 +101,12 @@ Open your web browser and navigate to:
 ### Step 11: Review Data Quality Trends on Overview
 1. Click **Overview** in the sidebar.
 - **Expected Outcome:**
-  - KPI Cards reflect live database aggregates:
-    - Total Ingested: `50`
-    - Accepted Clean Records: `15`
-    - Validation Rejections: `26`
-    - Duplicate Keys Prevented: `9`
-    - Overall Quality Pass Rate: `30.0%`
-  - **Quality Trends Chart:** Visual bar chart rendering accepted (green), rejected (red), and duplicates (amber) for every executed job.
-  - **Record Distribution Chart:** Doughnut chart displaying aggregate percentage shares.
+  - KPI cards match the actual responses from `GET /api/dashboard/summary` and the uploads completed during this demonstration. Do not expect fixed record totals or percentages.
+  - Total, accepted, rejected, duplicate, and job counts reconcile with the actual processing results.
+  - If the database is empty, the cards and tables show the appropriate empty state instead of invented values.
+  - **Trend badges:** Show a percentage only when genuine previous-period data is available; otherwise display the documented no-historical-comparison message.
+  - **Quality Trends Chart:** Displays accepted, rejected, and duplicate counts from actual jobs.
+  - **Record Distribution Chart:** Displays the actual accepted, rejected, and duplicate distribution returned by the backend.
 
 ### Step 12: Explore Interactive OpenAPI Swagger Docs
 1. Click the **Swagger API** button in the top navigation (or visit [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs)).
