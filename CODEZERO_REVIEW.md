@@ -5,6 +5,8 @@
 **Review date:** October 26, 2026  
 **Review scope:** Source inspection, assignment-requirement mapping, local automated test execution, and targeted runtime verification.
 
+**Separate prompt evidence:** [CODEZERO_PROMPT_EVIDENCE.md](CODEZERO_PROMPT_EVIDENCE.md) records representative reconstructed prompt examples and iterations. It explicitly states that the original verbatim CodeZero transcript was not retained, so the examples are not falsely presented as verbatim logs.
+
 ## Work performed by CodeZero
 
 - Inspected the existing FastAPI application, CSV import and validation code, transformation and ETL services, database models, dashboard endpoints and JavaScript, API/test modules, README, technical notes, schema DDL, and sample data.
