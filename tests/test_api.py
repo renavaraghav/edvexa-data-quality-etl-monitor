@@ -2,6 +2,7 @@ import io
 import openpyxl
 import pytest
 from fastapi.testclient import TestClient
+from app.config import settings
 
 def test_api_health(client: TestClient):
     response = client.get("/api/health")
@@ -130,6 +131,13 @@ def test_api_reprocess_endpoint(client: TestClient):
     data = reprocess_res.json()
     assert data["id"] == job_id
     assert data["status"] == "completed"
+    assert data["accepted_rows"] == 1
+    assert data["duplicate_rows"] == 0
+
+    # Reprocessed jobs retain their accepted-row export.
+    clean_res = client.get(f"/api/jobs/{job_id}/download/clean")
+    assert clean_res.status_code == 200
+    assert b"PROD-1" in clean_res.content
 
 def test_download_clean_records_customers(client: TestClient):
     csv_data = "customer_id,name,email,phone,created_at\nCUST-DL-1,Grace Hopper,grace@example.com,+123456789,2024-01-15\n"
@@ -409,3 +417,26 @@ def test_download_csv_escaping(client: TestClient):
     row = reader[1]
     name_idx = header.index("name")
     assert row[name_idx] == 'O\'Connor, Jr. "The Great"'
+
+
+
+def test_upload_rejects_oversized_file_before_full_read(client: TestClient, monkeypatch):
+    """Reject a payload above the configured limit without buffering the full file."""
+    monkeypatch.setattr(settings, "UPLOAD_MAX_SIZE_BYTES", 16)
+    csv_data = b"customer_id,name,email,created_at\nCUST-1,Alice,alice@example.com,2024-01-01\n"
+    files = {"file": ("large.csv", io.BytesIO(csv_data), "text/csv")}
+    response = client.post("/api/uploads", data={"dataset_type": "customers"}, files=files)
+    assert response.status_code == 413
+    assert client.get("/api/jobs").json()["total"] == 0
+
+
+@pytest.mark.parametrize("url", [
+    "/api/jobs?start_date=not-a-date",
+    "/api/records?dataset_type=customers&start_date=not-a-date",
+    "/api/errors?start_date=not-a-date",
+    "/api/dashboard/summary?start_date=not-a-date",
+    "/api/dashboard/trends?end_date=2026-02-30",
+])
+def test_invalid_date_filters_return_422(client: TestClient, url: str):
+    response = client.get(url)
+    assert response.status_code == 422
