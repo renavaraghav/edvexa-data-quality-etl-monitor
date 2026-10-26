@@ -222,7 +222,7 @@ The test suite runs against an isolated, in-memory SQLite database (`sqlite:///:
 pytest -v
 ```
 
-### Verified Test Results (Executed October 26, 2026)
+### Baseline Test Results (Executed October 26, 2026, before CodeZero follow-up fixes)
 - **Command:** `.venv\Scripts\pytest -v`
 - **Items Collected:** 99
 - **Passed:** **99**
@@ -230,6 +230,8 @@ pytest -v
 - **Skipped:** **0**
 - **Warnings:** **17** *(library deprecation notices in FastAPI/Starlette testclient)*
 - **Execution Time:** ~48 seconds
+
+> These results describe the baseline suite before the later CodeZero-review follow-up patches. Regression tests have since been added, but the full suite has not yet been rerun against the latest commit. Run the commands above before treating the current code as verified.
 
 ```text
 ============================= test session starts =============================
@@ -362,7 +364,7 @@ edvexa-data-quality/
 ├── demo/
 │   ├── README.md                   # Video walkthrough documentation & streaming link
 │   └── edvexa-demo.mp4             # 4m 23s demonstration video (local file, gitignored)
-├── tests/                          # 99 automated tests covering API, ETL, validation, reset, and storage
+├── tests/                          # Automated API, ETL, validation, reset, and CodeZero-review regression tests (rerun pending)
 ├── schema.sql                      # SQLite-specific DDL schema definitions and indexes
 ├── requirements.txt                # Pinned dependencies
 ├── render.yaml                     # Render Blueprint infrastructure specification
@@ -419,6 +421,6 @@ Detailed engineering architecture notes, data models, trade-offs, and tooling de
 
 **CodeZero:** Used during initial exploration of the starter materials to inspect the standalone `csv_quality_checker.py` exercise, analyze baseline validation requirements, and plan the initial architecture and README scope. It was later used for an independent source-code review against the assignment, a local full-suite test run, and a runtime probe that reproduced a reprocessing/audit-record defect. The review reported **99 tests passed and 17 deprecation warnings** using in-memory SQLite; it did not modify application files. The findings and their verification limits are recorded in [CodeZero Review](CODEZERO_REVIEW.md).
 
-**Google Antigravity:** Assisted with the main full-stack implementation, including FastAPI endpoints, SQLAlchemy models, ETL processing, the dashboard, reporting, and automated tests. The CodeZero review identified follow-up issues; they are not described as fixed unless a corresponding code change and regression test are completed.
+**Google Antigravity:** Assisted with the main full-stack implementation, including FastAPI endpoints, SQLAlchemy models, ETL processing, the dashboard, reporting, and automated tests. After the CodeZero review, follow-up patches and regression tests were added for the reported reprocessing, trend, upload-size, malformed-CSV, and invalid-date findings. The updated suite still needs to be run; the earlier 99-pass result predates those changes.
 
 For the architecture, development workflow, tool contributions, and review findings, see [Technical Notes](TECHNICAL_NOTES.md) and [CodeZero Review](CODEZERO_REVIEW.md).
