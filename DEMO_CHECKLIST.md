@@ -144,7 +144,7 @@ Open a terminal and run:
 ```powershell
 python -m pytest -v
 ```
-- **Expected Outcome:** Run the full suite on the latest repository commit and confirm that every test passes. The prior baseline contained 99 test cases; 10 regression test cases were added after the CodeZero review, so the expected collection is now 109. The latest result must be recorded after the run; the historical 99-pass result must not be presented as post-fix verification.
+- **Expected Outcome:** The latest local post-fix run, after pulling GitHub commit `1d45be9`, passed **109 tests, 0 failed, with 23 deprecation warnings in 19.91 seconds**. The original 99-pass result remains a historical pre-fix baseline. The suite uses in-memory SQLite and should be complemented by a separate live deployment smoke check.
 
 ---
 
