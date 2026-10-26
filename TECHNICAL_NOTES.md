@@ -208,8 +208,10 @@ Tests are isolated from the developer's operational database:
 - FastAPI's `get_db` dependency is overridden to inject the test database session.
 - Database tables are dropped and recreated on every test function run.
 
-### 4.2 Test Suite Execution Results
-The test suite was executed locally using `pytest`:
+### 4.2 Baseline Test Suite Results (Before CodeZero Follow-Up Patches)
+The baseline test suite was executed locally using `pytest` before the CodeZero-review follow-up patches:
+
+> **Important:** The 99-pass result below does not cover the later fixes or newly added regression tests. The full suite must be rerun on the latest repository commit before this implementation is considered verified.
 
 ```
 ============================= test session starts =============================
