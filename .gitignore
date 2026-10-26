@@ -31,8 +31,19 @@ htmlcov/
 .tox/
 .nox/
 
-# Environment & Local Databases
+# Environment files and local credentials
 .env
+.env.*
+!.env.example
+
+# Private keys / certificate bundles — never commit real key material
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Local databases and generated upload data
 *.db
 *.sqlite3
 data/*.db
