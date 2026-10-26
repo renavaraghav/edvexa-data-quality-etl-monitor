@@ -43,7 +43,8 @@ async def upload_csv_file(
 
     # 3. Read content safely with size check
     try:
-        content = await file.read()
+        # Read only the configured limit plus one byte before rejecting oversized files.
+        content = await file.read(settings.UPLOAD_MAX_SIZE_BYTES + 1)
     except Exception as e:
         logger.error(f"Error reading uploaded file: {e}")
         raise HTTPException(
