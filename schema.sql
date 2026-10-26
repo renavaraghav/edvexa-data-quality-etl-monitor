@@ -1,6 +1,6 @@
 -- ============================================================================
 -- EDVEXA DATA QUALITY & ETL MONITORING PLATFORM - DATABASE SCHEMA DDL
--- Target Engines: SQLite 3.35+, PostgreSQL 12+, MySQL 8.0+
+-- Target Dialect: SQLite 3.35+ (uses SQLite-specific AUTOINCREMENT syntax)
 -- File: schema.sql
 -- ============================================================================
 -- Architecture:
