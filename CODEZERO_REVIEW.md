@@ -19,13 +19,18 @@
 - Ran a targeted runtime probe for reprocessing and confirmed that a job with one previously accepted record had one clean audit row before reprocessing and zero afterward; the reprocess result showed zero accepted and one duplicate. The review linked this to clean-record export behavior.
 - Produced the findings below. **CodeZero did not modify application files during the review session.** A separate follow-up engineering pass subsequently applied targeted code/documentation fixes and added regression tests; that later work is described separately below.
 
+## Subsequent Post-Fix Verification (Separate from the CodeZero Review)
+
+After pulling the latest `main` code at commit `1d45be9`, the project owner reran the full local suite with `.\.venv\Scripts\python.exe -m pytest -q`. Result: **109 passed, 0 failed, 23 deprecation warnings in 19.91 seconds**. This is a later verification run, not the original CodeZero run. The suite uses in-memory SQLite and does not by itself verify a live PostgreSQL database or the deployed Render service.
+
+
 ## Findings from the review
 
 ### 1. Reprocessing can remove the original clean-record audit/export result
 
 **Evidence:** `app/services/etl_pipeline.py`, `reprocess_existing_job` (around lines 278–299) deletes the job's `JobCleanRecord` rows before rerunning the pipeline. The runtime probe reported that a previously accepted record was then detected as an existing business-table duplicate, leaving no replacement job-scoped clean-record row. `app/services/export_service.py` rejects clean-record exports when there are no accepted records to export.
 
-**Follow-up applied after review:** `app/services/etl_pipeline.py` now captures keys previously accepted by the same job, avoids re-inserting those business rows, and replaces the job's errors/clean-record snapshot in the reprocessing transaction. Regression assertions were added to `tests/test_etl.py` and `tests/test_api.py` for accepted counts, audit-row preservation, and clean-record export. The updated tests have not yet been run.
+**Follow-up applied after review:** `app/services/etl_pipeline.py` now captures keys previously accepted by the same job, avoids re-inserting those business rows, and replaces the job's errors/clean-record snapshot in the reprocessing transaction. Regression assertions were added to `tests/test_etl.py` and `tests/test_api.py` for accepted counts, audit-row preservation, and clean-record export. The subsequent post-fix local full-suite run passed all 109 tests (see the verification section above).
 
 ### 2. Trend history can omit newer jobs
 
@@ -43,13 +48,13 @@
 
 **Evidence:** `app/services/csv_import.py` pads short rows with empty strings and maps fields only up to the header count, so extra cells can be discarded. The row counter increments per CSV record and does not represent physical file lines correctly when quoted fields contain embedded newlines.
 
-**Follow-up applied after review:** `app/services/csv_import.py` now rejects data records whose field count differs from the header and records each logical record's physical starting line using `csv.reader.line_num`. `tests/test_validation.py` now covers short/extra field counts and quoted multiline rows. The updated tests have not yet been run.
+**Follow-up applied after review:** `app/services/csv_import.py` now rejects data records whose field count differs from the header and records each logical record's physical starting line using `csv.reader.line_num`. `tests/test_validation.py` now covers short/extra field counts and quoted multiline rows. The subsequent post-fix local full-suite run passed all 109 tests (see the verification section above).
 
 ### 5. Invalid date filters can be silently ignored
 
 **Evidence:** The review found date-parsing paths in the jobs, errors, records, and dashboard routers that catch invalid date input and continue without applying that filter.
 
-**Follow-up applied after review:** The jobs, errors, records, and dashboard date parsers now return HTTP 422 for malformed dates and reversed date ranges. Parameterized API regression tests were added in `tests/test_api.py`. The updated tests have not yet been run.
+**Follow-up applied after review:** The jobs, errors, records, and dashboard date parsers now return HTTP 422 for malformed dates and reversed date ranges. Parameterized API regression tests were added in `tests/test_api.py`. The subsequent post-fix local full-suite run passed all 109 tests (see the verification section above).
 
 ### 6. Schema and sample-data documentation needed consistency fixes
 
@@ -59,8 +64,8 @@
 
 ## Scope and limits
 
-- The 99-pass result is the result recorded by the CodeZero review session for the pre-patch baseline, not a fresh post-fix test run.
+- The 99-pass result is the original CodeZero pre-patch baseline. A separate later local run after the follow-up patches passed 109 tests.
 - The tests run against in-memory SQLite; the review did not run the suite against PostgreSQL.
 - The review did not perform a fresh live-deployment smoke test.
-- Targeted follow-up changes and regression tests have been added for Items 1–5. The full suite has **not** been run after those changes, so these are implemented but not yet test-verified. The earlier 99-pass result applies to the pre-patch baseline only.
+- Targeted follow-up changes and regression tests have been added for Items 1–5. The later local post-fix full-suite run passed all 109 tests; the original 99-pass result applies to the pre-patch CodeZero baseline only.
 - This document records the actual review activity and distinguishes it from the earlier full-stack implementation work assisted by Google Antigravity.
