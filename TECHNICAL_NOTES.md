@@ -211,7 +211,7 @@ Tests are isolated from the developer's operational database:
 ### 4.2 Baseline Test Suite Results (Before CodeZero Follow-Up Patches)
 The baseline test suite was executed locally using `pytest` before the CodeZero-review follow-up patches:
 
-> **Important:** The 99-pass result below does not cover the later fixes or newly added regression tests. The full suite must be rerun on the latest repository commit before this implementation is considered verified.
+> **Historical baseline:** The 99-pass result below predates the follow-up fixes and regression tests. The latest post-fix run is recorded in Section 4.3.
 
 ```
 ============================= test session starts =============================
@@ -289,6 +289,21 @@ tests/test_validation.py::test_csv_import_utf8_bom PASSED                [100%]
 ====================== 99 passed, 17 warnings in 48.52s =======================
 ```
 
+### 4.3 Latest Post-Fix Test Results (October 26, 2026)
+
+After fast-forwarding the local `main` branch to GitHub commit `1d45be9`, the full suite was rerun using:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+- **Passed:** 109
+- **Failed:** 0
+- **Warnings:** 23 deprecation warnings from the framework/database stack
+- **Execution time:** 19.91 seconds
+
+This run includes the added regression coverage for job reprocessing/audit exports, trend-window selection, bounded upload reads, malformed CSV row widths and multiline row locations, and invalid date filters. Tests use in-memory SQLite; this result does not independently verify the production PostgreSQL connection or the deployed Render service.
+
 ---
 
 ## 5. Antigravity-Assisted Development & Review Process
@@ -302,14 +317,14 @@ tests/test_validation.py::test_csv_import_utf8_bom PASSED                [100%]
 4. **ETL Pipeline & Transaction Boundaries:** Authored the Extract-Transform-Load pipeline enforcing the mutual-exclusion accounting equation.
 5. **REST API Construction:** Implemented OpenAPI-documented endpoints for health, ingestion, jobs, validation error itemization, clean records browsing, and dashboard trends.
 6. **Frontend Dashboard:** Created a responsive, modern HTML5/CSS3/Vanilla JS single-page interface with Chart.js visualization.
-7. **Automated Testing Suite:** The pre-review baseline had 99 test cases. Ten additional test cases were added in the CodeZero-review follow-up for reprocessing export preservation, bounded uploads, invalid date filters, malformed CSV widths, multiline row locations, and trend-window selection. The expected current collection is 109 test cases, but the post-patch suite has not yet been run.
+7. **Automated Testing Suite:** The pre-review baseline had 99 test cases. Ten additional test cases were added in the CodeZero-review follow-up for reprocessing export preservation, bounded uploads, invalid date filters, malformed CSV widths, multiline row locations, and trend-window selection. The current collection is 109 test cases; the post-fix full-suite run passed all 109 tests (23 warnings in 19.91 seconds), as documented in Section 4.3.
 
 ### 5.2 Review & Manual Corrections Made During Development
 During the implementation, several critical design details were reviewed and refined:
 1. **Pydantic Settings vs Dotenv:** Switched from `pydantic-settings` to native `python-dotenv` + `pydantic.BaseModel` to avoid external package version incompatibilities.
 2. **UTF-8 BOM Header Parsing:** Standard UTF-8 decoding can leave a leading zero-width no-break space (`\ufeff`) on the first header column. Implemented multi-tier decoding prioritizing `utf-8-sig` to cleanly strip the byte order mark.
 3. **Calendar Date Validation:** Rather than accepting any string that matches a regex pattern, strict calendar parsing via `datetime.strptime` was enforced, properly rejecting impossible calendar days such as February 29th on non-leap years (`2023-02-29`) or month values above `12`.
-4. **CSV Row Numbering (CodeZero follow-up):** The parser now records the physical start line of each logical CSV record using `csv.reader.line_num`, including when prior quoted fields contain embedded newlines. A multiline-record regression test was added; the updated suite has not yet been rerun.
+4. **CSV Row Numbering (CodeZero follow-up):** The parser now records the physical start line of each logical CSV record using `csv.reader.line_num`, including when prior quoted fields contain embedded newlines. A multiline-record regression test was added and passed in the post-fix full-suite run documented in Section 4.3.
 5. **Idempotent Job Reprocessing:** Added a dedicated `POST /api/jobs/{id}/reprocess` endpoint that retrieves the saved file artifact and re-runs the pipeline safely without duplicating clean records.
 6. **Spreadsheet Formula Injection Mitigation:** Sanitized cell values beginning with `=`, `+`, `-`, `@`, `\t`, `\r` by prepending a single quote in both CSV and multi-sheet Excel exports.
 
@@ -317,16 +332,16 @@ During the implementation, several critical design details were reviewed and ref
 This section documents the tools used in the actual development workflow for the assignment.
 
 - **CodeZero — initial exploration:** Used to inspect the standalone starter exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial architecture and README scope (Git commit `7983368c3879efe141b90b7a269c1cb0882505b1`, Plan `6adcf6109cb64fb3236a5352`). That exercise file is not part of the final web-app repository.
-- **CodeZero — independent review and verification:** Later reviewed the current source against the assignment, ran `.\.venv\Scripts\python.exe -m pytest -q`, inspected code paths behind identified risks, and ran a runtime probe that reproduced the reprocessing/audit-record issue. That baseline run reported 99 passing tests and 17 deprecation warnings using in-memory SQLite. CodeZero's review session itself did not modify application files; a separate follow-up pass then applied targeted fixes and added regression tests. Those post-review changes still need a fresh full-suite run. See Section 5.4 and [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md).
+- **CodeZero — independent review and verification:** Later reviewed the current source against the assignment, ran `.\.venv\Scripts\python.exe -m pytest -q`, inspected code paths behind identified risks, and ran a runtime probe that reproduced the reprocessing/audit-record issue. That baseline run reported 99 passing tests and 17 deprecation warnings using in-memory SQLite. CodeZero's review session itself did not modify application files; a separate follow-up pass then applied targeted fixes and added regression tests. Those post-review changes were subsequently covered by a local full-suite run after updating to commit `1d45be9`, which passed 109 tests with 23 deprecation warnings. See Section 4.3, Section 5.4, and [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md).
 - **Google Antigravity:** Assisted with the main full-stack implementation, including FastAPI routes, SQLAlchemy persistence, the ETL pipeline, the HTML/CSS/JavaScript dashboard, Excel/CSV reporting, and automated tests.
 
-The initial findings came from the CodeZero review; a separate follow-up pass has now applied targeted code changes and added regression tests for the main issues. These changes are not yet test-verified because the full suite has not been run after the patches.
+The initial findings came from the CodeZero review; a separate follow-up pass applied targeted code changes and added regression tests for the main issues. After updating local `main` to commit `1d45be9`, the full suite passed 109 tests with 23 deprecation warnings in 19.91 seconds. This verifies the local code against the in-memory SQLite test fixture, not live PostgreSQL or the deployed service.
 
 
 ### 5.4 CodeZero Repository Review — October 26, 2026
-The independent review is documented in [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md). In the review session, CodeZero inspected the repository files, ran the local pytest suite, and reproduced one reprocessing/audit-record defect using a runtime probe. The recorded suite result was **99 passed, 17 deprecation warnings**. The tests use in-memory SQLite; this run did not verify PostgreSQL or the deployed service.
+The independent review is documented in [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md). In the review session, CodeZero inspected the repository files, ran the local pytest suite, and reproduced one reprocessing/audit-record defect using a runtime probe. The recorded CodeZero baseline was **99 passed, 17 deprecation warnings**. A separate post-fix local run after pulling commit `1d45be9` passed **109 tests with 23 deprecation warnings in 19.91 seconds**. The tests use in-memory SQLite; neither run by itself verifies PostgreSQL or the deployed service.
 
-The report identified issues involving reprocessing audit/export preservation, the trend chart's 30-job window, upload-size checking before a full read, malformed CSV row shapes and multiline row locations, invalid date-filter behavior, and documentation consistency for the SQL DDL and sample CSV inventory. Follow-up patches have since been applied: reprocessing now preserves the job's accepted-row snapshot, trends select the newest 30 jobs and display them chronologically, uploads read at most the configured limit plus one byte, malformed row widths are rejected while row start lines account for quoted multiline fields, and invalid/reversed date ranges return HTTP 422. Regression tests were added or updated for these cases. The review session itself made no application-code modifications, and the post-patch suite remains unrun.
+The report identified issues involving reprocessing audit/export preservation, the trend chart's 30-job window, upload-size checking before a full read, malformed CSV row shapes and multiline row locations, invalid date-filter behavior, and documentation consistency for the SQL DDL and sample CSV inventory. Follow-up patches have since been applied: reprocessing now preserves the job's accepted-row snapshot, trends select the newest 30 jobs and display them chronologically, uploads read at most the configured limit plus one byte, malformed row widths are rejected while row start lines account for quoted multiline fields, and invalid/reversed date ranges return HTTP 422. Regression tests were added or updated for these cases. The review session itself made no application-code modifications; the post-patch suite was later run locally and passed all 109 tests.
 ---
 
 ## 6. What Was Verified & Remaining Limitations
@@ -343,7 +358,7 @@ The report identified issues involving reprocessing audit/export preservation, t
 - [x] In-file duplicate keys are rejected.
 - [x] Database pre-existing duplicate keys are rejected.
 - [x] Repeated uploads of identical files are audited without duplicating clean data.
-- [x] Baseline suite execution before the CodeZero follow-up patches reported 99 passing tests; regression tests have since been added and the current suite must be rerun before submission.
+- [x] Latest local post-fix test suite passed 109 tests with zero failures (23 deprecation warnings in 19.91 seconds) after updating to GitHub commit `1d45be9`; see Section 4.3.
 - [x] Interactive UI with KPI cards, Chart.js trends, jobs table, error logs, and records browser is fully connected to the live backend.
 - [x] Job-scoped Clean Records (CSV) download endpoint (`GET /api/jobs/{id}/download/clean`) with correct headers, dataset columns, CSV escaping, and HTTP 400 when 0 accepted rows.
 - [x] Job-scoped Validation Errors (CSV) download endpoint (`GET /api/jobs/{id}/download/errors`) with error tracking metadata, CSV escaping, and HTTP 400 when 0 errors.
@@ -580,10 +595,10 @@ Processing history and audit tables (`.data-table-warm`) were upgraded with dedi
 ### Development Tools & Genuine Engineering Contributions
 
 1. **Google Antigravity (Advanced Agentic Pair Programming):**
-   - Served as the primary engineering assistant for the complete end-to-end full-stack implementation, backend REST API routing, SQLAlchemy 2.x relational persistence, openpyxl multi-sheet Excel workbook generator, responsive HTML5/Vanilla JS frontend with dual themes (Warm Ivory & Dark Espresso), date-range filtering engine, iPhone-style slide-to-reset control, automated verification scripts, and the 99 automated pytest test suite.
+   - Served as the primary engineering assistant for the complete end-to-end full-stack implementation, backend REST API routing, SQLAlchemy 2.x relational persistence, openpyxl multi-sheet Excel workbook generator, responsive HTML5/Vanilla JS frontend with dual themes (Warm Ivory & Dark Espresso), date-range filtering engine, iPhone-style slide-to-reset control, automated verification scripts, and the 109-test automated pytest suite (latest local run: all tests passed).
 
 2. **CodeZero:**
-   - Used for initial starter-material exploration and architecture planning, then for an independent repository review, a 99-pass/17-warning baseline test run on in-memory SQLite, and a runtime probe reproducing a reprocessing/audit-record defect. A separate follow-up pass applied targeted fixes and added regression tests; the full suite remains to be rerun. Full findings and limits are in [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md).
+   - Used for initial starter-material exploration and architecture planning, then for an independent repository review, a 99-pass/17-warning baseline test run on in-memory SQLite, and a runtime probe reproducing a reprocessing/audit-record defect. A separate follow-up pass applied targeted fixes and regression tests; a later local run after pulling commit `1d45be9` passed 109 tests with 23 warnings in 19.91 seconds. Full findings and limits are in [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md).
 
 3. **Python 3.12, FastAPI & Uvicorn:**
    - Core application runtime, asynchronous REST API transport layer, Pydantic v2 data validation, and OpenAPI documentation endpoints (`/docs`, `/redoc`).
@@ -595,7 +610,7 @@ Processing history and audit tables (`.data-table-warm`) were upgraded with dedi
    - Dedicated multi-sheet Microsoft Excel reporting engine with automated column width calculations, cell formatting, frozen panes, and CWE-1236 spreadsheet injection mitigation.
 
 6. **pytest & httpx:**
-   - Comprehensive automated unit, integration, ETL, reset, date-filtering, storage abstraction, and API testing suite (99 passing tests) with in-memory SQLite isolation.
+   - Comprehensive automated unit, integration, ETL, reset, date-filtering, storage abstraction, and API testing suite; latest local post-fix run: 109 passed, 0 failed, 23 deprecation warnings, with in-memory SQLite isolation.
 
 7. **Git & GitHub:**
    - Version control, remote repository hosting, and structured commit history tracking.
