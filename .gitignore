@@ -34,7 +34,6 @@ htmlcov/
 # Environment files and local credentials
 .env
 .env.*
-!.env.example
 
 # Private keys / certificate bundles — never commit real key material
 *.pem
