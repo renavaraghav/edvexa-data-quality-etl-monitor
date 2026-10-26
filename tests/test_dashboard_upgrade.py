@@ -79,3 +79,33 @@ def test_dashboard_summary_and_trends_date_filtering(client: TestClient, db_sess
     assert kpis_empty["total_jobs"] == 0
     assert kpis_empty["total_records_processed"] == 0
     assert kpis_empty["data_quality_rate"] == 0.0
+
+
+
+def test_dashboard_trends_returns_newest_30_jobs_in_chronological_order(
+    client: TestClient, db_session: Session
+):
+    base_time = datetime.datetime(2026, 10, 1, 0, 0, 0)
+    jobs = [
+        ProcessingJob(
+            filename=f"trend_job_{index:02d}.csv",
+            dataset_type="customers",
+            file_hash=f"trend_hash_{index:02d}",
+            status="completed",
+            total_rows=1,
+            accepted_rows=1,
+            started_at=base_time + datetime.timedelta(minutes=index),
+            completed_at=base_time + datetime.timedelta(minutes=index + 1),
+        )
+        for index in range(35)
+    ]
+    db_session.add_all(jobs)
+    db_session.commit()
+
+    response = client.get("/api/dashboard/trends")
+    assert response.status_code == 200
+    trends = response.json()["trends"]
+    assert len(trends) == 30
+    assert trends[0]["filename"] == "trend_job_05.csv"
+    assert trends[-1]["filename"] == "trend_job_34.csv"
+    assert [point["job_id"] for point in trends] == sorted(point["job_id"] for point in trends)
