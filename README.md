@@ -446,8 +446,8 @@ See [CODEZERO_PROMPT_EVIDENCE.md](CODEZERO_PROMPT_EVIDENCE.md) for iteration-by-
 
 ### Credential Hygiene
 
-- Real `.env` and `.env.*` files are ignored by Git; only the non-secret `.env.example` template is allowed.
-- The tracked environment template uses blank/redacted placeholders for database, storage, and reset credentials.
+- Real `.env` and `.env.*` files are ignored by Git and are not included in the repository.
+- Configure local environment variables in a private, untracked `.env` file, or set deployment secrets in the hosting provider's environment settings. Do not commit either file or its values.
 - Common private-key file extensions are ignored. Current-branch code searches for common provider token prefixes returned no matches.
 - A full Git-history secret scan has not been completed. If any real credential was ever committed, rotate/revoke it; removing it from the latest file alone does not erase it from history.
 
