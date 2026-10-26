@@ -409,19 +409,15 @@ Detailed engineering architecture notes, data models, trade-offs, and tooling de
 - **Online Stream (Google Drive):** [Watch EDVEXA Video Walkthrough (4m 23s)](https://drive.google.com/file/d/1HU3dQvIffSwfCqCI_qd0JEIJ-RBXtmij/view?usp=sharing)
 - **Local File:** `demo/edvexa-demo.mp4` *(249.86 MB, preserved locally)*
 
-### Credits & Tooling Demarcation
+### Credits & Development Tools
 
 - **Author:** Raghav Kumar
 - **Project:** Edvexa Data Quality & ETL Monitoring Platform
 
-#### Development Tools
-- **CodeZero:** Used for initial project exploration, reviewing the existing CSV quality checker, analyzing validation requirements, and planning the initial architecture.
-- **Google Antigravity:** Used to assist with full-stack implementation, including backend APIs, database models, ETL processing, the dashboard, reporting, and automated tests.
+**CodeZero:** Used during the initial project exploration to inspect the existing `csv_quality_checker.py` exercise, analyze baseline data-validation requirements, and plan the initial architecture and README structure. The documented CodeZero contribution was exploration and planning.
 
-### Development Tools and Workflow
+**Review and verification:** The implementation was checked against the assignment requirements, and development notes record manual refinements for UTF-8 BOM parsing, strict calendar-date validation, row numbering, idempotent reprocessing, and spreadsheet formula-injection mitigation. The current documented local test run reports 99 passed tests and 17 library deprecation warnings.
 
-- **CodeZero:** Used during the initial development phase for repository exploration, reviewing the existing `csv_quality_checker.py` script, analyzing baseline data-validation requirements, and planning the initial application architecture and README structure.
+**Google Antigravity:** Assisted with subsequent full-stack implementation, including FastAPI endpoints, SQLAlchemy models, ETL processing, the dashboard, reporting, and automated tests.
 
-- **Google Antigravity:** Used to support subsequent full-stack implementation, including FastAPI endpoints, SQLAlchemy models, ETL processing, the frontend dashboard, reporting functionality, and automated testing.
-
-- **Development Approach:** The project was developed iteratively, with attention to data validation, reliable ETL processing, testing, documentation, and deployment.
+For the detailed architecture, challenges, development workflow, and tool contributions, see [Technical Notes](TECHNICAL_NOTES.md).
