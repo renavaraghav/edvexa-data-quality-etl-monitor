@@ -312,10 +312,13 @@ During the implementation, several critical design details were reviewed and ref
 6. **Spreadsheet Formula Injection Mitigation:** Sanitized cell values beginning with `=`, `+`, `-`, `@`, `\t`, `\r` by prepending a single quote in both CSV and multi-sheet Excel exports.
 
 ### 5.3 CodeZero Workflow & Tooling Demarcation
-To maintain 100% technical integrity and transparency as requested in the assignment:
-- **CodeZero Usage:** CodeZero was utilized during the initial project exploration phase within the repository `renavaraghav/edvexa-data-quality-etl-monitor`. It assisted in inspecting the standalone CLI exercise (`csv_quality_checker.py`), analyzing initial validation requirements, and authoring the initial planned architecture scope in `README.md` (Git commit `7983368c3879efe141b90b7a269c1cb0882505b1`, Plan `6adcf6109cb64fb3236a5352`).
-- **Google Antigravity Usage:** Google Antigravity served as the primary agentic pair programmer for the end-to-end full-stack platform implementation in this repository: constructing the FastAPI routing layer, SQLAlchemy 2.x relational persistence, openpyxl multi-sheet Excel generator, responsive HTML5/Vanilla JS frontend with dual themes (Warm Ivory & Dark Espresso), date-range filtering engine, iPhone-style slide-to-reset control, and the 99 automated pytest test suite.
-- **No Fabrications:** No synthetic prompts or fabricated tool logs have been introduced; both tools and their respective contributions are documented factually.
+This section documents the tools used in the actual development workflow for the assignment.
+
+- **CodeZero:** Used during the initial project exploration phase in `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the standalone CLI exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial architecture and README scope (Git commit `7983368c3879efe141b90b7a269c1cb0882505b1`, Plan `6adcf6109cb64fb3236a5352`). The documented CodeZero work focused on exploration and planning rather than generating the main application implementation.
+- **Review and manual refinements:** The planned requirements were compared with the assignment and then verified through implementation checks and the automated test suite. Documented refinements included UTF-8 BOM handling, strict calendar-date validation, row-number indexing, idempotent reprocessing, and spreadsheet formula-injection mitigation (see Section 5.2). The current recorded local test run reports 99 passed tests, with 17 library deprecation warnings.
+- **Google Antigravity:** Assisted with the subsequent full-stack implementation, including FastAPI routes, SQLAlchemy persistence, the ETL pipeline, the HTML/CSS/JavaScript dashboard, Excel/CSV reporting, and automated tests.
+
+The CodeZero contribution is described narrowly to avoid overstating the tool's role. No synthetic sessions or unsupported claims about CodeZero-generated application code are included.
 
 ---
 
