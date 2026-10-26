@@ -439,3 +439,15 @@ Detailed engineering architecture notes, data models, trade-offs, and tooling de
 **Google Antigravity:** Assisted with the main full-stack implementation, including FastAPI endpoints, SQLAlchemy models, ETL processing, the dashboard, reporting, and automated tests. After the CodeZero review, follow-up patches and regression tests were added for the reported reprocessing, trend, upload-size, malformed-CSV, and invalid-date findings. After pulling commit `1d45be9`, the latest local full-suite run passed all 109 tests (23 deprecation warnings, 19.91 seconds).
 
 For the architecture, development workflow, tool contributions, and review findings, see [Technical Notes](TECHNICAL_NOTES.md) and [CodeZero Review](CODEZERO_REVIEW.md).
+
+### Separate CodeZero Prompt Evidence
+
+See [CODEZERO_PROMPT_EVIDENCE.md](CODEZERO_PROMPT_EVIDENCE.md) for iteration-by-iteration evidence, representative reconstructed prompt examples, recorded outcomes, and attribution boundaries. The examples are explicitly not presented as verbatim chat transcripts because the original raw prompt history was not retained.
+
+### Credential Hygiene
+
+- Real `.env` and `.env.*` files are ignored by Git; only the non-secret `.env.example` template is allowed.
+- The tracked environment template uses blank/redacted placeholders for database, storage, and reset credentials.
+- Common private-key file extensions are ignored. Current-branch code searches for common provider token prefixes returned no matches.
+- A full Git-history secret scan has not been completed. If any real credential was ever committed, rotate/revoke it; removing it from the latest file alone does not erase it from history.
+
