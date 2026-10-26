@@ -1,5 +1,5 @@
 %PDF-1.4
-%ASCII PDF generated from TECHNICAL_NOTES.md
+%EDVEXA technical documentation
 1 0 obj
 << /Type /Catalog /Pages 2 0 R /PageMode /UseOutlines >>
 endobj
@@ -19,71 +19,70 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 7 0 R >>
 endobj
 7 0 obj
-<< /Length 7468 >>
+<< /Length 7348 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-0.12 G 0.3 w 48 779 m 547 779 l S 0 G
-BT /F2 17 Tf 48 782 Td (TECHNICAL NOTES - EDVEXA DATA QUALITY & ETL MONITOR) Tj ET
-BT /F1 8.35 Tf 48 749.5 Td (Platform Version: 2.7.0 \(Cloud Deployment: Render + Neon PostgreSQL + Neon Object Storage\) Author: Raghav Kumar |) Tj ET
-BT /F1 8.35 Tf 48 738.5 Td (Software Engineer Project Workspace: c:\\Users\\rjha1\\Downloads\\csv_project Live Production URL:) Tj ET
-BT /F1 8.35 Tf 48 727.5 Td (https://edvexa-data-quality-etl-monitor.onrender.com <https://edvexa-data-quality-etl-monitor.onrender.com> Live) Tj ET
-BT /F1 8.35 Tf 48 716.5 Td (Swagger API Docs: https://edvexa-data-quality-etl-monitor.onrender.com/docs) Tj ET
-BT /F1 8.35 Tf 48 705.5 Td (<https://edvexa-data-quality-etl-monitor.onrender.com/docs> Live Health Verification:) Tj ET
-BT /F1 8.35 Tf 48 694.5 Td (https://edvexa-data-quality-etl-monitor.onrender.com/api/health) Tj ET
-BT /F1 8.35 Tf 48 683.5 Td (<https://edvexa-data-quality-etl-monitor.onrender.com/api/health>) Tj ET
-0.72 G 0.5 w 48 667 m 547 667 l S 0 G
-0.12 G 0.3 w 48 644.5 m 547 644.5 l S 0 G
-BT /F2 13 Tf 48 647.5 Td (1. Architecture Decisions) Tj ET
-BT /F2 10.5 Tf 48 617 Td (1.1 Backend Framework Selection: FastAPI & Uvicorn) Tj ET
-BT /F1 8.35 Tf 48 602 Td (FastAPI was selected for this data platform over Django and Flask for several decisive architectural reasons:) Tj ET
-BT /F1 8.2 Tf 68 591 Td (1. First-Class Asynchronous Performance & Native Typing: High-throughput file uploads and streaming data validation) Tj ET
-BT /F1 8.2 Tf 68 580.3 Td (require non-blocking I/O and strict type safety.) Tj ET
-BT /F1 8.2 Tf 68 569.5999999999999 Td (2. Pydantic v2 Schema Enforcement: Request and response schemas are strictly validated at the protocol layer,) Tj ET
-BT /F1 8.2 Tf 68 558.8999999999999 Td (guaranteeing that malformed query parameters, invalid pagination limits, or unsupported dataset types are intercepted) Tj ET
-BT /F1 8.2 Tf 68 548.1999999999998 Td (before touching business logic.) Tj ET
-BT /F1 8.2 Tf 68 537.4999999999998 Td (3. Automatic OpenAPI/Swagger Generation: Reduces documentation drift by automatically publishing interactive API) Tj ET
-BT /F1 8.2 Tf 68 526.7999999999997 Td (documentation at /docs reflecting actual Python type annotations.) Tj ET
-BT /F1 8.2 Tf 68 516.0999999999997 Td (4. Standard Uvicorn ASGI Runner: Lightweight and cross-platform on Windows with zero binary dependency complications.) Tj ET
-BT /F2 10.5 Tf 48 495.8999999999997 Td (1.2 Database Abstraction: SQLAlchemy 2.x) Tj ET
-BT /F1 8.35 Tf 48 480.8999999999997 Td (The application employs SQLAlchemy 2.0+ declarative models with standard session management:) Tj ET
-BT /F1 8.2 Tf 68 469.8999999999997 Td (* Default Local Store: SQLite \(sqlite:///./edvexa_data.db\) provides instant zero-setup local execution on Windows) Tj ET
-BT /F1 8.2 Tf 68 459.1999999999997 Td (without external daemon dependencies.) Tj ET
-BT /F1 8.2 Tf 68 448.4999999999997 Td (* Dialect Portability: Model definitions use standard ANSI SQL datatypes \(String, Integer, Float, DateTime, Text\) with) Tj ET
-BT /F1 8.2 Tf 68 437.7999999999997 Td (index declarations. The queries utilize modern SQLAlchemy 2.x select\(\) constructs, making the entire data layer drop-in) Tj ET
-BT /F1 8.2 Tf 68 427.09999999999974 Td (compatible with PostgreSQL \(postgresql://...\) simply by changing DATABASE_URL in .env.) Tj ET
-BT /F1 8.2 Tf 68 416.39999999999975 Td (* Session Scoping: Implemented via a FastAPI dependency generator \(get_db\(\)\) ensuring transactions are properly) Tj ET
-BT /F1 8.2 Tf 68 405.69999999999976 Td (committed or rolled back and database connections are safely closed in the finally block.) Tj ET
-BT /F2 10.5 Tf 48 385.4999999999998 Td (1.3 Decoupled Service Layer) Tj ET
-BT /F1 8.35 Tf 48 370.4999999999998 Td (The codebase adheres strictly to the single responsibility principle:) Tj ET
-BT /F1 8.2 Tf 68 359.4999999999998 Td (* app/routers/: Transport layer handling HTTP requests, query parameters, status codes, and JSON serialization.) Tj ET
-BT /F1 8.2 Tf 68 348.7999999999998 Td (* app/services/csv_import.py: Ingestion layer responsible for file decoding, charset resolution, structural header) Tj ET
-BT /F1 8.2 Tf 68 338.0999999999998 Td (inspection, and delimiter handling.) Tj ET
-BT /F1 8.2 Tf 68 327.3999999999998 Td (* app/services/transformation.py: Pure, side-effect-free sanitization and normalizers \(string trimming, name) Tj ET
-BT /F1 8.2 Tf 68 316.6999999999998 Td (capitalization, date parsing, numeric casting\).) Tj ET
-BT /F1 8.2 Tf 68 305.99999999999983 Td (* app/services/validation.py: Business logic validation, email regex compliance, numeric range checks, and error report) Tj ET
-BT /F1 8.2 Tf 68 295.29999999999984 Td (generation.) Tj ET
-BT /F1 8.2 Tf 68 284.59999999999985 Td (* app/services/etl_pipeline.py: Orchestrator executing the transaction boundary, deduplication checks, and metric) Tj ET
-BT /F1 8.2 Tf 68 273.89999999999986 Td (tallying.) Tj ET
-BT /F2 10.5 Tf 48 253.69999999999987 Td (1.4 Frontend Architecture: Lightweight Responsive SPA) Tj ET
-BT /F1 8.35 Tf 48 238.69999999999987 Td (The user interface was built using native HTML5, modern CSS3 \(custom CSS variables, responsive grid, flexbox layout\),) Tj ET
-BT /F1 8.35 Tf 48 227.69999999999987 Td (Vanilla JavaScript ES6+, and Chart.js via CDN:) Tj ET
-BT /F1 8.2 Tf 68 216.69999999999987 Td (* Avoids brittle Node.js build pipelines \(npm, webpack, vite\), eliminating installation friction for local evaluation) Tj ET
-BT /F1 8.2 Tf 68 205.9999999999999 Td (on Windows.) Tj ET
-BT /F1 8.2 Tf 68 195.2999999999999 Td (* Eliminates client-side framework bloat while providing instant reactive transitions across views \(Overview, Import,) Tj ET
-BT /F1 8.2 Tf 68 184.5999999999999 Td (Jobs, Errors, Records, and Documentation\).) Tj ET
-BT /F1 8.2 Tf 68 173.89999999999992 Td (* Dynamically queries REST endpoints on every view change, ensuring KPI cards, graphs, and tables always represent the) Tj ET
-BT /F1 8.2 Tf 68 163.19999999999993 Td (live state of the database.) Tj ET
-BT /F2 10.5 Tf 48 142.99999999999994 Td (1.5 Job-Scoped Clean Record Architecture & Excel Export Engine) Tj ET
-BT /F1 8.35 Tf 48 127.99999999999994 Td (To provide secure, isolated downloads on a per-job basis without corrupting or inferring from global business tables:) Tj ET
-BT /F1 8.2 Tf 68 116.99999999999994 Td (1. The Isolation Problem: Clean tables \(customers, sales, inventory\) maintain global unique deduplication constraints) Tj ET
-BT /F1 8.2 Tf 68 106.29999999999994 Td (across the lifetime of the platform. A job may accept 5 clean records, but querying the global table would) Tj ET
-BT /F1 8.2 Tf 68 95.59999999999994 Td (inadvertently export records from other jobs or previous uploads.) Tj ET
-BT /F1 8.2 Tf 68 84.89999999999993 Td (2. Dedicated Audit Model \(JobCleanRecord\): We introduced JobCleanRecord \(id, job_id, row_number, dataset_type,) Tj ET
-BT /F1 8.2 Tf 68 74.19999999999993 Td (business_key, record_json, created_at\). During the ETL load phase, every accepted clean record is staged into) Tj ET
-BT /F1 8.2 Tf 68 63.49999999999993 Td (job_clean_records in the same atomic database transaction as the business tables.) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+0.80 G 0.5 w 48 778 m 547 778 l S 0 G
+BT /F2 17 Tf 48 781 Td (TECHNICAL NOTES - EDVEXA DATA QUALITY & ETL MONITOR) Tj ET
+BT /F1 8.35 Tf 48 748.5 Td (Platform Version: 2.7.0 \(Cloud Deployment: Render + Neon PostgreSQL + Neon Object Storage\) Author: Raghav Kumar |) Tj ET
+BT /F1 8.35 Tf 48 737.5 Td (Software Engineer Project Workspace: c:\\Users\\rjha1\\Downloads\\csv_project Live Production URL:) Tj ET
+BT /F1 8.35 Tf 48 726.5 Td (https://edvexa-data-quality-etl-monitor.onrender.com <https://edvexa-data-quality-etl-monitor.onrender.com> Live) Tj ET
+BT /F1 8.35 Tf 48 715.5 Td (Swagger API Docs: https://edvexa-data-quality-etl-monitor.onrender.com/docs) Tj ET
+BT /F1 8.35 Tf 48 704.5 Td (<https://edvexa-data-quality-etl-monitor.onrender.com/docs> Live Health Verification:) Tj ET
+BT /F1 8.35 Tf 48 693.5 Td (https://edvexa-data-quality-etl-monitor.onrender.com/api/health) Tj ET
+BT /F1 8.35 Tf 48 682.5 Td (<https://edvexa-data-quality-etl-monitor.onrender.com/api/health>) Tj ET
+0.72 G 0.5 w 48 666 m 547 666 l S 0 G
+0.80 G 0.5 w 48 643.5 m 547 643.5 l S 0 G
+BT /F2 13 Tf 48 646.5 Td (1. Architecture Decisions) Tj ET
+BT /F2 10.5 Tf 48 615 Td (1.1 Backend Framework Selection: FastAPI & Uvicorn) Tj ET
+BT /F1 8.35 Tf 48 600 Td (FastAPI was selected for this data platform over Django and Flask for several decisive architectural reasons:) Tj ET
+BT /F1 8.2 Tf 58 589 Td (1. First-Class Asynchronous Performance & Native Typing: High-throughput file uploads and streaming data validation) Tj ET
+BT /F1 8.2 Tf 58 578.3 Td (require non-blocking I/O and strict type safety.) Tj ET
+BT /F1 8.2 Tf 58 567.5999999999999 Td (2. Pydantic v2 Schema Enforcement: Request and response schemas are strictly validated at the protocol layer,) Tj ET
+BT /F1 8.2 Tf 58 556.8999999999999 Td (guaranteeing that malformed query parameters, invalid pagination limits, or unsupported dataset types are intercepted) Tj ET
+BT /F1 8.2 Tf 58 546.1999999999998 Td (before touching business logic.) Tj ET
+BT /F1 8.2 Tf 58 535.4999999999998 Td (3. Automatic OpenAPI/Swagger Generation: Reduces documentation drift by automatically publishing interactive API) Tj ET
+BT /F1 8.2 Tf 58 524.7999999999997 Td (documentation at /docs reflecting actual Python type annotations.) Tj ET
+BT /F1 8.2 Tf 58 514.0999999999997 Td (4. Standard Uvicorn ASGI Runner: Lightweight and cross-platform on Windows with zero binary dependency complications.) Tj ET
+BT /F2 10.5 Tf 48 493.8999999999997 Td (1.2 Database Abstraction: SQLAlchemy 2.x) Tj ET
+BT /F1 8.35 Tf 48 478.8999999999997 Td (The application employs SQLAlchemy 2.0+ declarative models with standard session management:) Tj ET
+BT /F1 8.2 Tf 58 467.8999999999997 Td (* Default Local Store: SQLite \(sqlite:///./edvexa_data.db\) provides instant zero-setup local execution on Windows) Tj ET
+BT /F1 8.2 Tf 58 457.1999999999997 Td (without external daemon dependencies.) Tj ET
+BT /F1 8.2 Tf 58 446.4999999999997 Td (* Dialect Portability: Model definitions use standard ANSI SQL datatypes \(String, Integer, Float, DateTime, Text\)) Tj ET
+BT /F1 8.2 Tf 58 435.7999999999997 Td (with index declarations. The queries utilize modern SQLAlchemy 2.x select\(\) constructs, making the entire data layer) Tj ET
+BT /F1 8.2 Tf 58 425.09999999999974 Td (drop-in compatible with PostgreSQL \(postgresql://...\) simply by changing DATABASE_URL in .env.) Tj ET
+BT /F1 8.2 Tf 58 414.39999999999975 Td (* Session Scoping: Implemented via a FastAPI dependency generator \(get_db\(\)\) ensuring transactions are properly) Tj ET
+BT /F1 8.2 Tf 58 403.69999999999976 Td (committed or rolled back and database connections are safely closed in the finally block.) Tj ET
+BT /F2 10.5 Tf 48 383.4999999999998 Td (1.3 Decoupled Service Layer) Tj ET
+BT /F1 8.35 Tf 48 368.4999999999998 Td (The codebase adheres strictly to the single responsibility principle:) Tj ET
+BT /F1 8.2 Tf 58 357.4999999999998 Td (* app/routers/: Transport layer handling HTTP requests, query parameters, status codes, and JSON serialization.) Tj ET
+BT /F1 8.2 Tf 58 346.7999999999998 Td (* app/services/csv_import.py: Ingestion layer responsible for file decoding, charset resolution, structural header) Tj ET
+BT /F1 8.2 Tf 58 336.0999999999998 Td (inspection, and delimiter handling.) Tj ET
+BT /F1 8.2 Tf 58 325.3999999999998 Td (* app/services/transformation.py: Pure, side-effect-free sanitization and normalizers \(string trimming, name) Tj ET
+BT /F1 8.2 Tf 58 314.6999999999998 Td (capitalization, date parsing, numeric casting\).) Tj ET
+BT /F1 8.2 Tf 58 303.99999999999983 Td (* app/services/validation.py: Business logic validation, email regex compliance, numeric range checks, and error) Tj ET
+BT /F1 8.2 Tf 58 293.29999999999984 Td (report generation.) Tj ET
+BT /F1 8.2 Tf 58 282.59999999999985 Td (* app/services/etl_pipeline.py: Orchestrator executing the transaction boundary, deduplication checks, and metric) Tj ET
+BT /F1 8.2 Tf 58 271.89999999999986 Td (tallying.) Tj ET
+BT /F2 10.5 Tf 48 251.69999999999987 Td (1.4 Frontend Architecture: Lightweight Responsive SPA) Tj ET
+BT /F1 8.35 Tf 48 236.69999999999987 Td (The user interface was built using native HTML5, modern CSS3 \(custom CSS variables, responsive grid, flexbox layout\),) Tj ET
+BT /F1 8.35 Tf 48 225.69999999999987 Td (Vanilla JavaScript ES6+, and Chart.js via CDN:) Tj ET
+BT /F1 8.2 Tf 58 214.69999999999987 Td (* Avoids brittle Node.js build pipelines \(npm, webpack, vite\), eliminating installation friction for local evaluation) Tj ET
+BT /F1 8.2 Tf 58 203.9999999999999 Td (on Windows.) Tj ET
+BT /F1 8.2 Tf 58 193.2999999999999 Td (* Eliminates client-side framework bloat while providing instant reactive transitions across views \(Overview, Import,) Tj ET
+BT /F1 8.2 Tf 58 182.5999999999999 Td (Jobs, Errors, Records, and Documentation\).) Tj ET
+BT /F1 8.2 Tf 58 171.89999999999992 Td (* Dynamically queries REST endpoints on every view change, ensuring KPI cards, graphs, and tables always represent) Tj ET
+BT /F1 8.2 Tf 58 161.19999999999993 Td (the live state of the database.) Tj ET
+BT /F2 10.5 Tf 48 140.99999999999994 Td (1.5 Job-Scoped Clean Record Architecture & Excel Export Engine) Tj ET
+BT /F1 8.35 Tf 48 125.99999999999994 Td (To provide secure, isolated downloads on a per-job basis without corrupting or inferring from global business tables:) Tj ET
+BT /F1 8.2 Tf 58 114.99999999999994 Td (1. The Isolation Problem: Clean tables \(customers, sales, inventory\) maintain global unique deduplication constraints) Tj ET
+BT /F1 8.2 Tf 58 104.29999999999994 Td (across the lifetime of the platform. A job may accept 5 clean records, but querying the global table would) Tj ET
+BT /F1 8.2 Tf 58 93.59999999999994 Td (inadvertently export records from other jobs or previous uploads.) Tj ET
+BT /F1 8.2 Tf 58 82.89999999999993 Td (2. Dedicated Audit Model \(JobCleanRecord\): We introduced JobCleanRecord \(id, job_id, row_number, dataset_type,) Tj ET
+BT /F1 8.2 Tf 58 72.19999999999993 Td (business_key, record_json, created_at\). During the ETL load phase, every accepted clean record is staged into) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 1 of 13) Tj ET
 
 endstream
@@ -92,73 +91,73 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 9 0 R >>
 endobj
 9 0 obj
-<< /Length 7682 >>
+<< /Length 7611 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F1 8.2 Tf 68 785 Td (3. Multi-Sheet Microsoft Excel Workbook Export \(generate_job_excel_report\): Generates a genuine .xlsx workbook using) Tj ET
-BT /F1 8.2 Tf 68 774.3 Td (openpyxl with three dedicated worksheets:) Tj ET
-BT /F1 8.1 Tf 94 763.5999999999999 Td (  - Sheet 1: Job Summary: Job metadata, execution metrics, error aggregations, and the row accounting rule: total rows) Tj ET
-BT /F1 8.1 Tf 94 753.0999999999999 Td (= accepted rows + rejected rows + duplicates + skipped rows.) Tj ET
-BT /F1 8.1 Tf 94 742.5999999999999 Td (  - Sheet 2: Clean Records: Only clean records accepted by that specific job. Features navy blue header rows, frozen) Tj ET
-BT /F1 8.1 Tf 94 732.0999999999999 Td (panes at A2, auto-filters, numeric formatting \(#,##0.00 for currency, #,##0 for quantities\), and automated column) Tj ET
-BT /F1 8.1 Tf 94 721.5999999999999 Td (width fitting.) Tj ET
-BT /F1 8.1 Tf 94 711.0999999999999 Td (  - Sheet 3: Validation Errors: All validation failures and duplicate detections with row numbers, error codes, error) Tj ET
-BT /F1 8.1 Tf 94 700.5999999999999 Td (messages, and original values. Features frozen header row \(A2\), auto-filters, and text wrapping.) Tj ET
-BT /F1 8.2 Tf 68 690.0999999999999 Td (4. Empty State Resilience: The Excel workbook can always be generated for completed jobs even if accepted rows or) Tj ET
-BT /F1 8.2 Tf 68 679.3999999999999 Td (validation errors equal 0, rendering a clean explanatory note instead of erroring out.) Tj ET
-BT /F1 8.2 Tf 68 668.6999999999998 Td (5. Deterministic CSV Generation: generate_clean_records_csv and generate_validation_errors_csv stream isolated) Tj ET
-BT /F1 8.2 Tf 68 657.9999999999998 Td (single-purpose CSV files.) Tj ET
-BT /F1 8.2 Tf 68 647.2999999999997 Td (6. Zero-Downtime Backwards-Compatibility: For pre-existing historical jobs processed before JobCleanRecord was) Tj ET
-BT /F1 8.2 Tf 68 636.5999999999997 Td (introduced, a fallback resolver \(backfill_job_clean_records_if_needed\) reconstructs the exact clean records from the) Tj ET
-BT /F1 8.2 Tf 68 625.8999999999996 Td (securely stored source artifact in uploads_storage/, ensuring historical downloads remain 100% functional without) Tj ET
-BT /F1 8.2 Tf 68 615.1999999999996 Td (mutating original data.) Tj ET
-BT /F2 10.5 Tf 48 594.9999999999995 Td (1.6 Production Cloud Architecture: Render + Neon + Neon Object Storage) Tj ET
-BT /F1 8.35 Tf 48 579.9999999999995 Td (To transition the platform from single-node local execution to a resilient, zero-cost cloud architecture while) Tj ET
-BT /F1 8.35 Tf 48 568.9999999999995 Td (maintaining 100% local Windows development parity:) Tj ET
-BT /F3 7.1 Tf 48 544.4999999999995 Td (CLIENT / BROWSER ) Tj ET
-BT /F3 7.1 Tf 48 535.4999999999995 Td (SPA Interface, Drag-and-Drop Ingestion, Real-Time Charts, Docs ) Tj ET
-BT /F3 7.1 Tf 48 517.4999999999995 Td (HTTPS) Tj ET
-BT /F3 7.1 Tf 48 490.49999999999955 Td (RENDER WEB SERVICE \(COMPUTE\) ) Tj ET
-BT /F3 7.1 Tf 48 481.49999999999955 Td (FastAPI + Uvicorn ASGI Container | Python 3.11/3.12 | Auto-Deploy ) Tj ET
-BT /F3 7.1 Tf 48 472.49999999999955 Td (- Stateless Execution & Dynamic Scaling ) Tj ET
-BT /F3 7.1 Tf 48 463.49999999999955 Td (- Connection Pool Pre-Ping & SSL Mode Validation ) Tj ET
-BT /F3 7.1 Tf 48 454.49999999999955 Td (- Administrative Reset Token & Production Policy Guards ) Tj ET
-BT /F3 7.1 Tf 48 445.49999999999955 Td (- Local Artifact Cache \(/tmp or uploads_storage\) ) Tj ET
-BT /F3 7.1 Tf 48 427.49999999999955 Td (SQL \(Async / Pooled\) S3 API \(boto3\)) Tj ET
-BT /F3 7.1 Tf 48 400.49999999999955 Td (NEON SERVERLESS POSTGRES NEON OBJECT STORAGE \(S3 API\) ) Tj ET
-BT /F3 7.1 Tf 48 391.49999999999955 Td (- Relational Models & Foreign Keys - Upload Artifact Persistence ) Tj ET
-BT /F3 7.1 Tf 48 382.49999999999955 Td (- Automated Table Initialization - S3-Compatible Endpoint ) Tj ET
-BT /F3 7.1 Tf 48 373.49999999999955 Td (- Zero Data Loss on Dyno Restarts - Native to Neon Project ) Tj ET
-BT /F3 7.1 Tf 48 364.49999999999955 Td (- sslmode=require Enforcement - Path-Traversal Protection ) Tj ET
-BT /F1 8.2 Tf 68 341.99999999999955 Td (1. Compute Tier \(Render Web Service\):) Tj ET
-BT /F1 8.1 Tf 94 331.29999999999956 Td (  - Hosts the FastAPI ASGI web application running on Uvicorn.) Tj ET
-BT /F1 8.1 Tf 94 320.79999999999956 Td (  - Declaratively defined via render.yaml Blueprint specification, enabling automatic build and continuous deployment) Tj ET
-BT /F1 8.1 Tf 94 310.29999999999956 Td (whenever changes land on branch main.) Tj ET
-BT /F1 8.1 Tf 94 299.79999999999956 Td (  - Automated HTTPS/TLS termination, health monitoring probe at /api/health, and zero billing cost under Render's free) Tj ET
-BT /F1 8.1 Tf 94 289.29999999999956 Td (web tier.) Tj ET
-BT /F1 8.1 Tf 94 278.79999999999956 Td (  - Container filesystem is ephemeral: files written to disk are purged when instances spin down or redeploy. This) Tj ET
-BT /F1 8.1 Tf 94 268.29999999999956 Td (necessitated decoupling stateful storage.) Tj ET
-BT /F1 8.2 Tf 68 253.29999999999956 Td (2. Persistence Tier \(Neon Serverless PostgreSQL\):) Tj ET
-BT /F1 8.1 Tf 94 242.59999999999957 Td (  - Replaces local SQLite in production with a managed, serverless PostgreSQL database on Neon.tech.) Tj ET
-BT /F1 8.1 Tf 94 232.09999999999957 Td (  - Dynamic connection string normalization in app/config.py converts legacy postgres:// URLs to SQLAlchemy-compliant) Tj ET
-BT /F1 8.1 Tf 94 221.59999999999957 Td (postgresql:// and guarantees sslmode=require.) Tj ET
-BT /F1 8.1 Tf 94 211.09999999999957 Td (  - Engine connection pooling \(pool_size=5, max_overflow=10, pool_recycle=300, pool_pre_ping=True\) handles Neon's) Tj ET
-BT /F1 8.1 Tf 94 200.59999999999957 Td (serverless cold-start and idle connection termination gracefully.) Tj ET
-BT /F1 8.1 Tf 94 190.09999999999957 Td (  - Relational integrity, constraints, indexes, and cascade operations are preserved identically between local SQLite) Tj ET
-BT /F1 8.1 Tf 94 179.59999999999957 Td (and remote PostgreSQL.) Tj ET
-BT /F1 8.2 Tf 68 164.59999999999957 Td (3. Object Storage Tier \(Neon Object Storage Persistent Storage\):) Tj ET
-BT /F1 8.1 Tf 94 153.89999999999958 Td (  - Stores raw uploaded CSV files and reprocessing artifacts using Neon Object Storage \(S3-compatible API via boto3\).) Tj ET
-BT /F1 8.1 Tf 94 143.39999999999958 Td (  - Sits natively alongside the PostgreSQL database in the same Neon project and AWS region \(Singapore /) Tj ET
-BT /F1 8.1 Tf 94 132.89999999999958 Td (ap-southeast-1\), minimizing cross-cloud latencies and eliminating external vendor credentials.) Tj ET
-BT /F1 8.1 Tf 94 122.39999999999958 Td (  - Implemented via the StorageBackend abstraction in app/services/storage.py, supporting local filesystem storage) Tj ET
-BT /F1 8.1 Tf 94 111.89999999999958 Td (\(LocalStorageBackend\) for offline development and NeonObjectStorageBackend \(with backward-compatible) Tj ET
-BT /F1 8.1 Tf 94 101.39999999999958 Td (S3StorageBackend and R2StorageBackend aliases\) for production.) Tj ET
-BT /F1 8.1 Tf 94 90.89999999999958 Td (  - Features automatic local caching, key sanitization against directory traversal, and idempotent clear operations.) Tj ET
-BT /F1 8.2 Tf 68 75.89999999999958 Td (4. Administrative & Public Reset Configuration:) Tj ET
-BT /F1 8.1 Tf 94 65.19999999999958 Td (  - The internal ALLOW_DESTRUCTIVE_RESET setting is computed from the environment variable) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.2 Tf 58 785 Td (job_clean_records in the same atomic database transaction as the business tables.) Tj ET
+BT /F1 8.2 Tf 58 774.3 Td (3. Multi-Sheet Microsoft Excel Workbook Export \(generate_job_excel_report\): Generates a genuine .xlsx workbook using) Tj ET
+BT /F1 8.2 Tf 58 763.5999999999999 Td (openpyxl with three dedicated worksheets:) Tj ET
+BT /F1 8.1 Tf 76 752.8999999999999 Td (  - Sheet 1: Job Summary: Job metadata, execution metrics, error aggregations, and the row accounting rule: total) Tj ET
+BT /F1 8.1 Tf 76 742.3999999999999 Td (rows = accepted rows + rejected rows + duplicates + skipped rows.) Tj ET
+BT /F1 8.1 Tf 76 731.8999999999999 Td (  - Sheet 2: Clean Records: Only clean records accepted by that specific job. Features navy blue header rows, frozen) Tj ET
+BT /F1 8.1 Tf 76 721.3999999999999 Td (panes at A2, auto-filters, numeric formatting \(#,##0.00 for currency, #,##0 for quantities\), and automated column) Tj ET
+BT /F1 8.1 Tf 76 710.8999999999999 Td (width fitting.) Tj ET
+BT /F1 8.1 Tf 76 700.3999999999999 Td (  - Sheet 3: Validation Errors: All validation failures and duplicate detections with row numbers, error codes,) Tj ET
+BT /F1 8.1 Tf 76 689.8999999999999 Td (error messages, and original values. Features frozen header row \(A2\), auto-filters, and text wrapping.) Tj ET
+BT /F1 8.2 Tf 58 679.3999999999999 Td (4. Empty State Resilience: The Excel workbook can always be generated for completed jobs even if accepted rows or) Tj ET
+BT /F1 8.2 Tf 58 668.6999999999998 Td (validation errors equal 0, rendering a clean explanatory note instead of erroring out.) Tj ET
+BT /F1 8.2 Tf 58 657.9999999999998 Td (5. Deterministic CSV Generation: generate_clean_records_csv and generate_validation_errors_csv stream isolated) Tj ET
+BT /F1 8.2 Tf 58 647.2999999999997 Td (single-purpose CSV files.) Tj ET
+BT /F1 8.2 Tf 58 636.5999999999997 Td (6. Zero-Downtime Backwards-Compatibility: For pre-existing historical jobs processed before JobCleanRecord was) Tj ET
+BT /F1 8.2 Tf 58 625.8999999999996 Td (introduced, a fallback resolver \(backfill_job_clean_records_if_needed\) reconstructs the exact clean records from the) Tj ET
+BT /F1 8.2 Tf 58 615.1999999999996 Td (securely stored source artifact in uploads_storage/, ensuring historical downloads remain 100% functional without) Tj ET
+BT /F1 8.2 Tf 58 604.4999999999995 Td (mutating original data.) Tj ET
+BT /F2 10.5 Tf 48 584.2999999999995 Td (1.6 Production Cloud Architecture: Render + Neon + Neon Object Storage) Tj ET
+BT /F1 8.35 Tf 48 569.2999999999995 Td (To transition the platform from single-node local execution to a resilient, zero-cost cloud architecture while) Tj ET
+BT /F1 8.35 Tf 48 558.2999999999995 Td (maintaining 100% local Windows development parity:) Tj ET
+BT /F3 7.1 Tf 48 533.7999999999995 Td (CLIENT / BROWSER ) Tj ET
+BT /F3 7.1 Tf 48 524.7999999999995 Td (SPA Interface, Drag-and-Drop Ingestion, Real-Time Charts, Docs ) Tj ET
+BT /F3 7.1 Tf 48 506.7999999999995 Td (HTTPS) Tj ET
+BT /F3 7.1 Tf 48 479.7999999999995 Td (RENDER WEB SERVICE \(COMPUTE\) ) Tj ET
+BT /F3 7.1 Tf 48 470.7999999999995 Td (FastAPI + Uvicorn ASGI Container | Python 3.11/3.12 | Auto-Deploy ) Tj ET
+BT /F3 7.1 Tf 48 461.7999999999995 Td (- Stateless Execution & Dynamic Scaling ) Tj ET
+BT /F3 7.1 Tf 48 452.7999999999995 Td (- Connection Pool Pre-Ping & SSL Mode Validation ) Tj ET
+BT /F3 7.1 Tf 48 443.7999999999995 Td (- Administrative Reset Token & Production Policy Guards ) Tj ET
+BT /F3 7.1 Tf 48 434.7999999999995 Td (- Local Artifact Cache \(/tmp or uploads_storage\) ) Tj ET
+BT /F3 7.1 Tf 48 416.7999999999995 Td (SQL \(Async / Pooled\) S3 API \(boto3\)) Tj ET
+BT /F3 7.1 Tf 48 389.7999999999995 Td (NEON SERVERLESS POSTGRES NEON OBJECT STORAGE \(S3 API\) ) Tj ET
+BT /F3 7.1 Tf 48 380.7999999999995 Td (- Relational Models & Foreign Keys - Upload Artifact Persistence ) Tj ET
+BT /F3 7.1 Tf 48 371.7999999999995 Td (- Automated Table Initialization - S3-Compatible Endpoint ) Tj ET
+BT /F3 7.1 Tf 48 362.7999999999995 Td (- Zero Data Loss on Dyno Restarts - Native to Neon Project ) Tj ET
+BT /F3 7.1 Tf 48 353.7999999999995 Td (- sslmode=require Enforcement - Path-Traversal Protection ) Tj ET
+BT /F1 8.2 Tf 58 331.2999999999995 Td (1. Compute Tier \(Render Web Service\):) Tj ET
+BT /F1 8.1 Tf 76 320.5999999999995 Td (  - Hosts the FastAPI ASGI web application running on Uvicorn.) Tj ET
+BT /F1 8.1 Tf 76 310.0999999999995 Td (  - Declaratively defined via render.yaml Blueprint specification, enabling automatic build and continuous) Tj ET
+BT /F1 8.1 Tf 76 299.5999999999995 Td (deployment whenever changes land on branch main.) Tj ET
+BT /F1 8.1 Tf 76 289.0999999999995 Td (  - Automated HTTPS/TLS termination, health monitoring probe at /api/health, and zero billing cost under Render's) Tj ET
+BT /F1 8.1 Tf 76 278.5999999999995 Td (free web tier.) Tj ET
+BT /F1 8.1 Tf 76 268.0999999999995 Td (  - Container filesystem is ephemeral: files written to disk are purged when instances spin down or redeploy. This) Tj ET
+BT /F1 8.1 Tf 76 257.5999999999995 Td (necessitated decoupling stateful storage.) Tj ET
+BT /F1 8.2 Tf 58 242.5999999999995 Td (2. Persistence Tier \(Neon Serverless PostgreSQL\):) Tj ET
+BT /F1 8.1 Tf 76 231.89999999999952 Td (  - Replaces local SQLite in production with a managed, serverless PostgreSQL database on Neon.tech.) Tj ET
+BT /F1 8.1 Tf 76 221.39999999999952 Td (  - Dynamic connection string normalization in app/config.py converts legacy postgres:// URLs to) Tj ET
+BT /F1 8.1 Tf 76 210.89999999999952 Td (SQLAlchemy-compliant postgresql:// and guarantees sslmode=require.) Tj ET
+BT /F1 8.1 Tf 76 200.39999999999952 Td (  - Engine connection pooling \(pool_size=5, max_overflow=10, pool_recycle=300, pool_pre_ping=True\) handles Neon's) Tj ET
+BT /F1 8.1 Tf 76 189.89999999999952 Td (serverless cold-start and idle connection termination gracefully.) Tj ET
+BT /F1 8.1 Tf 76 179.39999999999952 Td (  - Relational integrity, constraints, indexes, and cascade operations are preserved identically between local) Tj ET
+BT /F1 8.1 Tf 76 168.89999999999952 Td (SQLite and remote PostgreSQL.) Tj ET
+BT /F1 8.2 Tf 58 153.89999999999952 Td (3. Object Storage Tier \(Neon Object Storage Persistent Storage\):) Tj ET
+BT /F1 8.1 Tf 76 143.19999999999953 Td (  - Stores raw uploaded CSV files and reprocessing artifacts using Neon Object Storage \(S3-compatible API via) Tj ET
+BT /F1 8.1 Tf 76 132.69999999999953 Td (boto3\).) Tj ET
+BT /F1 8.1 Tf 76 122.19999999999953 Td (  - Sits natively alongside the PostgreSQL database in the same Neon project and AWS region \(Singapore /) Tj ET
+BT /F1 8.1 Tf 76 111.69999999999953 Td (ap-southeast-1\), minimizing cross-cloud latencies and eliminating external vendor credentials.) Tj ET
+BT /F1 8.1 Tf 76 101.19999999999953 Td (  - Implemented via the StorageBackend abstraction in app/services/storage.py, supporting local filesystem storage) Tj ET
+BT /F1 8.1 Tf 76 90.69999999999953 Td (\(LocalStorageBackend\) for offline development and NeonObjectStorageBackend \(with backward-compatible) Tj ET
+BT /F1 8.1 Tf 76 80.19999999999953 Td (S3StorageBackend and R2StorageBackend aliases\) for production.) Tj ET
+BT /F1 8.1 Tf 76 69.69999999999953 Td (  - Features automatic local caching, key sanitization against directory traversal, and idempotent clear operations.) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 2 of 13) Tj ET
 
 endstream
@@ -167,72 +166,73 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 11 0 R >>
 endobj
 11 0 obj
-<< /Length 6805 >>
+<< /Length 6961 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F1 8.1 Tf 94 785 Td (FORCE_DISABLE_DESTRUCTIVE_RESET. The default value false leaves reset enabled for the assignment demo; setting) Tj ET
-BT /F1 8.1 Tf 94 774.5 Td (FORCE_DISABLE_DESTRUCTIVE_RESET=true disables the reset endpoint.) Tj ET
-BT /F1 8.1 Tf 94 764 Td (  - In the current assignment-demo configuration, reset is enabled without requiring an administrator token or login) Tj ET
-BT /F1 8.1 Tf 94 753.5 Td (so evaluators can verify the workflow.) Tj ET
-BT /F1 8.1 Tf 94 743 Td (  - The frontend uses a two-step confirmation: dragging the slider to the end unlocks the checkbox; ticking the) Tj ET
-BT /F1 8.1 Tf 94 732.5 Td (checkbox enables the "Permanently Delete" button; ticking alone does not delete data; clicking the enabled button) Tj ET
-BT /F1 8.1 Tf 94 722 Td (performs the reset and reloads the website \(window.location.reload\(\)\).) Tj ET
-BT /F1 8.1 Tf 94 711.5 Td (  - Security Note: In this evaluation mode, direct calls to POST /api/dashboard/reset-data bypass the slider and) Tj ET
-BT /F1 8.1 Tf 94 701 Td (checkbox because the backend does not require an administrator session or token. Do not use this configuration with) Tj ET
-BT /F1 8.1 Tf 94 690.5 Td (sensitive production data.) Tj ET
-BT /F1 8.1 Tf 94 680 Td (  - A status endpoint \(GET /api/dashboard/reset-status\) reports the active reset policy and backend configuration.) Tj ET
-0.72 G 0.5 w 48 664 m 547 664 l S 0 G
-0.12 G 0.3 w 48 641.5 m 547 641.5 l S 0 G
-BT /F2 13 Tf 48 644.5 Td (2. ETL Workflow \(Extract, Transform, Load\)) Tj ET
-BT /F2 10.5 Tf 48 614 Td (Phase 1: Extract) Tj ET
-BT /F1 8.2 Tf 68 599 Td (1. Stream Intake: File bytes are received via POST /api/uploads.) Tj ET
-BT /F1 8.2 Tf 68 588.3 Td (2. Guardrails: File size is verified against UPLOAD_MAX_SIZE_BYTES \(10 MB default\). Files exceeding this limit trigger) Tj ET
-BT /F1 8.2 Tf 68 577.5999999999999 Td (an immediate HTTP 413.) Tj ET
-BT /F1 8.2 Tf 68 566.8999999999999 Td (3. Extension & Format Verification: The filename is inspected for a .csv extension \(HTTP 415 on mismatch\).) Tj ET
-BT /F1 8.2 Tf 68 556.1999999999998 Td (4. Encoding Resolution: Detects UTF-8 with BOM \(utf-8-sig\), standard UTF-8, and falls back to ISO-8859-1 \(latin-1\) or) Tj ET
-BT /F1 8.2 Tf 68 545.4999999999998 Td (CP1252.) Tj ET
-BT /F1 8.2 Tf 68 534.7999999999997 Td (5. Structural Parsing: The header row is extracted and normalized to lowercase. It checks for:) Tj ET
-BT /F1 8.1 Tf 94 524.0999999999997 Td (  - Empty/blank files \(HTTP 400\).) Tj ET
-BT /F1 8.1 Tf 94 513.5999999999997 Td (  - Duplicate column headers \(e.g. ['name', 'email', 'name']\).) Tj ET
-BT /F1 8.1 Tf 94 503.0999999999997 Td (  - Missing required columns for the targeted dataset.) Tj ET
-BT /F1 8.2 Tf 68 492.5999999999997 Td (6. Checksum Calculation: A SHA-256 hash of the uploaded raw bytes is computed and stored.) Tj ET
-BT /F2 10.5 Tf 48 472.3999999999997 Td (Phase 2: Transform) Tj ET
-BT /F1 8.2 Tf 68 457.3999999999997 Td (1. Data Normalization:) Tj ET
-BT /F1 8.1 Tf 94 446.6999999999997 Td (  - Whitespace: Strips leading/trailing spaces from all string fields.) Tj ET
-BT /F1 8.1 Tf 94 436.1999999999997 Td (  - Blank Normalization: Blank strings \("", " ", "NULL", "N/A"\) are converted to None.) Tj ET
-BT /F1 8.1 Tf 94 425.6999999999997 Td (  - Name Normalization: Collapses internal repeated whitespace into a single space and applies Title Case.) Tj ET
-BT /F1 8.1 Tf 94 415.1999999999997 Td (  - Email Normalization: Strips whitespace and lowercases the address.) Tj ET
-BT /F1 8.1 Tf 94 404.6999999999997 Td (  - Currency Normalization: Converts to uppercase and validates membership in {"USD", "EUR", "GBP", "CAD", "AUD",) Tj ET
-BT /F1 8.1 Tf 94 394.1999999999997 Td ("JPY", "INR"}.) Tj ET
-BT /F1 8.1 Tf 94 383.6999999999997 Td (  - Date Normalization: Attempts parsing against 12 standard formats \(ISO, US, European\) and converts valid dates to) Tj ET
-BT /F1 8.1 Tf 94 373.1999999999997 Td (canonical YYYY-MM-DD. Strict calendar validity is enforced \(e.g., rejecting 2023-02-29 as non-leap-year\).) Tj ET
-BT /F1 8.1 Tf 94 362.6999999999997 Td (  - Numeric Normalization: Strips currency formatting and parses finite numbers, explicitly rejecting NaN, +Inf, and) Tj ET
-BT /F1 8.1 Tf 94 352.1999999999997 Td (-Inf. Prohibits negative amounts, quantities, and prices.) Tj ET
-BT /F1 8.2 Tf 68 341.6999999999997 Td (2. Error Collection:) Tj ET
-BT /F1 8.1 Tf 94 330.9999999999997 Td (  - Evaluates each record against all validation rules.) Tj ET
-BT /F1 8.1 Tf 94 320.4999999999997 Td (  - Preserves multiple error diagnostics per row \(e.g., a row with both an invalid email and a missing date receives) Tj ET
-BT /F1 8.1 Tf 94 309.9999999999997 Td (distinct error records\).) Tj ET
-BT /F1 8.1 Tf 94 299.4999999999997 Td (  - Original un-sanitized values and raw row JSON are preserved for auditability.) Tj ET
-BT /F2 10.5 Tf 48 279.4999999999997 Td (Phase 3: Load) Tj ET
-BT /F1 8.2 Tf 68 264.4999999999997 Td (1. Transactional Integrity:) Tj ET
-BT /F1 8.1 Tf 94 253.79999999999973 Td (  - All valid clean records are staged for bulk insertion into the respective domain table \(customers, sales, or) Tj ET
-BT /F1 8.1 Tf 94 243.29999999999973 Td (inventory\).) Tj ET
-BT /F1 8.1 Tf 94 232.79999999999973 Td (  - All validation errors are staged for insertion into validation_errors.) Tj ET
-BT /F1 8.1 Tf 94 222.29999999999973 Td (  - The job record in processing_jobs is updated with final accounting tallies, status completed, and duration.) Tj ET
-BT /F1 8.1 Tf 94 211.79999999999973 Td (  - A single db.commit\(\) persists the batch atomically.) Tj ET
-BT /F1 8.1 Tf 94 201.29999999999973 Td (  - In the event of an unexpected database failure, db.rollback\(\) executes, leaving zero partial clean records in the) Tj ET
-BT /F1 8.1 Tf 94 190.79999999999973 Td (database, and the job status transitions to failed.) Tj ET
-0.72 G 0.5 w 48 174.79999999999973 m 547 174.79999999999973 l S 0 G
-0.12 G 0.3 w 48 152.29999999999973 m 547 152.29999999999973 l S 0 G
-BT /F2 13 Tf 48 155.29999999999973 Td (3. Idempotency & Duplicate Prevention Strategy) Tj ET
-BT /F2 10.5 Tf 48 124.79999999999973 Td (3.1 Stable Business Keys) Tj ET
-BT /F1 8.35 Tf 48 109.79999999999973 Td (Each dataset defines a natural or synthetic business primary key:) Tj ET
-BT /F1 8.2 Tf 68 98.79999999999973 Td (* Customers: customer_id \(e.g. CUST-001\)) Tj ET
-BT /F1 8.2 Tf 68 88.09999999999972 Td (* Sales: sale_id \(e.g. SALE-1001\)) Tj ET
-BT /F1 8.2 Tf 68 77.39999999999972 Td (* Inventory: product_id \(e.g. PROD-5001\)) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.2 Tf 58 785 Td (4. Administrative & Public Reset Configuration:) Tj ET
+BT /F1 8.1 Tf 76 774.3 Td (  - The internal ALLOW_DESTRUCTIVE_RESET setting is computed from the environment variable) Tj ET
+BT /F1 8.1 Tf 76 763.8 Td (FORCE_DISABLE_DESTRUCTIVE_RESET. The default value false leaves reset enabled for the assignment demo; setting) Tj ET
+BT /F1 8.1 Tf 76 753.3 Td (FORCE_DISABLE_DESTRUCTIVE_RESET=true disables the reset endpoint.) Tj ET
+BT /F1 8.1 Tf 76 742.8 Td (  - In the current assignment-demo configuration, reset is enabled without requiring an administrator token or login) Tj ET
+BT /F1 8.1 Tf 76 732.3 Td (so evaluators can verify the workflow.) Tj ET
+BT /F1 8.1 Tf 76 721.8 Td (  - The frontend uses a two-step confirmation: dragging the slider to the end unlocks the checkbox; ticking the) Tj ET
+BT /F1 8.1 Tf 76 711.3 Td (checkbox enables the "Permanently Delete" button; ticking alone does not delete data; clicking the enabled button) Tj ET
+BT /F1 8.1 Tf 76 700.8 Td (performs the reset and reloads the website \(window.location.reload\(\)\).) Tj ET
+BT /F1 8.1 Tf 76 690.3 Td (  - Security Note: In this evaluation mode, direct calls to POST /api/dashboard/reset-data bypass the slider and) Tj ET
+BT /F1 8.1 Tf 76 679.8 Td (checkbox because the backend does not require an administrator session or token. Do not use this configuration) Tj ET
+BT /F1 8.1 Tf 76 669.3 Td (with sensitive production data.) Tj ET
+BT /F1 8.1 Tf 76 658.8 Td (  - A status endpoint \(GET /api/dashboard/reset-status\) reports the active reset policy and backend configuration.) Tj ET
+0.72 G 0.5 w 48 642.8 m 547 642.8 l S 0 G
+0.80 G 0.5 w 48 620.3 m 547 620.3 l S 0 G
+BT /F2 13 Tf 48 623.3 Td (2. ETL Workflow \(Extract, Transform, Load\)) Tj ET
+BT /F2 10.5 Tf 48 591.8 Td (Phase 1: Extract) Tj ET
+BT /F1 8.2 Tf 58 576.8 Td (1. Stream Intake: File bytes are received via POST /api/uploads.) Tj ET
+BT /F1 8.2 Tf 58 566.0999999999999 Td (2. Guardrails: File size is verified against UPLOAD_MAX_SIZE_BYTES \(10 MB default\). Files exceeding this limit) Tj ET
+BT /F1 8.2 Tf 58 555.3999999999999 Td (trigger an immediate HTTP 413.) Tj ET
+BT /F1 8.2 Tf 58 544.6999999999998 Td (3. Extension & Format Verification: The filename is inspected for a .csv extension \(HTTP 415 on mismatch\).) Tj ET
+BT /F1 8.2 Tf 58 533.9999999999998 Td (4. Encoding Resolution: Detects UTF-8 with BOM \(utf-8-sig\), standard UTF-8, and falls back to ISO-8859-1 \(latin-1\) or) Tj ET
+BT /F1 8.2 Tf 58 523.2999999999997 Td (CP1252.) Tj ET
+BT /F1 8.2 Tf 58 512.5999999999997 Td (5. Structural Parsing: The header row is extracted and normalized to lowercase. It checks for:) Tj ET
+BT /F1 8.1 Tf 76 501.8999999999997 Td (  - Empty/blank files \(HTTP 400\).) Tj ET
+BT /F1 8.1 Tf 76 491.3999999999997 Td (  - Duplicate column headers \(e.g. ['name', 'email', 'name']\).) Tj ET
+BT /F1 8.1 Tf 76 480.8999999999997 Td (  - Missing required columns for the targeted dataset.) Tj ET
+BT /F1 8.2 Tf 58 470.3999999999997 Td (6. Checksum Calculation: A SHA-256 hash of the uploaded raw bytes is computed and stored.) Tj ET
+BT /F2 10.5 Tf 48 450.1999999999997 Td (Phase 2: Transform) Tj ET
+BT /F1 8.2 Tf 58 435.1999999999997 Td (1. Data Normalization:) Tj ET
+BT /F1 8.1 Tf 76 424.4999999999997 Td (  - Whitespace: Strips leading/trailing spaces from all string fields.) Tj ET
+BT /F1 8.1 Tf 76 413.9999999999997 Td (  - Blank Normalization: Blank strings \("", " ", "NULL", "N/A"\) are converted to None.) Tj ET
+BT /F1 8.1 Tf 76 403.4999999999997 Td (  - Name Normalization: Collapses internal repeated whitespace into a single space and applies Title Case.) Tj ET
+BT /F1 8.1 Tf 76 392.9999999999997 Td (  - Email Normalization: Strips whitespace and lowercases the address.) Tj ET
+BT /F1 8.1 Tf 76 382.4999999999997 Td (  - Currency Normalization: Converts to uppercase and validates membership in {"USD", "EUR", "GBP", "CAD", "AUD",) Tj ET
+BT /F1 8.1 Tf 76 371.9999999999997 Td ("JPY", "INR"}.) Tj ET
+BT /F1 8.1 Tf 76 361.4999999999997 Td (  - Date Normalization: Attempts parsing against 12 standard formats \(ISO, US, European\) and converts valid dates to) Tj ET
+BT /F1 8.1 Tf 76 350.9999999999997 Td (canonical YYYY-MM-DD. Strict calendar validity is enforced \(e.g., rejecting 2023-02-29 as non-leap-year\).) Tj ET
+BT /F1 8.1 Tf 76 340.4999999999997 Td (  - Numeric Normalization: Strips currency formatting and parses finite numbers, explicitly rejecting NaN, +Inf, and) Tj ET
+BT /F1 8.1 Tf 76 329.9999999999997 Td (-Inf. Prohibits negative amounts, quantities, and prices.) Tj ET
+BT /F1 8.2 Tf 58 319.4999999999997 Td (2. Error Collection:) Tj ET
+BT /F1 8.1 Tf 76 308.7999999999997 Td (  - Evaluates each record against all validation rules.) Tj ET
+BT /F1 8.1 Tf 76 298.2999999999997 Td (  - Preserves multiple error diagnostics per row \(e.g., a row with both an invalid email and a missing date receives) Tj ET
+BT /F1 8.1 Tf 76 287.7999999999997 Td (distinct error records\).) Tj ET
+BT /F1 8.1 Tf 76 277.2999999999997 Td (  - Original un-sanitized values and raw row JSON are preserved for auditability.) Tj ET
+BT /F2 10.5 Tf 48 257.2999999999997 Td (Phase 3: Load) Tj ET
+BT /F1 8.2 Tf 58 242.29999999999973 Td (1. Transactional Integrity:) Tj ET
+BT /F1 8.1 Tf 76 231.59999999999974 Td (  - All valid clean records are staged for bulk insertion into the respective domain table \(customers, sales, or) Tj ET
+BT /F1 8.1 Tf 76 221.09999999999974 Td (inventory\).) Tj ET
+BT /F1 8.1 Tf 76 210.59999999999974 Td (  - All validation errors are staged for insertion into validation_errors.) Tj ET
+BT /F1 8.1 Tf 76 200.09999999999974 Td (  - The job record in processing_jobs is updated with final accounting tallies, status completed, and duration.) Tj ET
+BT /F1 8.1 Tf 76 189.59999999999974 Td (  - A single db.commit\(\) persists the batch atomically.) Tj ET
+BT /F1 8.1 Tf 76 179.09999999999974 Td (  - In the event of an unexpected database failure, db.rollback\(\) executes, leaving zero partial clean records in) Tj ET
+BT /F1 8.1 Tf 76 168.59999999999974 Td (the database, and the job status transitions to failed.) Tj ET
+0.72 G 0.5 w 48 152.59999999999974 m 547 152.59999999999974 l S 0 G
+0.80 G 0.5 w 48 130.09999999999974 m 547 130.09999999999974 l S 0 G
+BT /F2 13 Tf 48 133.09999999999974 Td (3. Idempotency & Duplicate Prevention Strategy) Tj ET
+BT /F2 10.5 Tf 48 101.59999999999974 Td (3.1 Stable Business Keys) Tj ET
+BT /F1 8.35 Tf 48 86.59999999999974 Td (Each dataset defines a natural or synthetic business primary key:) Tj ET
+BT /F1 8.2 Tf 58 75.59999999999974 Td (* Customers: customer_id \(e.g. CUST-001\)) Tj ET
+BT /F1 8.2 Tf 58 64.89999999999974 Td (* Sales: sale_id \(e.g. SALE-1001\)) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 3 of 13) Tj ET
 
 endstream
@@ -241,71 +241,70 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 13 0 R >>
 endobj
 13 0 obj
-<< /Length 6871 >>
+<< /Length 6603 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F2 10.5 Tf 48 785 Td (3.2 In-File Deduplication) Tj ET
-BT /F1 8.35 Tf 48 770 Td (Within a single uploaded file, business keys are tracked in a transient hash set:) Tj ET
-BT /F1 8.2 Tf 68 759 Td (* The first valid record encountered is accepted.) Tj ET
-BT /F1 8.2 Tf 68 748.3 Td (* Any subsequent occurrence of the same key in the same file is flagged with error code DUPLICATE_KEY_IN_FILE and) Tj ET
-BT /F1 8.2 Tf 68 737.5999999999999 Td (accounted for under duplicate_rows.) Tj ET
-BT /F2 10.5 Tf 48 717.3999999999999 Td (3.3 Database Deduplication) Tj ET
-BT /F1 8.35 Tf 48 702.3999999999999 Td (Before staging clean records, candidate business keys are batch-queried against the database:) Tj ET
-BT /F1 8.2 Tf 68 691.3999999999999 Td (* Keys already existing in clean tables are rejected with error code DUPLICATE_KEY_IN_DB and increment duplicate_rows.) Tj ET
-BT /F1 8.2 Tf 68 680.6999999999998 Td (* Clean tables maintain SQL PRIMARY KEY and UNIQUE constraints as a final defensive layer.) Tj ET
-BT /F2 10.5 Tf 48 660.4999999999998 Td (3.4 Repeated File Uploads) Tj ET
-BT /F1 8.35 Tf 48 645.4999999999998 Td (When an identical file \(same SHA-256 hash\) is uploaded:) Tj ET
-BT /F1 8.2 Tf 68 634.4999999999998 Td (* A new audit record is created in processing_jobs for end-to-end historical tracking.) Tj ET
-BT /F1 8.2 Tf 68 623.7999999999997 Td (* Pre-existing clean records in the database are recognized and accounted for as duplicates.) Tj ET
-BT /F1 8.2 Tf 68 613.0999999999997 Td (* The UI displays is_repeated_upload: true with a clear message: "File matches an existing upload... Processed with) Tj ET
-BT /F1 8.2 Tf 68 602.3999999999996 Td (idempotency: 0 new, N duplicates.") Tj ET
-BT /F1 8.2 Tf 68 591.6999999999996 Td (* No records are duplicated or overwritten.) Tj ET
-BT /F2 10.5 Tf 48 571.4999999999995 Td (3.5 Accounting Invariant) Tj ET
-BT /F1 8.35 Tf 48 556.4999999999995 Td (To ensure mathematical integrity across all pipelines: Row accounting rule: Total rows = accepted rows + rejected rows) Tj ET
-BT /F1 8.35 Tf 48 545.4999999999995 Td (+ duplicate rows + skipped rows. Every discovered row belongs to one mutually exclusive category. An automated) Tj ET
-BT /F1 8.35 Tf 48 534.4999999999995 Td (assertion enforces this equation before database commit.) Tj ET
-BT /F2 10.5 Tf 48 513.9999999999995 Td (3.6 In-File vs. Database Duplicate Distinction \(Job #10 Case Study\)) Tj ET
-BT /F1 8.35 Tf 48 498.99999999999955 Td (A real-world case study was audited in Job #10 \(customers_mixed_quality.csv, 6 rows\):) Tj ET
-BT /F1 8.2 Tf 68 487.99999999999955 Td (1. Source File Structure:) Tj ET
-BT /F1 8.1 Tf 94 477.29999999999956 Td (  - Line 2: CUST101 \(Neha Verma, valid format\)) Tj ET
-BT /F1 8.1 Tf 94 466.79999999999956 Td (  - Line 3: CUST102 \(Missing email -> Rejected\)) Tj ET
-BT /F1 8.1 Tf 94 456.29999999999956 Td (  - Line 4: CUST103 \(Invalid email format -> Rejected\)) Tj ET
-BT /F1 8.1 Tf 94 445.79999999999956 Td (  - Line 5: CUST104 \(Missing name -> Rejected\)) Tj ET
-BT /F1 8.1 Tf 94 435.29999999999956 Td (  - Line 6: CUST105 \(Invalid date -> Rejected\)) Tj ET
-BT /F1 8.1 Tf 94 424.79999999999956 Td (  - Line 7: CUST101 \(Duplicate Customer, repeated ID\)) Tj ET
-BT /F1 8.2 Tf 68 414.29999999999956 Td (2. Execution Against Database with Existing Records:) Tj ET
-BT /F1 8.1 Tf 94 403.59999999999957 Td (  - CUST101 was already committed to the clean database prior to Job #10.) Tj ET
-BT /F1 8.1 Tf 94 393.09999999999957 Td (  - When Line 2 was evaluated, it passed schema validation but matched an existing primary key in the database:) Tj ET
-BT /F1 8.1 Tf 94 382.59999999999957 Td (categorized as DUPLICATE_KEY_IN_DB \(Duplicate #1\).) Tj ET
-BT /F1 8.1 Tf 94 372.09999999999957 Td (  - Lines 3 through 6 failed field validation: categorized as REJECTED \(Rejected #1, #2, #3, #4\).) Tj ET
-BT /F1 8.1 Tf 94 361.59999999999957 Td (  - When Line 7 was evaluated, it passed schema validation, but CUST101 had already appeared on Line 2 of this file:) Tj ET
-BT /F1 8.1 Tf 94 351.09999999999957 Td (categorized as DUPLICATE_KEY_IN_FILE \(Duplicate #2\).) Tj ET
-BT /F1 8.1 Tf 94 340.59999999999957 Td (  - Result: Total: 6, Accepted: 0, Rejected: 4, Duplicates: 2, Skipped: 0.) Tj ET
-BT /F1 8.1 Tf 94 330.09999999999957 Td (  - Accounting check: 0 + 4 + 2 + 0 = 6.) Tj ET
-BT /F1 8.1 Tf 94 319.59999999999957 Td (  - Validation Error Records: Exactly 6 \(1 for DB duplicate on row 2, 4 for rejected rows, 1 for in-file duplicate on) Tj ET
-BT /F1 8.1 Tf 94 309.09999999999957 Td (row 7\).) Tj ET
-BT /F1 8.2 Tf 68 298.59999999999957 Td (3. Execution Against an Empty Database:) Tj ET
-BT /F1 8.1 Tf 94 287.8999999999996 Td (  - If the same file is run against a fresh empty database, Line 2 is Accepted \(inserted into clean tables\).) Tj ET
-BT /F1 8.1 Tf 94 277.3999999999996 Td (  - Lines 3 through 6 remain Rejected \(4\).) Tj ET
-BT /F1 8.1 Tf 94 266.8999999999996 Td (  - Line 7 remains an in-file Duplicate \(1\).) Tj ET
-BT /F1 8.1 Tf 94 256.3999999999996 Td (  - Result: Total: 6, Accepted: 1, Rejected: 4, Duplicates: 1, Skipped: 0.) Tj ET
-BT /F1 8.1 Tf 94 245.89999999999958 Td (  - Accounting check: 1 + 4 + 1 + 0 = 6.) Tj ET
-BT /F1 8.1 Tf 94 235.39999999999958 Td (  - Validation Error Records: Exactly 5.) Tj ET
-0.72 G 0.5 w 48 219.39999999999958 m 547 219.39999999999958 l S 0 G
-0.12 G 0.3 w 48 196.89999999999958 m 547 196.89999999999958 l S 0 G
-BT /F2 13 Tf 48 199.89999999999958 Td (4. Testing Strategy & Execution Verification) Tj ET
-BT /F2 10.5 Tf 48 169.39999999999958 Td (4.1 Test Isolation via In-Memory SQLite) Tj ET
-BT /F1 8.35 Tf 48 154.39999999999958 Td (Tests are isolated from the developer's operational database:) Tj ET
-BT /F1 8.2 Tf 68 143.39999999999958 Td (* tests/conftest.py configures a shared in-memory SQLite database \(sqlite:///:memory: with StaticPool\).) Tj ET
-BT /F1 8.2 Tf 68 132.6999999999996 Td (* FastAPI's get_db dependency is overridden to inject the test database session.) Tj ET
-BT /F1 8.2 Tf 68 121.99999999999959 Td (* Database tables are dropped and recreated on every test function run.) Tj ET
-BT /F2 10.5 Tf 48 101.79999999999959 Td (4.2 Baseline Test Suite Results \(Before CodeZero Follow-Up Patches\)) Tj ET
-BT /F1 8.35 Tf 48 86.79999999999959 Td (The baseline test suite was executed locally using pytest before the CodeZero-review follow-up patches:) Tj ET
-BT /F1 8.1 Tf 72 70.29999999999959 Td (> Historical baseline: The 99-pass result below predates the follow-up fixes and regression tests. The latest post-fix run) Tj ET
-BT /F1 8.1 Tf 72 59.799999999999585 Td (> is recorded in Section 4.3.) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.2 Tf 58 785 Td (* Inventory: product_id \(e.g. PROD-5001\)) Tj ET
+BT /F2 10.5 Tf 48 764.8 Td (3.2 In-File Deduplication) Tj ET
+BT /F1 8.35 Tf 48 749.8 Td (Within a single uploaded file, business keys are tracked in a transient hash set:) Tj ET
+BT /F1 8.2 Tf 58 738.8 Td (* The first valid record encountered is accepted.) Tj ET
+BT /F1 8.2 Tf 58 728.0999999999999 Td (* Any subsequent occurrence of the same key in the same file is flagged with error code DUPLICATE_KEY_IN_FILE and) Tj ET
+BT /F1 8.2 Tf 58 717.3999999999999 Td (accounted for under duplicate_rows.) Tj ET
+BT /F2 10.5 Tf 48 697.1999999999998 Td (3.3 Database Deduplication) Tj ET
+BT /F1 8.35 Tf 48 682.1999999999998 Td (Before staging clean records, candidate business keys are batch-queried against the database:) Tj ET
+BT /F1 8.2 Tf 58 671.1999999999998 Td (* Keys already existing in clean tables are rejected with error code DUPLICATE_KEY_IN_DB and increment) Tj ET
+BT /F1 8.2 Tf 58 660.4999999999998 Td (duplicate_rows.) Tj ET
+BT /F1 8.2 Tf 58 649.7999999999997 Td (* Clean tables maintain SQL PRIMARY KEY and UNIQUE constraints as a final defensive layer.) Tj ET
+BT /F2 10.5 Tf 48 629.5999999999997 Td (3.4 Repeated File Uploads) Tj ET
+BT /F1 8.35 Tf 48 614.5999999999997 Td (When an identical file \(same SHA-256 hash\) is uploaded:) Tj ET
+BT /F1 8.2 Tf 58 603.5999999999997 Td (* A new audit record is created in processing_jobs for end-to-end historical tracking.) Tj ET
+BT /F1 8.2 Tf 58 592.8999999999996 Td (* Pre-existing clean records in the database are recognized and accounted for as duplicates.) Tj ET
+BT /F1 8.2 Tf 58 582.1999999999996 Td (* The UI displays is_repeated_upload: true with a clear message: "File matches an existing upload... Processed with) Tj ET
+BT /F1 8.2 Tf 58 571.4999999999995 Td (idempotency: 0 new, N duplicates.") Tj ET
+BT /F1 8.2 Tf 58 560.7999999999995 Td (* No records are duplicated or overwritten.) Tj ET
+BT /F2 10.5 Tf 48 540.5999999999995 Td (3.5 Accounting Invariant) Tj ET
+BT /F1 8.35 Tf 48 525.5999999999995 Td (To ensure mathematical integrity across all pipelines: Row accounting rule: Total rows = accepted rows + rejected) Tj ET
+BT /F1 8.35 Tf 48 514.5999999999995 Td (rows + duplicate rows + skipped rows. Every discovered row belongs to one mutually exclusive category. An automated) Tj ET
+BT /F1 8.35 Tf 48 503.59999999999945 Td (assertion enforces this equation before database commit.) Tj ET
+BT /F2 10.5 Tf 48 483.09999999999945 Td (3.6 In-File vs. Database Duplicate Distinction \(Job #10 Case Study\)) Tj ET
+BT /F1 8.35 Tf 48 468.09999999999945 Td (A real-world case study was audited in Job #10 \(customers_mixed_quality.csv, 6 rows\):) Tj ET
+BT /F1 8.2 Tf 58 457.09999999999945 Td (1. Source File Structure:) Tj ET
+BT /F1 8.1 Tf 76 446.39999999999947 Td (  - Line 2: CUST101 \(Neha Verma, valid format\)) Tj ET
+BT /F1 8.1 Tf 76 435.89999999999947 Td (  - Line 3: CUST102 \(Missing email -> Rejected\)) Tj ET
+BT /F1 8.1 Tf 76 425.39999999999947 Td (  - Line 4: CUST103 \(Invalid email format -> Rejected\)) Tj ET
+BT /F1 8.1 Tf 76 414.89999999999947 Td (  - Line 5: CUST104 \(Missing name -> Rejected\)) Tj ET
+BT /F1 8.1 Tf 76 404.39999999999947 Td (  - Line 6: CUST105 \(Invalid date -> Rejected\)) Tj ET
+BT /F1 8.1 Tf 76 393.89999999999947 Td (  - Line 7: CUST101 \(Duplicate Customer, repeated ID\)) Tj ET
+BT /F1 8.2 Tf 58 383.39999999999947 Td (2. Execution Against Database with Existing Records:) Tj ET
+BT /F1 8.1 Tf 76 372.6999999999995 Td (  - CUST101 was already committed to the clean database prior to Job #10.) Tj ET
+BT /F1 8.1 Tf 76 362.1999999999995 Td (  - When Line 2 was evaluated, it passed schema validation but matched an existing primary key in the database:) Tj ET
+BT /F1 8.1 Tf 76 351.6999999999995 Td (categorized as DUPLICATE_KEY_IN_DB \(Duplicate #1\).) Tj ET
+BT /F1 8.1 Tf 76 341.1999999999995 Td (  - Lines 3 through 6 failed field validation: categorized as REJECTED \(Rejected #1, #2, #3, #4\).) Tj ET
+BT /F1 8.1 Tf 76 330.6999999999995 Td (  - When Line 7 was evaluated, it passed schema validation, but CUST101 had already appeared on Line 2 of this file:) Tj ET
+BT /F1 8.1 Tf 76 320.1999999999995 Td (categorized as DUPLICATE_KEY_IN_FILE \(Duplicate #2\).) Tj ET
+BT /F1 8.1 Tf 76 309.6999999999995 Td (  - Result: Total: 6, Accepted: 0, Rejected: 4, Duplicates: 2, Skipped: 0.) Tj ET
+BT /F1 8.1 Tf 76 299.1999999999995 Td (  - Accounting check: 0 + 4 + 2 + 0 = 6.) Tj ET
+BT /F1 8.1 Tf 76 288.6999999999995 Td (  - Validation Error Records: Exactly 6 \(1 for DB duplicate on row 2, 4 for rejected rows, 1 for in-file duplicate) Tj ET
+BT /F1 8.1 Tf 76 278.1999999999995 Td (on row 7\).) Tj ET
+BT /F1 8.2 Tf 58 267.6999999999995 Td (3. Execution Against an Empty Database:) Tj ET
+BT /F1 8.1 Tf 76 256.9999999999995 Td (  - If the same file is run against a fresh empty database, Line 2 is Accepted \(inserted into clean tables\).) Tj ET
+BT /F1 8.1 Tf 76 246.4999999999995 Td (  - Lines 3 through 6 remain Rejected \(4\).) Tj ET
+BT /F1 8.1 Tf 76 235.9999999999995 Td (  - Line 7 remains an in-file Duplicate \(1\).) Tj ET
+BT /F1 8.1 Tf 76 225.4999999999995 Td (  - Result: Total: 6, Accepted: 1, Rejected: 4, Duplicates: 1, Skipped: 0.) Tj ET
+BT /F1 8.1 Tf 76 214.9999999999995 Td (  - Accounting check: 1 + 4 + 1 + 0 = 6.) Tj ET
+BT /F1 8.1 Tf 76 204.4999999999995 Td (  - Validation Error Records: Exactly 5.) Tj ET
+0.72 G 0.5 w 48 188.4999999999995 m 547 188.4999999999995 l S 0 G
+0.80 G 0.5 w 48 165.9999999999995 m 547 165.9999999999995 l S 0 G
+BT /F2 13 Tf 48 168.9999999999995 Td (4. Testing Strategy & Execution Verification) Tj ET
+BT /F2 10.5 Tf 48 137.4999999999995 Td (4.1 Test Isolation via In-Memory SQLite) Tj ET
+BT /F1 8.35 Tf 48 122.49999999999949 Td (Tests are isolated from the developer's operational database:) Tj ET
+BT /F1 8.2 Tf 58 111.49999999999949 Td (* tests/conftest.py configures a shared in-memory SQLite database \(sqlite:///:memory: with StaticPool\).) Tj ET
+BT /F1 8.2 Tf 58 100.79999999999949 Td (* FastAPI's get_db dependency is overridden to inject the test database session.) Tj ET
+BT /F1 8.2 Tf 58 90.09999999999948 Td (* Database tables are dropped and recreated on every test function run.) Tj ET
+BT /F2 10.5 Tf 48 69.89999999999948 Td (4.2 Baseline Test Suite Results \(Before CodeZero Follow-Up Patches\)) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 4 of 13) Tj ET
 
 endstream
@@ -314,88 +313,88 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 15 0 R >>
 endobj
 15 0 obj
-<< /Length 8020 >>
+<< /Length 8334 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F3 7.1 Tf 48 780.5 Td (============================= test session starts =============================) Tj ET
-BT /F3 7.1 Tf 48 771.5 Td (platform win32 -- Python 3.12.5, pytest-9.1.1, pluggy-1.7.0) Tj ET
-BT /F3 7.1 Tf 48 762.5 Td (rootdir: C:\\Users\\rjha1\\Downloads\\csv_project) Tj ET
-BT /F3 7.1 Tf 48 753.5 Td (plugins: anyio-4.15.1, asyncio-1.4.0) Tj ET
-BT /F3 7.1 Tf 48 744.5 Td (collected 99 items) Tj ET
-BT /F3 7.1 Tf 48 731 Td (tests/test_api.py::test_api_health PASSED [ 1%]) Tj ET
-BT /F3 7.1 Tf 48 722 Td (tests/test_api.py::test_api_upload_success PASSED [ 3%]) Tj ET
-BT /F3 7.1 Tf 48 713 Td (tests/test_api.py::test_api_upload_unsupported_file_extension PASSED [ 4%]) Tj ET
-BT /F3 7.1 Tf 48 704 Td (tests/test_api.py::test_api_upload_empty_file PASSED [ 6%]) Tj ET
-BT /F3 7.1 Tf 48 695 Td (tests/test_api.py::test_api_upload_invalid_dataset PASSED [ 7%]) Tj ET
-BT /F3 7.1 Tf 48 686 Td (tests/test_api.py::test_api_jobs_list_and_detail PASSED [ 9%]) Tj ET
-BT /F3 7.1 Tf 48 677 Td (tests/test_api.py::test_api_job_not_found PASSED [ 10%]) Tj ET
-BT /F3 7.1 Tf 48 668 Td (tests/test_api.py::test_api_validation_errors_endpoints PASSED [ 12%]) Tj ET
-BT /F3 7.1 Tf 48 659 Td (tests/test_api.py::test_api_clean_records PASSED [ 13%]) Tj ET
-BT /F3 7.1 Tf 48 650 Td (tests/test_api.py::test_api_clean_records_unsupported_dataset PASSED [ 15%]) Tj ET
-BT /F3 7.1 Tf 48 641 Td (tests/test_api.py::test_api_dashboard_endpoints PASSED [ 16%]) Tj ET
-BT /F3 7.1 Tf 48 632 Td (tests/test_api.py::test_api_reprocess_endpoint PASSED [ 18%]) Tj ET
-BT /F3 7.1 Tf 48 623 Td (tests/test_api.py::test_download_clean_records_customers PASSED [ 20%]) Tj ET
-BT /F3 7.1 Tf 48 614 Td (tests/test_api.py::test_download_clean_records_sales_and_inventory PASSED [ 21%]) Tj ET
-BT /F3 7.1 Tf 48 605 Td (tests/test_api.py::test_download_clean_records_zero_accepted_returns_400 PASSED [ 23%]) Tj ET
-BT /F3 7.1 Tf 48 596 Td (tests/test_api.py::test_download_validation_errors_csv PASSED [ 24%]) Tj ET
-BT /F3 7.1 Tf 48 587 Td (tests/test_api.py::test_download_validation_errors_zero_errors_returns_400 PASSED [ 26%]) Tj ET
-BT /F3 7.1 Tf 48 578 Td (tests/test_api.py::test_download_job_summary_excel PASSED [ 27%]) Tj ET
-BT /F3 7.1 Tf 48 569 Td (tests/test_api.py::test_download_job_summary_excel_empty_clean_and_empty_errors PASSED [ 29%]) Tj ET
-BT /F3 7.1 Tf 48 560 Td (tests/test_api.py::test_download_job_summary_excel_sales_and_inventory PASSED [ 30%]) Tj ET
-BT /F3 7.1 Tf 48 551 Td (tests/test_api.py::test_download_job_summary_excel_isolation PASSED [ 32%]) Tj ET
-BT /F3 7.1 Tf 48 542 Td (tests/test_api.py::test_download_nonexistent_job_returns_404 PASSED [ 33%]) Tj ET
-BT /F3 7.1 Tf 48 533 Td (tests/test_api.py::test_download_job_isolation PASSED [ 35%]) Tj ET
-BT /F3 7.1 Tf 48 524 Td (tests/test_api.py::test_download_csv_escaping PASSED [ 36%]) Tj ET
-BT /F3 7.1 Tf 48 515 Td (tests/test_dashboard_upgrade.py::test_reset_preferences_endpoint PASSED [ 38%]) Tj ET
-BT /F3 7.1 Tf 48 506 Td (tests/test_dashboard_upgrade.py::test_dashboard_summary_and_trends_date_filtering PASSED [ 40%]) Tj ET
-BT /F3 7.1 Tf 48 497 Td (tests/test_etl.py::test_etl_valid_customers_loaded PASSED [ 41%]) Tj ET
-BT /F3 7.1 Tf 48 488 Td (tests/test_etl.py::test_etl_in_file_duplicate_detection PASSED [ 43%]) Tj ET
-BT /F3 7.1 Tf 48 479 Td (tests/test_etl.py::test_etl_existing_db_duplicate_prevention PASSED [ 44%]) Tj ET
-BT /F3 7.1 Tf 48 470 Td (tests/test_etl.py::test_etl_repeated_file_idempotency PASSED [ 46%]) Tj ET
-BT /F3 7.1 Tf 48 461 Td (tests/test_etl.py::test_etl_reprocess_job PASSED [ 47%]) Tj ET
-BT /F3 7.1 Tf 48 452 Td (tests/test_customers_mixed_quality_empty_db_vs_populated_db PASSED [ 49%]) Tj ET
-BT /F3 7.1 Tf 48 443 Td (tests/test_etl.py::test_row_not_classified_as_both_rejected_and_duplicate PASSED [ 50%]) Tj ET
-BT /F3 7.1 Tf 48 434 Td (tests/test_etl.py::test_multiple_errors_on_single_row_exceeds_rejected_count PASSED [ 52%]) Tj ET
-BT /F3 7.1 Tf 48 425 Td (tests/test_reset_and_filter.py::test_destructive_reset_endpoint_clears_all_tables PASSED [ 53%]) Tj ET
-BT /F3 7.1 Tf 48 416 Td (tests/test_reset_and_filter.py::test_destructive_reset_cleans_upload_artifacts PASSED [ 55%]) Tj ET
-BT /F3 7.1 Tf 48 407 Td (tests/test_reset_and_filter.py::test_destructive_reset_concurrency_lock PASSED [ 56%]) Tj ET
-BT /F3 7.1 Tf 48 398 Td (tests/test_reset_and_filter.py::test_reset_data_route_in_openapi_specification PASSED [ 58%]) Tj ET
-BT /F3 7.1 Tf 48 389 Td (tests/test_reset_and_filter.py::test_reset_data_idempotent_empty_database PASSED [ 60%]) Tj ET
-BT /F3 7.1 Tf 48 380 Td (tests/test_reset_and_filter.py::test_reset_data_preserves_files_outside_uploads_storage PASSED [ 61%]) Tj ET
-BT /F3 7.1 Tf 48 371 Td (tests/test_reset_and_filter.py::test_reset_data_transaction_rollback_on_failure PASSED [ 63%]) Tj ET
-BT /F3 7.1 Tf 48 362 Td (tests/test_reset_and_filter.py::test_records_endpoint_date_filtering PASSED [ 64%]) Tj ET
-BT /F3 7.1 Tf 48 353 Td (tests/test_reset_and_filter.py::test_errors_endpoint_date_filtering PASSED [ 66%]) Tj ET
-BT /F3 7.1 Tf 48 344 Td (tests/test_reset_and_filter.py::test_empty_date_range_strict_zeroes PASSED [ 67%]) Tj ET
-BT /F3 7.1 Tf 48 335 Td (tests/test_reset_and_filter.py::test_kpi_accounting_invariant_reconciliation PASSED [ 69%]) Tj ET
-BT /F3 7.1 Tf 48 326 Td (tests/test_transformation.py::test_clean_string PASSED [ 70%]) Tj ET
-BT /F3 7.1 Tf 48 317 Td (tests/test_transformation.py::test_normalize_name PASSED [ 72%]) Tj ET
-BT /F3 7.1 Tf 48 308 Td (tests/test_transformation.py::test_normalize_email PASSED [ 73%]) Tj ET
-BT /F3 7.1 Tf 48 299 Td (tests/test_transformation.py::test_normalize_currency PASSED [ 75%]) Tj ET
-BT /F3 7.1 Tf 48 290 Td (tests/test_transformation.py::test_parse_and_normalize_date PASSED [ 76%]) Tj ET
-BT /F3 7.1 Tf 48 281 Td (tests/test_transformation.py::test_parse_float PASSED [ 78%]) Tj ET
-BT /F3 7.1 Tf 48 272 Td (tests/test_transformation.py::test_parse_int PASSED [ 80%]) Tj ET
-BT /F3 7.1 Tf 48 263 Td (tests/test_validation.py::test_valid_customer_row PASSED [ 81%]) Tj ET
-BT /F3 7.1 Tf 48 254 Td (tests/test_validation.py::test_customer_missing_required_fields PASSED [ 83%]) Tj ET
-BT /F3 7.1 Tf 48 245 Td (tests/test_validation.py::test_customer_invalid_email PASSED [ 84%]) Tj ET
-BT /F3 7.1 Tf 48 236 Td (tests/test_validation.py::test_customer_invalid_date PASSED [ 86%]) Tj ET
-BT /F3 7.1 Tf 48 227 Td (tests/test_validation.py::test_valid_sale_row PASSED [ 87%]) Tj ET
-BT /F3 7.1 Tf 48 218 Td (tests/test_validation.py::test_sale_negative_amount PASSED [ 89%]) Tj ET
-BT /F3 7.1 Tf 48 209 Td (tests/test_validation.py::test_sale_unsupported_currency PASSED [ 90%]) Tj ET
-BT /F3 7.1 Tf 48 200 Td (tests/test_validation.py::test_valid_inventory_row PASSED [ 92%]) Tj ET
-BT /F3 7.1 Tf 48 191 Td (tests/test_validation.py::test_inventory_negative_quantity_and_price PASSED [ 93%]) Tj ET
-BT /F3 7.1 Tf 48 182 Td (tests/test_csv_import_empty_file PASSED [ 95%]) Tj ET
-BT /F3 7.1 Tf 48 173 Td (tests/test_validation.py::test_csv_import_missing_columns PASSED [ 96%]) Tj ET
-BT /F3 7.1 Tf 48 164 Td (tests/test_validation.py::test_csv_import_duplicate_headers PASSED [ 98%]) Tj ET
-BT /F3 7.1 Tf 48 155 Td (tests/test_validation.py::test_csv_import_utf8_bom PASSED [100%]) Tj ET
-BT /F3 7.1 Tf 48 141.5 Td (====================== 99 passed, 17 warnings in 48.52s =======================) Tj ET
-BT /F2 10.5 Tf 48 123 Td (4.3 Latest Post-Fix Test Results \(October 26, 2026\)) Tj ET
-BT /F1 8.35 Tf 48 103.5 Td (After fast-forwarding the local main branch to GitHub commit 1d45be9, the full suite was rerun using:) Tj ET
-BT /F3 7.1 Tf 48 88 Td (.\\.venv\\Scripts\\python.exe -m pytest -q) Tj ET
-BT /F1 8.2 Tf 68 74.5 Td (* Passed: 109) Tj ET
-BT /F1 8.2 Tf 68 63.8 Td (* Failed: 0) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.35 Tf 48 785 Td (The baseline test suite was executed locally using pytest before the CodeZero-review follow-up patches:) Tj ET
+BT /F1 8.1 Tf 60 768.5 Td (> Historical baseline: The 99-pass result below predates the follow-up fixes and regression tests. The latest post-fix) Tj ET
+BT /F1 8.1 Tf 60 758 Td (> run is recorded in Section 4.3.) Tj ET
+BT /F3 7.1 Tf 48 742 Td (============================= test session starts =============================) Tj ET
+BT /F3 7.1 Tf 48 733 Td (platform win32 -- Python 3.12.5, pytest-9.1.1, pluggy-1.7.0) Tj ET
+BT /F3 7.1 Tf 48 724 Td (rootdir: C:\\Users\\rjha1\\Downloads\\csv_project) Tj ET
+BT /F3 7.1 Tf 48 715 Td (plugins: anyio-4.15.1, asyncio-1.4.0) Tj ET
+BT /F3 7.1 Tf 48 706 Td (collected 99 items) Tj ET
+BT /F3 7.1 Tf 48 692.5 Td (tests/test_api.py::test_api_health PASSED [ 1%]) Tj ET
+BT /F3 7.1 Tf 48 683.5 Td (tests/test_api.py::test_api_upload_success PASSED [ 3%]) Tj ET
+BT /F3 7.1 Tf 48 674.5 Td (tests/test_api.py::test_api_upload_unsupported_file_extension PASSED [ 4%]) Tj ET
+BT /F3 7.1 Tf 48 665.5 Td (tests/test_api.py::test_api_upload_empty_file PASSED [ 6%]) Tj ET
+BT /F3 7.1 Tf 48 656.5 Td (tests/test_api.py::test_api_upload_invalid_dataset PASSED [ 7%]) Tj ET
+BT /F3 7.1 Tf 48 647.5 Td (tests/test_api.py::test_api_jobs_list_and_detail PASSED [ 9%]) Tj ET
+BT /F3 7.1 Tf 48 638.5 Td (tests/test_api.py::test_api_job_not_found PASSED [ 10%]) Tj ET
+BT /F3 7.1 Tf 48 629.5 Td (tests/test_api.py::test_api_validation_errors_endpoints PASSED [ 12%]) Tj ET
+BT /F3 7.1 Tf 48 620.5 Td (tests/test_api.py::test_api_clean_records PASSED [ 13%]) Tj ET
+BT /F3 7.1 Tf 48 611.5 Td (tests/test_api.py::test_api_clean_records_unsupported_dataset PASSED [ 15%]) Tj ET
+BT /F3 7.1 Tf 48 602.5 Td (tests/test_api.py::test_api_dashboard_endpoints PASSED [ 16%]) Tj ET
+BT /F3 7.1 Tf 48 593.5 Td (tests/test_api.py::test_api_reprocess_endpoint PASSED [ 18%]) Tj ET
+BT /F3 7.1 Tf 48 584.5 Td (tests/test_api.py::test_download_clean_records_customers PASSED [ 20%]) Tj ET
+BT /F3 7.1 Tf 48 575.5 Td (tests/test_api.py::test_download_clean_records_sales_and_inventory PASSED [ 21%]) Tj ET
+BT /F3 7.1 Tf 48 566.5 Td (tests/test_api.py::test_download_clean_records_zero_accepted_returns_400 PASSED [ 23%]) Tj ET
+BT /F3 7.1 Tf 48 557.5 Td (tests/test_api.py::test_download_validation_errors_csv PASSED [ 24%]) Tj ET
+BT /F3 7.1 Tf 48 548.5 Td (tests/test_api.py::test_download_validation_errors_zero_errors_returns_400 PASSED [ 26%]) Tj ET
+BT /F3 7.1 Tf 48 539.5 Td (tests/test_api.py::test_download_job_summary_excel PASSED [ 27%]) Tj ET
+BT /F3 7.1 Tf 48 530.5 Td (tests/test_api.py::test_download_job_summary_excel_empty_clean_and_empty_errors PASSED [ 29%]) Tj ET
+BT /F3 7.1 Tf 48 521.5 Td (tests/test_api.py::test_download_job_summary_excel_sales_and_inventory PASSED [ 30%]) Tj ET
+BT /F3 7.1 Tf 48 512.5 Td (tests/test_api.py::test_download_job_summary_excel_isolation PASSED [ 32%]) Tj ET
+BT /F3 7.1 Tf 48 503.5 Td (tests/test_api.py::test_download_nonexistent_job_returns_404 PASSED [ 33%]) Tj ET
+BT /F3 7.1 Tf 48 494.5 Td (tests/test_api.py::test_download_job_isolation PASSED [ 35%]) Tj ET
+BT /F3 7.1 Tf 48 485.5 Td (tests/test_api.py::test_download_csv_escaping PASSED [ 36%]) Tj ET
+BT /F3 7.1 Tf 48 476.5 Td (tests/test_dashboard_upgrade.py::test_reset_preferences_endpoint PASSED [ 38%]) Tj ET
+BT /F3 7.1 Tf 48 467.5 Td (tests/test_dashboard_upgrade.py::test_dashboard_summary_and_trends_date_filtering PASSED [ 40%]) Tj ET
+BT /F3 7.1 Tf 48 458.5 Td (tests/test_etl.py::test_etl_valid_customers_loaded PASSED [ 41%]) Tj ET
+BT /F3 7.1 Tf 48 449.5 Td (tests/test_etl.py::test_etl_in_file_duplicate_detection PASSED [ 43%]) Tj ET
+BT /F3 7.1 Tf 48 440.5 Td (tests/test_etl.py::test_etl_existing_db_duplicate_prevention PASSED [ 44%]) Tj ET
+BT /F3 7.1 Tf 48 431.5 Td (tests/test_etl.py::test_etl_repeated_file_idempotency PASSED [ 46%]) Tj ET
+BT /F3 7.1 Tf 48 422.5 Td (tests/test_etl.py::test_etl_reprocess_job PASSED [ 47%]) Tj ET
+BT /F3 7.1 Tf 48 413.5 Td (tests/test_customers_mixed_quality_empty_db_vs_populated_db PASSED [ 49%]) Tj ET
+BT /F3 7.1 Tf 48 404.5 Td (tests/test_etl.py::test_row_not_classified_as_both_rejected_and_duplicate PASSED [ 50%]) Tj ET
+BT /F3 7.1 Tf 48 395.5 Td (tests/test_etl.py::test_multiple_errors_on_single_row_exceeds_rejected_count PASSED [ 52%]) Tj ET
+BT /F3 7.1 Tf 48 386.5 Td (tests/test_reset_and_filter.py::test_destructive_reset_endpoint_clears_all_tables PASSED [ 53%]) Tj ET
+BT /F3 7.1 Tf 48 377.5 Td (tests/test_reset_and_filter.py::test_destructive_reset_cleans_upload_artifacts PASSED [ 55%]) Tj ET
+BT /F3 7.1 Tf 48 368.5 Td (tests/test_reset_and_filter.py::test_destructive_reset_concurrency_lock PASSED [ 56%]) Tj ET
+BT /F3 7.1 Tf 48 359.5 Td (tests/test_reset_and_filter.py::test_reset_data_route_in_openapi_specification PASSED [ 58%]) Tj ET
+BT /F3 7.1 Tf 48 350.5 Td (tests/test_reset_and_filter.py::test_reset_data_idempotent_empty_database PASSED [ 60%]) Tj ET
+BT /F3 7.1 Tf 48 341.5 Td (tests/test_reset_and_filter.py::test_reset_data_preserves_files_outside_uploads_storage PASSED [ 61%]) Tj ET
+BT /F3 7.1 Tf 48 332.5 Td (tests/test_reset_and_filter.py::test_reset_data_transaction_rollback_on_failure PASSED [ 63%]) Tj ET
+BT /F3 7.1 Tf 48 323.5 Td (tests/test_reset_and_filter.py::test_records_endpoint_date_filtering PASSED [ 64%]) Tj ET
+BT /F3 7.1 Tf 48 314.5 Td (tests/test_reset_and_filter.py::test_errors_endpoint_date_filtering PASSED [ 66%]) Tj ET
+BT /F3 7.1 Tf 48 305.5 Td (tests/test_reset_and_filter.py::test_empty_date_range_strict_zeroes PASSED [ 67%]) Tj ET
+BT /F3 7.1 Tf 48 296.5 Td (tests/test_reset_and_filter.py::test_kpi_accounting_invariant_reconciliation PASSED [ 69%]) Tj ET
+BT /F3 7.1 Tf 48 287.5 Td (tests/test_transformation.py::test_clean_string PASSED [ 70%]) Tj ET
+BT /F3 7.1 Tf 48 278.5 Td (tests/test_transformation.py::test_normalize_name PASSED [ 72%]) Tj ET
+BT /F3 7.1 Tf 48 269.5 Td (tests/test_transformation.py::test_normalize_email PASSED [ 73%]) Tj ET
+BT /F3 7.1 Tf 48 260.5 Td (tests/test_transformation.py::test_normalize_currency PASSED [ 75%]) Tj ET
+BT /F3 7.1 Tf 48 251.5 Td (tests/test_transformation.py::test_parse_and_normalize_date PASSED [ 76%]) Tj ET
+BT /F3 7.1 Tf 48 242.5 Td (tests/test_transformation.py::test_parse_float PASSED [ 78%]) Tj ET
+BT /F3 7.1 Tf 48 233.5 Td (tests/test_transformation.py::test_parse_int PASSED [ 80%]) Tj ET
+BT /F3 7.1 Tf 48 224.5 Td (tests/test_validation.py::test_valid_customer_row PASSED [ 81%]) Tj ET
+BT /F3 7.1 Tf 48 215.5 Td (tests/test_validation.py::test_customer_missing_required_fields PASSED [ 83%]) Tj ET
+BT /F3 7.1 Tf 48 206.5 Td (tests/test_validation.py::test_customer_invalid_email PASSED [ 84%]) Tj ET
+BT /F3 7.1 Tf 48 197.5 Td (tests/test_validation.py::test_customer_invalid_date PASSED [ 86%]) Tj ET
+BT /F3 7.1 Tf 48 188.5 Td (tests/test_validation.py::test_valid_sale_row PASSED [ 87%]) Tj ET
+BT /F3 7.1 Tf 48 179.5 Td (tests/test_validation.py::test_sale_negative_amount PASSED [ 89%]) Tj ET
+BT /F3 7.1 Tf 48 170.5 Td (tests/test_validation.py::test_sale_unsupported_currency PASSED [ 90%]) Tj ET
+BT /F3 7.1 Tf 48 161.5 Td (tests/test_validation.py::test_valid_inventory_row PASSED [ 92%]) Tj ET
+BT /F3 7.1 Tf 48 152.5 Td (tests/test_validation.py::test_inventory_negative_quantity_and_price PASSED [ 93%]) Tj ET
+BT /F3 7.1 Tf 48 143.5 Td (tests/test_csv_import_empty_file PASSED [ 95%]) Tj ET
+BT /F3 7.1 Tf 48 134.5 Td (tests/test_validation.py::test_csv_import_missing_columns PASSED [ 96%]) Tj ET
+BT /F3 7.1 Tf 48 125.5 Td (tests/test_validation.py::test_csv_import_duplicate_headers PASSED [ 98%]) Tj ET
+BT /F3 7.1 Tf 48 116.5 Td (tests/test_validation.py::test_csv_import_utf8_bom PASSED [100%]) Tj ET
+BT /F3 7.1 Tf 48 103 Td (====================== 99 passed, 17 warnings in 48.52s =======================) Tj ET
+BT /F2 10.5 Tf 48 84.5 Td (4.3 Latest Post-Fix Test Results \(October 26, 2026\)) Tj ET
+BT /F1 8.35 Tf 48 65 Td (After fast-forwarding the local main branch to GitHub commit 1d45be9, the full suite was rerun using:) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 5 of 13) Tj ET
 
 endstream
@@ -404,73 +403,71 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 17 0 R >>
 endobj
 17 0 obj
-<< /Length 8574 >>
+<< /Length 7759 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F1 8.2 Tf 68 785 Td (* Warnings: 23 deprecation warnings from the framework/database stack) Tj ET
-BT /F1 8.2 Tf 68 774.3 Td (* Execution time: 19.91 seconds) Tj ET
-BT /F1 8.35 Tf 48 759.0999999999999 Td (This run includes the added regression coverage for job reprocessing/audit exports, trend-window selection, bounded) Tj ET
-BT /F1 8.35 Tf 48 748.0999999999999 Td (upload reads, malformed CSV row widths and multiline row locations, and invalid date filters. Tests use in-memory) Tj ET
-BT /F1 8.35 Tf 48 737.0999999999999 Td (SQLite; this result does not independently verify the production PostgreSQL connection or the deployed Render service.) Tj ET
-0.72 G 0.5 w 48 720.5999999999999 m 547 720.5999999999999 l S 0 G
-0.12 G 0.3 w 48 698.0999999999999 m 547 698.0999999999999 l S 0 G
-BT /F2 13 Tf 48 701.0999999999999 Td (5. Antigravity-Assisted Development & Review Process) Tj ET
-BT /F1 8.1 Tf 72 674.5999999999999 Td (> Tooling note: This document distinguishes the main implementation work assisted by Google Antigravity from the actual) Tj ET
-BT /F1 8.1 Tf 72 664.0999999999999 Td (> CodeZero exploration and independent review. The CodeZero review and its limitations are recorded in Section 5.4 and) Tj ET
-BT /F1 8.1 Tf 72 653.5999999999999 Td (> CODEZERO_REVIEW.md.) Tj ET
-BT /F2 10.5 Tf 48 632.5999999999999 Td (5.1 Tasks Assisted by Antigravity) Tj ET
-BT /F1 8.2 Tf 68 617.5999999999999 Td (1. Workspace Architecture Scaffolding: Designed the decoupled folder structure \(app/, tests/, sample_data/, scripts/\).) Tj ET
-BT /F1 8.2 Tf 68 606.8999999999999 Td (2. Database Modeling: Created SQLAlchemy 2.x models with cascade relationships, indexes, and primary keys.) Tj ET
-BT /F1 8.2 Tf 68 596.1999999999998 Td (3. Data Cleaning & Normalization Engine: Implemented comprehensive regex date parsing across multiple formats, string) Tj ET
-BT /F1 8.2 Tf 68 585.4999999999998 Td (casing rules, and numerical validation.) Tj ET
-BT /F1 8.2 Tf 68 574.7999999999997 Td (4. ETL Pipeline & Transaction Boundaries: Authored the Extract-Transform-Load pipeline enforcing the mutual-exclusion) Tj ET
-BT /F1 8.2 Tf 68 564.0999999999997 Td (accounting equation.) Tj ET
-BT /F1 8.2 Tf 68 553.3999999999996 Td (5. REST API Construction: Implemented OpenAPI-documented endpoints for health, ingestion, jobs, validation error) Tj ET
-BT /F1 8.2 Tf 68 542.6999999999996 Td (itemization, clean records browsing, and dashboard trends.) Tj ET
-BT /F1 8.2 Tf 68 531.9999999999995 Td (6. Frontend Dashboard: Created a responsive, modern HTML5/CSS3/Vanilla JS single-page interface with Chart.js) Tj ET
-BT /F1 8.2 Tf 68 521.2999999999995 Td (visualization.) Tj ET
-BT /F1 8.2 Tf 68 510.5999999999995 Td (7. Automated Testing Suite: The pre-review baseline had 99 test cases. Ten additional test cases were added in the) Tj ET
-BT /F1 8.2 Tf 68 499.8999999999995 Td (CodeZero-review follow-up for reprocessing export preservation, bounded uploads, invalid date filters, malformed CSV) Tj ET
-BT /F1 8.2 Tf 68 489.19999999999953 Td (widths, multiline row locations, and trend-window selection. The current collection is 109 test cases; the post-fix) Tj ET
-BT /F1 8.2 Tf 68 478.49999999999955 Td (full-suite run passed all 109 tests \(23 warnings in 19.91 seconds\), as documented in Section 4.3.) Tj ET
-BT /F2 10.5 Tf 48 458.29999999999956 Td (5.2 Review & Manual Corrections Made During Development) Tj ET
-BT /F1 8.35 Tf 48 443.29999999999956 Td (During the implementation, several critical design details were reviewed and refined:) Tj ET
-BT /F1 8.2 Tf 68 432.29999999999956 Td (1. Pydantic Settings vs Dotenv: Switched from pydantic-settings to native python-dotenv + pydantic.BaseModel to avoid) Tj ET
-BT /F1 8.2 Tf 68 421.59999999999957 Td (external package version incompatibilities.) Tj ET
-BT /F1 8.2 Tf 68 410.8999999999996 Td (2. UTF-8 BOM Header Parsing: Standard UTF-8 decoding can leave a leading zero-width no-break space \(\\ufeff\) on the) Tj ET
-BT /F1 8.2 Tf 68 400.1999999999996 Td (first header column. Implemented multi-tier decoding prioritizing utf-8-sig to cleanly strip the byte order mark.) Tj ET
-BT /F1 8.2 Tf 68 389.4999999999996 Td (3. Calendar Date Validation: Rather than accepting any string that matches a regex pattern, strict calendar parsing via) Tj ET
-BT /F1 8.2 Tf 68 378.7999999999996 Td (datetime.strptime was enforced, properly rejecting impossible calendar days such as February 29th on non-leap years) Tj ET
-BT /F1 8.2 Tf 68 368.0999999999996 Td (\(2023-02-29\) or month values above 12.) Tj ET
-BT /F1 8.2 Tf 68 357.39999999999964 Td (4. CSV Row Numbering \(CodeZero follow-up\): The parser now records the physical start line of each logical CSV record) Tj ET
-BT /F1 8.2 Tf 68 346.69999999999965 Td (using csv.reader.line_num, including when prior quoted fields contain embedded newlines. A multiline-record regression) Tj ET
-BT /F1 8.2 Tf 68 335.99999999999966 Td (test was added and passed in the post-fix full-suite run documented in Section 4.3.) Tj ET
-BT /F1 8.2 Tf 68 325.29999999999967 Td (5. Idempotent Job Reprocessing: Added a dedicated POST /api/jobs/{id}/reprocess endpoint that retrieves the saved file) Tj ET
-BT /F1 8.2 Tf 68 314.5999999999997 Td (artifact and re-runs the pipeline safely without duplicating clean records.) Tj ET
-BT /F1 8.2 Tf 68 303.8999999999997 Td (6. Spreadsheet Formula Injection Mitigation: Sanitized cell values beginning with =, +, -, @, \\t, \\r by prepending a) Tj ET
-BT /F1 8.2 Tf 68 293.1999999999997 Td (single quote in both CSV and multi-sheet Excel exports.) Tj ET
-BT /F2 10.5 Tf 48 272.9999999999997 Td (5.3 CodeZero Workflow & Tooling Demarcation) Tj ET
-BT /F1 8.35 Tf 48 257.9999999999997 Td (This section documents the tools used in the actual development workflow for the assignment.) Tj ET
-BT /F1 8.2 Tf 68 242.49999999999972 Td (* CodeZero - initial exploration: Used to inspect the standalone starter exercise \(csv_quality_checker.py\), analyze) Tj ET
-BT /F1 8.2 Tf 68 231.79999999999973 Td (baseline validation requirements, and plan the initial architecture and README scope \(Git commit) Tj ET
-BT /F1 8.2 Tf 68 221.09999999999974 Td (7983368c3879efe141b90b7a269c1cb0882505b1, Plan 6adcf6109cb64fb3236a5352\). That exercise file is not part of the final) Tj ET
-BT /F1 8.2 Tf 68 210.39999999999975 Td (web-app repository.) Tj ET
-BT /F1 8.2 Tf 68 199.69999999999976 Td (* CodeZero - independent review and verification: Later reviewed the current source against the assignment, ran) Tj ET
-BT /F1 8.2 Tf 68 188.99999999999977 Td (.\\.venv\\Scripts\\python.exe -m pytest -q, inspected code paths behind identified risks, and ran a runtime probe that) Tj ET
-BT /F1 8.2 Tf 68 178.29999999999978 Td (reproduced the reprocessing/audit-record issue. That baseline run reported 99 passing tests and 17 deprecation warnings) Tj ET
-BT /F1 8.2 Tf 68 167.5999999999998 Td (using in-memory SQLite. CodeZero's review session itself did not modify application files; a separate follow-up pass) Tj ET
-BT /F1 8.2 Tf 68 156.8999999999998 Td (then applied targeted fixes and added regression tests. Those post-review changes were subsequently covered by a local) Tj ET
-BT /F1 8.2 Tf 68 146.19999999999982 Td (full-suite run after updating to commit 1d45be9, which passed 109 tests with 23 deprecation warnings. See Section 4.3,) Tj ET
-BT /F1 8.2 Tf 68 135.49999999999983 Td (Section 5.4, and CODEZERO_REVIEW.md <CODEZERO_REVIEW.md>.) Tj ET
-BT /F1 8.2 Tf 68 124.79999999999983 Td (* Google Antigravity: Assisted with the main full-stack implementation, including FastAPI routes, SQLAlchemy) Tj ET
-BT /F1 8.2 Tf 68 114.09999999999982 Td (persistence, the ETL pipeline, the HTML/CSS/JavaScript dashboard, Excel/CSV reporting, and automated tests.) Tj ET
-BT /F1 8.35 Tf 48 98.89999999999982 Td (The initial findings came from the CodeZero review; a separate follow-up pass applied targeted code changes and added) Tj ET
-BT /F1 8.35 Tf 48 87.89999999999982 Td (regression tests for the main issues. After updating local main to commit 1d45be9, the full suite passed 109 tests with) Tj ET
-BT /F1 8.35 Tf 48 76.89999999999982 Td (23 deprecation warnings in 19.91 seconds. This verifies the local code against the in-memory SQLite test fixture, not) Tj ET
-BT /F1 8.35 Tf 48 65.89999999999982 Td (live PostgreSQL or the deployed service.) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F3 7.1 Tf 48 780.5 Td (.\\.venv\\Scripts\\python.exe -m pytest -q) Tj ET
+BT /F1 8.2 Tf 58 767 Td (* Passed: 109) Tj ET
+BT /F1 8.2 Tf 58 756.3 Td (* Failed: 0) Tj ET
+BT /F1 8.2 Tf 58 745.5999999999999 Td (* Warnings: 23 deprecation warnings from the framework/database stack) Tj ET
+BT /F1 8.2 Tf 58 734.8999999999999 Td (* Execution time: 19.91 seconds) Tj ET
+BT /F1 8.35 Tf 48 719.6999999999998 Td (This run includes the added regression coverage for job reprocessing/audit exports, trend-window selection, bounded) Tj ET
+BT /F1 8.35 Tf 48 708.6999999999998 Td (upload reads, malformed CSV row widths and multiline row locations, and invalid date filters. Tests use in-memory) Tj ET
+BT /F1 8.35 Tf 48 697.6999999999998 Td (SQLite; this result does not independently verify the production PostgreSQL connection or the deployed Render) Tj ET
+BT /F1 8.35 Tf 48 686.6999999999998 Td (service.) Tj ET
+0.72 G 0.5 w 48 670.1999999999998 m 547 670.1999999999998 l S 0 G
+0.80 G 0.5 w 48 647.6999999999998 m 547 647.6999999999998 l S 0 G
+BT /F2 13 Tf 48 650.6999999999998 Td (5. Antigravity-Assisted Development & Review Process) Tj ET
+BT /F1 8.1 Tf 60 623.1999999999998 Td (> Tooling note: This document distinguishes the main implementation work assisted by Google Antigravity from the actual) Tj ET
+BT /F1 8.1 Tf 60 612.6999999999998 Td (> CodeZero exploration and independent review. The CodeZero review and its limitations are recorded in Section 5.4 and) Tj ET
+BT /F1 8.1 Tf 60 602.1999999999998 Td (> CODEZERO_REVIEW.md.) Tj ET
+BT /F2 10.5 Tf 48 581.1999999999998 Td (5.1 Tasks Assisted by Antigravity) Tj ET
+BT /F1 8.2 Tf 58 566.1999999999998 Td (1. Workspace Architecture Scaffolding: Designed the decoupled folder structure \(app/, tests/, sample_data/,) Tj ET
+BT /F1 8.2 Tf 58 555.4999999999998 Td (scripts/\).) Tj ET
+BT /F1 8.2 Tf 58 544.7999999999997 Td (2. Database Modeling: Created SQLAlchemy 2.x models with cascade relationships, indexes, and primary keys.) Tj ET
+BT /F1 8.2 Tf 58 534.0999999999997 Td (3. Data Cleaning & Normalization Engine: Implemented comprehensive regex date parsing across multiple formats, string) Tj ET
+BT /F1 8.2 Tf 58 523.3999999999996 Td (casing rules, and numerical validation.) Tj ET
+BT /F1 8.2 Tf 58 512.6999999999996 Td (4. ETL Pipeline & Transaction Boundaries: Authored the Extract-Transform-Load pipeline enforcing the mutual-exclusion) Tj ET
+BT /F1 8.2 Tf 58 501.9999999999996 Td (accounting equation.) Tj ET
+BT /F1 8.2 Tf 58 491.2999999999996 Td (5. REST API Construction: Implemented OpenAPI-documented endpoints for health, ingestion, jobs, validation error) Tj ET
+BT /F1 8.2 Tf 58 480.5999999999996 Td (itemization, clean records browsing, and dashboard trends.) Tj ET
+BT /F1 8.2 Tf 58 469.89999999999964 Td (6. Frontend Dashboard: Created a responsive, modern HTML5/CSS3/Vanilla JS single-page interface with Chart.js) Tj ET
+BT /F1 8.2 Tf 58 459.19999999999965 Td (visualization.) Tj ET
+BT /F1 8.2 Tf 58 448.49999999999966 Td (7. Automated Testing Suite: The pre-review baseline had 99 test cases. Ten additional test cases were added in the) Tj ET
+BT /F1 8.2 Tf 58 437.79999999999967 Td (CodeZero-review follow-up for reprocessing export preservation, bounded uploads, invalid date filters, malformed CSV) Tj ET
+BT /F1 8.2 Tf 58 427.0999999999997 Td (widths, multiline row locations, and trend-window selection. The current collection is 109 test cases; the post-fix) Tj ET
+BT /F1 8.2 Tf 58 416.3999999999997 Td (full-suite run passed all 109 tests \(23 warnings in 19.91 seconds\), as documented in Section 4.3.) Tj ET
+BT /F2 10.5 Tf 48 396.1999999999997 Td (5.2 Review & Manual Corrections Made During Development) Tj ET
+BT /F1 8.35 Tf 48 381.1999999999997 Td (During the implementation, several critical design details were reviewed and refined:) Tj ET
+BT /F1 8.2 Tf 58 370.1999999999997 Td (1. Pydantic Settings vs Dotenv: Switched from pydantic-settings to native python-dotenv + pydantic.BaseModel to avoid) Tj ET
+BT /F1 8.2 Tf 58 359.4999999999997 Td (external package version incompatibilities.) Tj ET
+BT /F1 8.2 Tf 58 348.7999999999997 Td (2. UTF-8 BOM Header Parsing: Standard UTF-8 decoding can leave a leading zero-width no-break space \(\\ufeff\) on the) Tj ET
+BT /F1 8.2 Tf 58 338.09999999999974 Td (first header column. Implemented multi-tier decoding prioritizing utf-8-sig to cleanly strip the byte order mark.) Tj ET
+BT /F1 8.2 Tf 58 327.39999999999975 Td (3. Calendar Date Validation: Rather than accepting any string that matches a regex pattern, strict calendar parsing) Tj ET
+BT /F1 8.2 Tf 58 316.69999999999976 Td (via datetime.strptime was enforced, properly rejecting impossible calendar days such as February 29th on non-leap) Tj ET
+BT /F1 8.2 Tf 58 305.9999999999998 Td (years \(2023-02-29\) or month values above 12.) Tj ET
+BT /F1 8.2 Tf 58 295.2999999999998 Td (4. CSV Row Numbering \(CodeZero follow-up\): The parser now records the physical start line of each logical CSV record) Tj ET
+BT /F1 8.2 Tf 58 284.5999999999998 Td (using csv.reader.line_num, including when prior quoted fields contain embedded newlines. A multiline-record) Tj ET
+BT /F1 8.2 Tf 58 273.8999999999998 Td (regression test was added and passed in the post-fix full-suite run documented in Section 4.3.) Tj ET
+BT /F1 8.2 Tf 58 263.1999999999998 Td (5. Idempotent Job Reprocessing: Added a dedicated POST /api/jobs/{id}/reprocess endpoint that retrieves the saved) Tj ET
+BT /F1 8.2 Tf 58 252.49999999999983 Td (file artifact and re-runs the pipeline safely without duplicating clean records.) Tj ET
+BT /F1 8.2 Tf 58 241.79999999999984 Td (6. Spreadsheet Formula Injection Mitigation: Sanitized cell values beginning with =, +, -, @, \\t, \\r by prepending a) Tj ET
+BT /F1 8.2 Tf 58 231.09999999999985 Td (single quote in both CSV and multi-sheet Excel exports.) Tj ET
+BT /F2 10.5 Tf 48 210.89999999999986 Td (5.3 CodeZero Workflow & Tooling Demarcation) Tj ET
+BT /F1 8.35 Tf 48 191.39999999999986 Td (Prompt wording and iteration evidence are documented separately in CODEZERO_PROMPT_EVIDENCE.md) Tj ET
+BT /F1 8.35 Tf 48 180.39999999999986 Td (<CODEZERO_PROMPT_EVIDENCE.md>. That file distinguishes reconstructed examples from verbatim prompt logs because the) Tj ET
+BT /F1 8.35 Tf 48 169.39999999999986 Td (original transcript was not preserved.) Tj ET
+BT /F1 8.35 Tf 48 149.39999999999986 Td (This section documents the tools used in the actual development workflow for the assignment.) Tj ET
+BT /F1 8.2 Tf 58 133.89999999999986 Td (* CodeZero - initial exploration: Used to inspect the standalone starter exercise \(csv_quality_checker.py\), analyze) Tj ET
+BT /F1 8.2 Tf 58 123.19999999999986 Td (baseline validation requirements, and plan the initial architecture and README scope \(Git commit) Tj ET
+BT /F1 8.2 Tf 58 112.49999999999986 Td (7983368c3879efe141b90b7a269c1cb0882505b1, Plan 6adcf6109cb64fb3236a5352\). That exercise file is not part of the final) Tj ET
+BT /F1 8.2 Tf 58 101.79999999999986 Td (web-app repository.) Tj ET
+BT /F1 8.2 Tf 58 91.09999999999985 Td (* CodeZero - independent review and verification: Later reviewed the current source against the assignment, ran) Tj ET
+BT /F1 8.2 Tf 58 80.39999999999985 Td (.\\.venv\\Scripts\\python.exe -m pytest -q, inspected code paths behind identified risks, and ran a runtime probe that) Tj ET
+BT /F1 8.2 Tf 58 69.69999999999985 Td (reproduced the reprocessing/audit-record issue. That baseline run reported 99 passing tests and 17 deprecation) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 6 of 13) Tj ET
 
 endstream
@@ -479,74 +476,75 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 19 0 R >>
 endobj
 19 0 obj
-<< /Length 7911 >>
+<< /Length 8499 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F2 10.5 Tf 48 775.5 Td (5.4 CodeZero Repository Review - October 26, 2026) Tj ET
-BT /F1 8.35 Tf 48 760.5 Td (The independent review is documented in CODEZERO_REVIEW.md <CODEZERO_REVIEW.md>. In the review session, CodeZero) Tj ET
-BT /F1 8.35 Tf 48 749.5 Td (inspected the repository files, ran the local pytest suite, and reproduced one reprocessing/audit-record defect using a) Tj ET
-BT /F1 8.35 Tf 48 738.5 Td (runtime probe. The recorded CodeZero baseline was 99 passed, 17 deprecation warnings. A separate post-fix local run) Tj ET
-BT /F1 8.35 Tf 48 727.5 Td (after pulling commit 1d45be9 passed 109 tests with 23 deprecation warnings in 19.91 seconds. The tests use in-memory) Tj ET
-BT /F1 8.35 Tf 48 716.5 Td (SQLite; neither run by itself verifies PostgreSQL or the deployed service.) Tj ET
-BT /F1 8.35 Tf 48 701 Td (The report identified issues involving reprocessing audit/export preservation, the trend chart's 30-job window,) Tj ET
-BT /F1 8.35 Tf 48 690 Td (upload-size checking before a full read, malformed CSV row shapes and multiline row locations, invalid date-filter) Tj ET
-BT /F1 8.35 Tf 48 679 Td (behavior, and documentation consistency for the SQL DDL and sample CSV inventory. Follow-up patches have since been) Tj ET
-BT /F1 8.35 Tf 48 668 Td (applied: reprocessing now preserves the job's accepted-row snapshot, trends select the newest 30 jobs and display them) Tj ET
-BT /F1 8.35 Tf 48 657 Td (chronologically, uploads read at most the configured limit plus one byte, malformed row widths are rejected while row) Tj ET
-BT /F1 8.35 Tf 48 646 Td (start lines account for quoted multiline fields, and invalid/reversed date ranges return HTTP 422. Regression tests) Tj ET
-BT /F1 8.35 Tf 48 635 Td (were added or updated for these cases. The review session itself made no application-code modifications; the post-patch) Tj ET
-BT /F1 8.35 Tf 48 624 Td (suite was later run locally and passed all 109 tests.) Tj ET
-0.72 G 0.5 w 48 612 m 547 612 l S 0 G
-0.12 G 0.3 w 48 589.5 m 547 589.5 l S 0 G
-BT /F2 13 Tf 48 592.5 Td (6. What Was Verified & Remaining Limitations) Tj ET
-BT /F2 10.5 Tf 48 562 Td (6.1 Verified Capabilities) Tj ET
-BT /F1 8.2 Tf 68 547 Td (* [x] Application successfully compiles and boots on Windows with Uvicorn.) Tj ET
-BT /F1 8.2 Tf 68 536.3 Td (* [x] SQLite database tables are automatically initialized on startup.) Tj ET
-BT /F1 8.2 Tf 68 525.5999999999999 Td (* [x] Real multipart CSV uploads are parsed, decoded, and ingested.) Tj ET
-BT /F1 8.2 Tf 68 514.8999999999999 Td (* [x] Unsupported extensions \(.txt\) return HTTP 415.) Tj ET
-BT /F1 8.2 Tf 68 504.1999999999999 Td (* [x] Empty files return HTTP 400.) Tj ET
-BT /F1 8.2 Tf 68 493.4999999999999 Td (* [x] Missing required columns return descriptive validation failures.) Tj ET
-BT /F1 8.2 Tf 68 482.7999999999999 Td (* [x] Clean records are properly stored in database tables.) Tj ET
-BT /F1 8.2 Tf 68 472.0999999999999 Td (* [x] Validation errors are stored with row number, field name, error code, explanation, and original value.) Tj ET
-BT /F1 8.2 Tf 68 461.3999999999999 Td (* [x] In-file duplicate keys are rejected.) Tj ET
-BT /F1 8.2 Tf 68 450.69999999999993 Td (* [x] Database pre-existing duplicate keys are rejected.) Tj ET
-BT /F1 8.2 Tf 68 439.99999999999994 Td (* [x] Repeated uploads of identical files are audited without duplicating clean data.) Tj ET
-BT /F1 8.2 Tf 68 429.29999999999995 Td (* [x] Latest local post-fix test suite passed 109 tests with zero failures \(23 deprecation warnings in 19.91 seconds\)) Tj ET
-BT /F1 8.2 Tf 68 418.59999999999997 Td (after updating to GitHub commit 1d45be9; see Section 4.3.) Tj ET
-BT /F1 8.2 Tf 68 407.9 Td (* [x] Interactive UI with KPI cards, Chart.js trends, jobs table, error logs, and records browser is fully connected to) Tj ET
-BT /F1 8.2 Tf 68 397.2 Td (the live backend.) Tj ET
-BT /F1 8.2 Tf 68 386.5 Td (* [x] Job-scoped Clean Records \(CSV\) download endpoint \(GET /api/jobs/{id}/download/clean\) with correct headers,) Tj ET
-BT /F1 8.2 Tf 68 375.8 Td (dataset columns, CSV escaping, and HTTP 400 when 0 accepted rows.) Tj ET
-BT /F1 8.2 Tf 68 365.1 Td (* [x] Job-scoped Validation Errors \(CSV\) download endpoint \(GET /api/jobs/{id}/download/errors\) with error tracking) Tj ET
-BT /F1 8.2 Tf 68 354.40000000000003 Td (metadata, CSV escaping, and HTTP 400 when 0 errors.) Tj ET
-BT /F1 8.2 Tf 68 343.70000000000005 Td (* [x] Job-scoped Execution Summary Workbook \(Excel .xlsx\) download endpoint \(GET /api/jobs/{id}/download/summary\) with) Tj ET
-BT /F1 8.2 Tf 68 333.00000000000006 Td (Job Summary, Clean Records, Validation Errors, frozen panes, filters, number formatting, and accounting reconciliation.) Tj ET
-BT /F1 8.2 Tf 68 322.30000000000007 Td (* [x] Complete UI integration in upload feedback card and Job Details modal with disabled states, tooltips, loading) Tj ET
-BT /F1 8.2 Tf 68 311.6000000000001 Td (feedback, and double-click prevention.) Tj ET
-BT /F1 8.2 Tf 68 300.9000000000001 Td (* [x] Destructive Data Reset \(POST /api/dashboard/reset-data\) with concurrency lock \(threading.Lock\(\)\), foreign-key) Tj ET
-BT /F1 8.2 Tf 68 290.2000000000001 Td (safe cascade deletion, physical file unlinking with path traversal protection, transaction rollback, and schema) Tj ET
-BT /F1 8.2 Tf 68 279.5000000000001 Td (preservation.) Tj ET
-BT /F1 8.2 Tf 68 268.8000000000001 Td (* [x] End-to-end date filtering across all 5 telemetry endpoints \(/api/dashboard/summary, /api/dashboard/trends,) Tj ET
-BT /F1 8.2 Tf 68 258.10000000000014 Td (/api/jobs, /api/records, /api/errors\) with SQL joins and strict zero-state displays.) Tj ET
-BT /F1 8.2 Tf 68 247.40000000000015 Td (* [x] Data quality score and KPI row accounting invariant: Total Records = Accepted + Rejected + Duplicates + Skipped;) Tj ET
-BT /F1 8.2 Tf 68 236.70000000000016 Td (the score is 0.0% \(No data\) when the total is 0.) Tj ET
-BT /F1 8.2 Tf 68 226.00000000000017 Td (* [x] Compact iPhone-style slide-to-reset control \(210px x 42px\), with a circular thumb, chevron icon, touch/mouse) Tj ET
-BT /F1 8.2 Tf 68 215.30000000000018 Td (dragging, an 85% threshold, and a confirmation modal.) Tj ET
-BT /F1 8.2 Tf 68 204.6000000000002 Td (* [x] Dual themes \(Warm Ivory & Dark Espresso\) with WCAG AA compliant contrast on dataset select, drop zone, schema) Tj ET
-BT /F1 8.2 Tf 68 193.9000000000002 Td (boxes, and disabled buttons.) Tj ET
-BT /F1 8.2 Tf 68 183.20000000000022 Td (* [x] Dynamic real-event notification store in localStorage tracking uploads, downloads, reprocessing, and resets with) Tj ET
-BT /F1 8.2 Tf 68 172.50000000000023 Td (auto-hiding badge.) Tj ET
-BT /F2 10.5 Tf 48 152.30000000000024 Td (6.2 Remaining Limitations & Future Roadmaps) Tj ET
-BT /F1 8.2 Tf 68 137.30000000000024 Td (1. Background Job Queuing: Processing is currently synchronous. For files exceeding 100,000 rows, a message queue \(e.g.) Tj ET
-BT /F1 8.2 Tf 68 126.60000000000024 Td (Celery / RabbitMQ / Redis\) should be introduced with SSE \(Server-Sent Events\) or WebSockets for live progress tracking.) Tj ET
-BT /F1 8.2 Tf 68 115.90000000000023 Td (2. User Authentication: Auth was intentionally omitted per assignment specifications. Production environments would) Tj ET
-BT /F1 8.2 Tf 68 105.20000000000023 Td (require OAuth2/JWT authentication.) Tj ET
-BT /F1 8.2 Tf 68 94.50000000000023 Td (3. Complex Column Mapping: The platform currently expects standard normalized headers. A visual column-mapping wizard) Tj ET
-BT /F1 8.2 Tf 68 83.80000000000022 Td (for mismatched legacy CSV headers could be added in a future milestone.) Tj ET
-0.72 G 0.5 w 48 67.60000000000022 m 547 67.60000000000022 l S 0 G
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.2 Tf 58 785 Td (warnings using in-memory SQLite. CodeZero's review session itself did not modify application files; a separate) Tj ET
+BT /F1 8.2 Tf 58 774.3 Td (follow-up pass then applied targeted fixes and added regression tests. Those post-review changes were subsequently) Tj ET
+BT /F1 8.2 Tf 58 763.5999999999999 Td (covered by a local full-suite run after updating to commit 1d45be9, which passed 109 tests with 23 deprecation) Tj ET
+BT /F1 8.2 Tf 58 752.8999999999999 Td (warnings. See Section 4.3, Section 5.4, and CODEZERO_REVIEW.md <CODEZERO_REVIEW.md>.) Tj ET
+BT /F1 8.2 Tf 58 742.1999999999998 Td (* Google Antigravity: Assisted with the main full-stack implementation, including FastAPI routes, SQLAlchemy) Tj ET
+BT /F1 8.2 Tf 58 731.4999999999998 Td (persistence, the ETL pipeline, the HTML/CSS/JavaScript dashboard, Excel/CSV reporting, and automated tests.) Tj ET
+BT /F1 8.35 Tf 48 716.2999999999997 Td (The initial findings came from the CodeZero review; a separate follow-up pass applied targeted code changes and added) Tj ET
+BT /F1 8.35 Tf 48 705.2999999999997 Td (regression tests for the main issues. After updating local main to commit 1d45be9, the full suite passed 109 tests) Tj ET
+BT /F1 8.35 Tf 48 694.2999999999997 Td (with 23 deprecation warnings in 19.91 seconds. This verifies the local code against the in-memory SQLite test) Tj ET
+BT /F1 8.35 Tf 48 683.2999999999997 Td (fixture, not live PostgreSQL or the deployed service.) Tj ET
+BT /F2 10.5 Tf 48 658.2999999999997 Td (5.4 CodeZero Repository Review - October 26, 2026) Tj ET
+BT /F1 8.35 Tf 48 643.2999999999997 Td (The independent review is documented in CODEZERO_REVIEW.md <CODEZERO_REVIEW.md>. In the review session, CodeZero) Tj ET
+BT /F1 8.35 Tf 48 632.2999999999997 Td (inspected the repository files, ran the local pytest suite, and reproduced one reprocessing/audit-record defect using) Tj ET
+BT /F1 8.35 Tf 48 621.2999999999997 Td (a runtime probe. The recorded CodeZero baseline was 99 passed, 17 deprecation warnings. A separate post-fix local run) Tj ET
+BT /F1 8.35 Tf 48 610.2999999999997 Td (after pulling commit 1d45be9 passed 109 tests with 23 deprecation warnings in 19.91 seconds. The tests use in-memory) Tj ET
+BT /F1 8.35 Tf 48 599.2999999999997 Td (SQLite; neither run by itself verifies PostgreSQL or the deployed service.) Tj ET
+BT /F1 8.35 Tf 48 583.7999999999997 Td (The report identified issues involving reprocessing audit/export preservation, the trend chart's 30-job window,) Tj ET
+BT /F1 8.35 Tf 48 572.7999999999997 Td (upload-size checking before a full read, malformed CSV row shapes and multiline row locations, invalid date-filter) Tj ET
+BT /F1 8.35 Tf 48 561.7999999999997 Td (behavior, and documentation consistency for the SQL DDL and sample CSV inventory. Follow-up patches have since been) Tj ET
+BT /F1 8.35 Tf 48 550.7999999999997 Td (applied: reprocessing now preserves the job's accepted-row snapshot, trends select the newest 30 jobs and display) Tj ET
+BT /F1 8.35 Tf 48 539.7999999999997 Td (them chronologically, uploads read at most the configured limit plus one byte, malformed row widths are rejected) Tj ET
+BT /F1 8.35 Tf 48 528.7999999999997 Td (while row start lines account for quoted multiline fields, and invalid/reversed date ranges return HTTP 422.) Tj ET
+BT /F1 8.35 Tf 48 517.7999999999997 Td (Regression tests were added or updated for these cases. The review session itself made no application-code) Tj ET
+BT /F1 8.35 Tf 48 506.7999999999997 Td (modifications; the post-patch suite was later run locally and passed all 109 tests.) Tj ET
+0.72 G 0.5 w 48 494.7999999999997 m 547 494.7999999999997 l S 0 G
+0.80 G 0.5 w 48 472.2999999999997 m 547 472.2999999999997 l S 0 G
+BT /F2 13 Tf 48 475.2999999999997 Td (6. What Was Verified & Remaining Limitations) Tj ET
+BT /F2 10.5 Tf 48 443.7999999999997 Td (6.1 Verified Capabilities) Tj ET
+BT /F1 8.2 Tf 58 428.7999999999997 Td (* [x] Application successfully compiles and boots on Windows with Uvicorn.) Tj ET
+BT /F1 8.2 Tf 58 418.09999999999974 Td (* [x] SQLite database tables are automatically initialized on startup.) Tj ET
+BT /F1 8.2 Tf 58 407.39999999999975 Td (* [x] Real multipart CSV uploads are parsed, decoded, and ingested.) Tj ET
+BT /F1 8.2 Tf 58 396.69999999999976 Td (* [x] Unsupported extensions \(.txt\) return HTTP 415.) Tj ET
+BT /F1 8.2 Tf 58 385.9999999999998 Td (* [x] Empty files return HTTP 400.) Tj ET
+BT /F1 8.2 Tf 58 375.2999999999998 Td (* [x] Missing required columns return descriptive validation failures.) Tj ET
+BT /F1 8.2 Tf 58 364.5999999999998 Td (* [x] Clean records are properly stored in database tables.) Tj ET
+BT /F1 8.2 Tf 58 353.8999999999998 Td (* [x] Validation errors are stored with row number, field name, error code, explanation, and original value.) Tj ET
+BT /F1 8.2 Tf 58 343.1999999999998 Td (* [x] In-file duplicate keys are rejected.) Tj ET
+BT /F1 8.2 Tf 58 332.49999999999983 Td (* [x] Database pre-existing duplicate keys are rejected.) Tj ET
+BT /F1 8.2 Tf 58 321.79999999999984 Td (* [x] Repeated uploads of identical files are audited without duplicating clean data.) Tj ET
+BT /F1 8.2 Tf 58 311.09999999999985 Td (* [x] Latest local post-fix test suite passed 109 tests with zero failures \(23 deprecation warnings in 19.91 seconds\)) Tj ET
+BT /F1 8.2 Tf 58 300.39999999999986 Td (after updating to GitHub commit 1d45be9; see Section 4.3.) Tj ET
+BT /F1 8.2 Tf 58 289.6999999999999 Td (* [x] Interactive UI with KPI cards, Chart.js trends, jobs table, error logs, and records browser is fully connected) Tj ET
+BT /F1 8.2 Tf 58 278.9999999999999 Td (to the live backend.) Tj ET
+BT /F1 8.2 Tf 58 268.2999999999999 Td (* [x] Job-scoped Clean Records \(CSV\) download endpoint \(GET /api/jobs/{id}/download/clean\) with correct headers,) Tj ET
+BT /F1 8.2 Tf 58 257.5999999999999 Td (dataset columns, CSV escaping, and HTTP 400 when 0 accepted rows.) Tj ET
+BT /F1 8.2 Tf 58 246.89999999999992 Td (* [x] Job-scoped Validation Errors \(CSV\) download endpoint \(GET /api/jobs/{id}/download/errors\) with error tracking) Tj ET
+BT /F1 8.2 Tf 58 236.19999999999993 Td (metadata, CSV escaping, and HTTP 400 when 0 errors.) Tj ET
+BT /F1 8.2 Tf 58 225.49999999999994 Td (* [x] Job-scoped Execution Summary Workbook \(Excel .xlsx\) download endpoint \(GET /api/jobs/{id}/download/summary\)) Tj ET
+BT /F1 8.2 Tf 58 214.79999999999995 Td (with Job Summary, Clean Records, Validation Errors, frozen panes, filters, number formatting, and accounting) Tj ET
+BT /F1 8.2 Tf 58 204.09999999999997 Td (reconciliation.) Tj ET
+BT /F1 8.2 Tf 58 193.39999999999998 Td (* [x] Complete UI integration in upload feedback card and Job Details modal with disabled states, tooltips, loading) Tj ET
+BT /F1 8.2 Tf 58 182.7 Td (feedback, and double-click prevention.) Tj ET
+BT /F1 8.2 Tf 58 172 Td (* [x] Destructive Data Reset \(POST /api/dashboard/reset-data\) with concurrency lock \(threading.Lock\(\)\), foreign-key) Tj ET
+BT /F1 8.2 Tf 58 161.3 Td (safe cascade deletion, physical file unlinking with path traversal protection, transaction rollback, and schema) Tj ET
+BT /F1 8.2 Tf 58 150.60000000000002 Td (preservation.) Tj ET
+BT /F1 8.2 Tf 58 139.90000000000003 Td (* [x] End-to-end date filtering across all 5 telemetry endpoints \(/api/dashboard/summary, /api/dashboard/trends,) Tj ET
+BT /F1 8.2 Tf 58 129.20000000000005 Td (/api/jobs, /api/records, /api/errors\) with SQL joins and strict zero-state displays.) Tj ET
+BT /F1 8.2 Tf 58 118.50000000000004 Td (* [x] Data quality score and KPI row accounting invariant: Total Records = Accepted + Rejected + Duplicates +) Tj ET
+BT /F1 8.2 Tf 58 107.80000000000004 Td (Skipped; the score is 0.0% \(No data\) when the total is 0.) Tj ET
+BT /F1 8.2 Tf 58 97.10000000000004 Td (* [x] Compact iPhone-style slide-to-reset control \(210px x 42px\), with a circular thumb, chevron icon, touch/mouse) Tj ET
+BT /F1 8.2 Tf 58 86.40000000000003 Td (dragging, an 85% threshold, and a confirmation modal.) Tj ET
+BT /F1 8.2 Tf 58 75.70000000000003 Td (* [x] Dual themes \(Warm Ivory & Dark Espresso\) with WCAG AA compliant contrast on dataset select, drop zone, schema) Tj ET
+BT /F1 8.2 Tf 58 65.00000000000003 Td (boxes, and disabled buttons.) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 7 of 13) Tj ET
 
 endstream
@@ -555,80 +553,75 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 21 0 R >>
 endobj
 21 0 obj
-<< /Length 6500 >>
+<< /Length 6796 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-0.12 G 0.3 w 48 782 m 547 782 l S 0 G
-BT /F2 13 Tf 48 785 Td (7. Destructive Data Reset Architecture \(POST /api/dashboard/reset-data\)) Tj ET
-BT /F2 10.5 Tf 48 754.5 Td (7.1 Objective & Safety Guarantees) Tj ET
-BT /F1 8.35 Tf 48 739.5 Td (In real data engineering operations, operators require the ability to purge staging or test data to reset the platform) Tj ET
-BT /F1 8.35 Tf 48 728.5 Td (state without administrative intervention or dropping the database schema. The destructive data reset was engineered to) Tj ET
-BT /F1 8.35 Tf 48 717.5 Td (meet the following non-negotiable safety criteria:) Tj ET
-BT /F1 8.2 Tf 68 706.5 Td (1. Zero Schema Modification: Does not drop tables, alter column definitions, or delete the SQLite database file) Tj ET
-BT /F1 8.2 Tf 68 695.8 Td (\(edvexa_data.db\).) Tj ET
-BT /F1 8.2 Tf 68 685.0999999999999 Td (2. Atomic Transactional Rollback: All deletions execute inside an explicit SQLAlchemy transaction. If any stage fails,) Tj ET
-BT /F1 8.2 Tf 68 674.3999999999999 Td (the entire transaction rolls back via db.rollback\(\).) Tj ET
-BT /F1 8.2 Tf 68 663.6999999999998 Td (3. Concurrency Locking: Employs an in-process re-entrant lock \(threading.Lock\(\)\) preventing concurrent upload or reset) Tj ET
-BT /F1 8.2 Tf 68 652.9999999999998 Td (requests from causing race conditions or deadlocks.) Tj ET
-BT /F1 8.2 Tf 68 642.2999999999997 Td (4. Physical File Unlinking: Cleans up stored uploaded CSV files in settings.UPLOADS_DIR using path-traversal safeguards) Tj ET
-BT /F1 8.2 Tf 68 631.5999999999997 Td (\(file_path.resolve\(\).is_relative_to\(upload_dir_resolved\)\).) Tj ET
-BT /F1 8.2 Tf 68 620.8999999999996 Td (5. Separation from Preference Resets: POST /api/dashboard/reset-preferences resets client UI preferences \(theme,) Tj ET
-BT /F1 8.2 Tf 68 610.1999999999996 Td (filters\), whereas POST /api/dashboard/reset-data performs the permanent data purge.) Tj ET
-BT /F2 10.5 Tf 48 589.9999999999995 Td (7.2 Foreign-Key Safe Deletion Order) Tj ET
-BT /F1 8.35 Tf 48 574.9999999999995 Td (SQLite enforces foreign key constraints. The deletion sequence must cascade from dependent child tables to parent) Tj ET
-BT /F1 8.35 Tf 48 563.9999999999995 Td (entities:) Tj ET
-BT /F3 7.1 Tf 48 552.9999999999995 Td (# 1. Dependent clean records staged per job) Tj ET
-BT /F3 7.1 Tf 48 543.9999999999995 Td (deleted_records = db.query\(JobCleanRecord\).delete\(synchronize_session=False\)) Tj ET
-BT /F3 7.1 Tf 48 530.4999999999995 Td (# 2. Validation error itemizations linked to jobs) Tj ET
-BT /F3 7.1 Tf 48 521.4999999999995 Td (deleted_errors = db.query\(ValidationError\).delete\(synchronize_session=False\)) Tj ET
-BT /F3 7.1 Tf 48 507.99999999999955 Td (# 3. Domain business records) Tj ET
-BT /F3 7.1 Tf 48 498.99999999999955 Td (deleted_customers = db.query\(Customer\).delete\(synchronize_session=False\)) Tj ET
-BT /F3 7.1 Tf 48 489.99999999999955 Td (deleted_sales = db.query\(Sale\).delete\(synchronize_session=False\)) Tj ET
-BT /F3 7.1 Tf 48 480.99999999999955 Td (deleted_inventory = db.query\(Inventory\).delete\(synchronize_session=False\)) Tj ET
-BT /F3 7.1 Tf 48 467.49999999999955 Td (# 4. Parent processing jobs) Tj ET
-BT /F3 7.1 Tf 48 458.49999999999955 Td (deleted_jobs = db.query\(ProcessingJob\).delete\(synchronize_session=False\)) Tj ET
-BT /F3 7.1 Tf 48 444.99999999999955 Td (# 5. Commit batch atomically) Tj ET
-BT /F3 7.1 Tf 48 435.99999999999955 Td (db.commit\(\)) Tj ET
-BT /F2 10.5 Tf 48 417.49999999999955 Td (7.3 API Response Contract) Tj ET
-BT /F1 8.35 Tf 48 402.49999999999955 Td (Upon successful execution, the endpoint returns an HTTP 200 payload detailing the exact counts of purged entities:) Tj ET
-BT /F3 7.1 Tf 48 391.49999999999955 Td ({) Tj ET
-BT /F3 7.1 Tf 48 382.49999999999955 Td ("status": "success",) Tj ET
-BT /F3 7.1 Tf 48 373.49999999999955 Td ("message": "All uploaded data, jobs, validation errors, clean records, and physical files have been permanently) Tj ET
-BT /F3 7.1 Tf 48 364.49999999999955 Td (cleared. Database schema preserved.",) Tj ET
-BT /F3 7.1 Tf 48 355.49999999999955 Td ("deleted_counts": {) Tj ET
-BT /F3 7.1 Tf 48 346.49999999999955 Td ("processing_jobs": 12,) Tj ET
-BT /F3 7.1 Tf 48 337.49999999999955 Td ("validation_errors": 48,) Tj ET
-BT /F3 7.1 Tf 48 328.49999999999955 Td ("job_clean_records": 34,) Tj ET
-BT /F3 7.1 Tf 48 319.49999999999955 Td ("customers": 15,) Tj ET
-BT /F3 7.1 Tf 48 310.49999999999955 Td ("sales": 10,) Tj ET
-BT /F3 7.1 Tf 48 301.49999999999955 Td ("inventory": 9,) Tj ET
-BT /F3 7.1 Tf 48 292.49999999999955 Td ("physical_files_removed": 12) Tj ET
-BT /F3 7.1 Tf 48 283.49999999999955 Td (},) Tj ET
-BT /F3 7.1 Tf 48 274.49999999999955 Td ("timestamp": "2026-10-25T04:20:00.000000") Tj ET
-BT /F3 7.1 Tf 48 265.49999999999955 Td (}) Tj ET
-BT /F2 10.5 Tf 48 246.99999999999955 Td (7.4 Idempotent Empty-Database Handling) Tj ET
-BT /F1 8.35 Tf 48 231.99999999999955 Td (If an operator triggers the reset action when the database already contains 0 records, the API returns a graceful HTTP) Tj ET
-BT /F1 8.35 Tf 48 220.99999999999955 Td (200 rather than a 404 error:) Tj ET
-BT /F3 7.1 Tf 48 209.99999999999955 Td ({) Tj ET
-BT /F3 7.1 Tf 48 200.99999999999955 Td ("status": "success",) Tj ET
-BT /F3 7.1 Tf 48 191.99999999999955 Td ("message": "The application data is already empty.",) Tj ET
-BT /F3 7.1 Tf 48 182.99999999999955 Td ("deleted": {) Tj ET
-BT /F3 7.1 Tf 48 173.99999999999955 Td ("processing_jobs": 0,) Tj ET
-BT /F3 7.1 Tf 48 164.99999999999955 Td ("validation_errors": 0,) Tj ET
-BT /F3 7.1 Tf 48 155.99999999999955 Td ("job_clean_records": 0,) Tj ET
-BT /F3 7.1 Tf 48 146.99999999999955 Td ("customers": 0,) Tj ET
-BT /F3 7.1 Tf 48 137.99999999999955 Td ("sales": 0,) Tj ET
-BT /F3 7.1 Tf 48 128.99999999999955 Td ("inventory": 0,) Tj ET
-BT /F3 7.1 Tf 48 119.99999999999955 Td ("physical_files_removed": 0) Tj ET
-BT /F3 7.1 Tf 48 110.99999999999955 Td (},) Tj ET
-BT /F3 7.1 Tf 48 101.99999999999955 Td ("deleted_counts": {) Tj ET
-BT /F3 7.1 Tf 48 92.99999999999955 Td ("processing_jobs": 0,) Tj ET
-BT /F3 7.1 Tf 48 83.99999999999955 Td ("validation_errors": 0,) Tj ET
-BT /F3 7.1 Tf 48 74.99999999999955 Td ("job_clean_records": 0,) Tj ET
-BT /F3 7.1 Tf 48 65.99999999999955 Td ("customers": 0,) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.2 Tf 58 785 Td (* [x] Dynamic real-event notification store in localStorage tracking uploads, downloads, reprocessing, and resets) Tj ET
+BT /F1 8.2 Tf 58 774.3 Td (with auto-hiding badge.) Tj ET
+BT /F2 10.5 Tf 48 754.0999999999999 Td (6.2 Remaining Limitations & Future Roadmaps) Tj ET
+BT /F1 8.2 Tf 58 739.0999999999999 Td (1. Background Job Queuing: Processing is currently synchronous. For files exceeding 100,000 rows, a message queue) Tj ET
+BT /F1 8.2 Tf 58 728.3999999999999 Td (\(e.g. Celery / RabbitMQ / Redis\) should be introduced with SSE \(Server-Sent Events\) or WebSockets for live progress) Tj ET
+BT /F1 8.2 Tf 58 717.6999999999998 Td (tracking.) Tj ET
+BT /F1 8.2 Tf 58 706.9999999999998 Td (2. User Authentication: Auth was intentionally omitted per assignment specifications. Production environments would) Tj ET
+BT /F1 8.2 Tf 58 696.2999999999997 Td (require OAuth2/JWT authentication.) Tj ET
+BT /F1 8.2 Tf 58 685.5999999999997 Td (3. Complex Column Mapping: The platform currently expects standard normalized headers. A visual column-mapping wizard) Tj ET
+BT /F1 8.2 Tf 58 674.8999999999996 Td (for mismatched legacy CSV headers could be added in a future milestone.) Tj ET
+0.72 G 0.5 w 48 658.6999999999996 m 547 658.6999999999996 l S 0 G
+0.80 G 0.5 w 48 636.1999999999996 m 547 636.1999999999996 l S 0 G
+BT /F2 13 Tf 48 639.1999999999996 Td (7. Destructive Data Reset Architecture \(POST /api/dashboard/reset-data\)) Tj ET
+BT /F2 10.5 Tf 48 607.6999999999996 Td (7.1 Objective & Safety Guarantees) Tj ET
+BT /F1 8.35 Tf 48 592.6999999999996 Td (In real data engineering operations, operators require the ability to purge staging or test data to reset the) Tj ET
+BT /F1 8.35 Tf 48 581.6999999999996 Td (platform state without administrative intervention or dropping the database schema. The destructive data reset was) Tj ET
+BT /F1 8.35 Tf 48 570.6999999999996 Td (engineered to meet the following non-negotiable safety criteria:) Tj ET
+BT /F1 8.2 Tf 58 559.6999999999996 Td (1. Zero Schema Modification: Does not drop tables, alter column definitions, or delete the SQLite database file) Tj ET
+BT /F1 8.2 Tf 58 548.9999999999995 Td (\(edvexa_data.db\).) Tj ET
+BT /F1 8.2 Tf 58 538.2999999999995 Td (2. Atomic Transactional Rollback: All deletions execute inside an explicit SQLAlchemy transaction. If any stage) Tj ET
+BT /F1 8.2 Tf 58 527.5999999999995 Td (fails, the entire transaction rolls back via db.rollback\(\).) Tj ET
+BT /F1 8.2 Tf 58 516.8999999999994 Td (3. Concurrency Locking: Employs an in-process re-entrant lock \(threading.Lock\(\)\) preventing concurrent upload or) Tj ET
+BT /F1 8.2 Tf 58 506.1999999999994 Td (reset requests from causing race conditions or deadlocks.) Tj ET
+BT /F1 8.2 Tf 58 495.49999999999943 Td (4. Physical File Unlinking: Cleans up stored uploaded CSV files in settings.UPLOADS_DIR using path-traversal) Tj ET
+BT /F1 8.2 Tf 58 484.79999999999944 Td (safeguards \(file_path.resolve\(\).is_relative_to\(upload_dir_resolved\)\).) Tj ET
+BT /F1 8.2 Tf 58 474.09999999999945 Td (5. Separation from Preference Resets: POST /api/dashboard/reset-preferences resets client UI preferences \(theme,) Tj ET
+BT /F1 8.2 Tf 58 463.39999999999947 Td (filters\), whereas POST /api/dashboard/reset-data performs the permanent data purge.) Tj ET
+BT /F2 10.5 Tf 48 443.1999999999995 Td (7.2 Foreign-Key Safe Deletion Order) Tj ET
+BT /F1 8.35 Tf 48 428.1999999999995 Td (SQLite enforces foreign key constraints. The deletion sequence must cascade from dependent child tables to parent) Tj ET
+BT /F1 8.35 Tf 48 417.1999999999995 Td (entities:) Tj ET
+BT /F3 7.1 Tf 48 406.1999999999995 Td (# 1. Dependent clean records staged per job) Tj ET
+BT /F3 7.1 Tf 48 397.1999999999995 Td (deleted_records = db.query\(JobCleanRecord\).delete\(synchronize_session=False\)) Tj ET
+BT /F3 7.1 Tf 48 383.6999999999995 Td (# 2. Validation error itemizations linked to jobs) Tj ET
+BT /F3 7.1 Tf 48 374.6999999999995 Td (deleted_errors = db.query\(ValidationError\).delete\(synchronize_session=False\)) Tj ET
+BT /F3 7.1 Tf 48 361.1999999999995 Td (# 3. Domain business records) Tj ET
+BT /F3 7.1 Tf 48 352.1999999999995 Td (deleted_customers = db.query\(Customer\).delete\(synchronize_session=False\)) Tj ET
+BT /F3 7.1 Tf 48 343.1999999999995 Td (deleted_sales = db.query\(Sale\).delete\(synchronize_session=False\)) Tj ET
+BT /F3 7.1 Tf 48 334.1999999999995 Td (deleted_inventory = db.query\(Inventory\).delete\(synchronize_session=False\)) Tj ET
+BT /F3 7.1 Tf 48 320.6999999999995 Td (# 4. Parent processing jobs) Tj ET
+BT /F3 7.1 Tf 48 311.6999999999995 Td (deleted_jobs = db.query\(ProcessingJob\).delete\(synchronize_session=False\)) Tj ET
+BT /F3 7.1 Tf 48 298.1999999999995 Td (# 5. Commit batch atomically) Tj ET
+BT /F3 7.1 Tf 48 289.1999999999995 Td (db.commit\(\)) Tj ET
+BT /F2 10.5 Tf 48 270.6999999999995 Td (7.3 API Response Contract) Tj ET
+BT /F1 8.35 Tf 48 255.69999999999948 Td (Upon successful execution, the endpoint returns an HTTP 200 payload detailing the exact counts of purged entities:) Tj ET
+BT /F3 7.1 Tf 48 244.69999999999948 Td ({) Tj ET
+BT /F3 7.1 Tf 48 235.69999999999948 Td ("status": "success",) Tj ET
+BT /F3 7.1 Tf 48 226.69999999999948 Td ("message": "All uploaded data, jobs, validation errors, clean records, and physical files have been permanently) Tj ET
+BT /F3 7.1 Tf 48 217.69999999999948 Td (cleared. Database schema preserved.",) Tj ET
+BT /F3 7.1 Tf 48 208.69999999999948 Td ("deleted_counts": {) Tj ET
+BT /F3 7.1 Tf 48 199.69999999999948 Td ("processing_jobs": 12,) Tj ET
+BT /F3 7.1 Tf 48 190.69999999999948 Td ("validation_errors": 48,) Tj ET
+BT /F3 7.1 Tf 48 181.69999999999948 Td ("job_clean_records": 34,) Tj ET
+BT /F3 7.1 Tf 48 172.69999999999948 Td ("customers": 15,) Tj ET
+BT /F3 7.1 Tf 48 163.69999999999948 Td ("sales": 10,) Tj ET
+BT /F3 7.1 Tf 48 154.69999999999948 Td ("inventory": 9,) Tj ET
+BT /F3 7.1 Tf 48 145.69999999999948 Td ("physical_files_removed": 12) Tj ET
+BT /F3 7.1 Tf 48 136.69999999999948 Td (},) Tj ET
+BT /F3 7.1 Tf 48 127.69999999999948 Td ("timestamp": "2026-10-25T04:20:00.000000") Tj ET
+BT /F3 7.1 Tf 48 118.69999999999948 Td (}) Tj ET
+BT /F2 10.5 Tf 48 100.19999999999948 Td (7.4 Idempotent Empty-Database Handling) Tj ET
+BT /F1 8.35 Tf 48 85.19999999999948 Td (If an operator triggers the reset action when the database already contains 0 records, the API returns a graceful) Tj ET
+BT /F1 8.35 Tf 48 74.19999999999948 Td (HTTP 200 rather than a 404 error:) Tj ET
+BT /F3 7.1 Tf 48 63.19999999999948 Td ({) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 8 of 13) Tj ET
 
 endstream
@@ -637,72 +630,78 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 23 0 R >>
 endobj
 23 0 obj
-<< /Length 5973 >>
+<< /Length 5948 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F3 7.1 Tf 48 785 Td ("sales": 0,) Tj ET
-BT /F3 7.1 Tf 48 776 Td ("inventory": 0,) Tj ET
-BT /F3 7.1 Tf 48 767 Td ("physical_files_removed": 0) Tj ET
-BT /F3 7.1 Tf 48 758 Td (},) Tj ET
-BT /F3 7.1 Tf 48 749 Td ("database_schema_preserved": true) Tj ET
-BT /F3 7.1 Tf 48 740 Td (}) Tj ET
-BT /F1 8.35 Tf 48 731 Td (The frontend slide-to-reset interaction detects this response and provides clear tactile feedback \("Already Empty"\),) Tj ET
-BT /F1 8.35 Tf 48 720 Td (avoiding confusing warning dialogues.) Tj ET
-BT /F2 10.5 Tf 48 699.5 Td (7.5 Process Reload & Diagnostic Resolution) Tj ET
-BT /F1 8.35 Tf 48 684.5 Td (During long-running local development sessions, the initial HTTP 404 observed on POST /api/dashboard/reset-data was) Tj ET
-BT /F1 8.35 Tf 48 673.5 Td (diagnosed as a stale in-memory Uvicorn worker process that had been launched without --reload before the router) Tj ET
-BT /F1 8.35 Tf 48 662.5 Td (endpoint was bound. The runner configuration was updated to always pass --reload during development, ensuring dynamic) Tj ET
-BT /F1 8.35 Tf 48 651.5 Td (module synchronisation. Robust frontend fallback parsing was also implemented to safely catch non-JSON network) Tj ET
-BT /F1 8.35 Tf 48 640.5 Td (responses.) Tj ET
-0.72 G 0.5 w 48 624 m 547 624 l S 0 G
-0.12 G 0.3 w 48 601.5 m 547 601.5 l S 0 G
-BT /F2 13 Tf 48 604.5 Td (8. End-to-End Date-Range Filtering Architecture) Tj ET
-BT /F2 10.5 Tf 48 574 Td (8.1 Unified Date Filtering Protocol) Tj ET
-BT /F1 8.35 Tf 48 559 Td (To support historical data auditing, all 5 primary telemetry endpoints accept optional start_date and end_date query) Tj ET
-BT /F1 8.35 Tf 48 548 Td (parameters \(in ISO format YYYY-MM-DD\):) Tj ET
-BT /F1 8.2 Tf 68 537 Td (* GET /api/dashboard/summary?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
-BT /F1 8.2 Tf 68 526.3 Td (* GET /api/dashboard/trends?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
-BT /F1 8.2 Tf 68 515.5999999999999 Td (* GET /api/jobs?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
-BT /F1 8.2 Tf 68 504.8999999999999 Td (* GET /api/records?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
-BT /F1 8.2 Tf 68 494.19999999999993 Td (* GET /api/errors?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
-BT /F2 10.5 Tf 48 473.99999999999994 Td (8.2 Relational Joining for Records and Errors) Tj ET
-BT /F1 8.35 Tf 48 458.99999999999994 Td (Because JobCleanRecord and ValidationError represent atomic audit entries created during job execution, their timestamp) Tj ET
-BT /F1 8.35 Tf 48 447.99999999999994 Td (filtering is joined against the parent ProcessingJob.started_at:) Tj ET
-BT /F3 7.1 Tf 48 436.99999999999994 Td (# Clean Records filtering) Tj ET
-BT /F3 7.1 Tf 48 427.99999999999994 Td (query = db.query\(JobCleanRecord\).join\(ProcessingJob, JobCleanRecord.job_id == ProcessingJob.id\)) Tj ET
-BT /F3 7.1 Tf 48 418.99999999999994 Td (if start_dt:) Tj ET
-BT /F3 7.1 Tf 48 409.99999999999994 Td (query = query.filter\(ProcessingJob.started_at >= start_dt\)) Tj ET
-BT /F3 7.1 Tf 48 400.99999999999994 Td (if end_dt:) Tj ET
-BT /F3 7.1 Tf 48 391.99999999999994 Td (query = query.filter\(ProcessingJob.started_at <= end_dt\)) Tj ET
-BT /F3 7.1 Tf 48 378.49999999999994 Td (# Validation Errors filtering) Tj ET
-BT /F3 7.1 Tf 48 369.49999999999994 Td (query = db.query\(ValidationError\).join\(ProcessingJob, ValidationError.job_id == ProcessingJob.id\)) Tj ET
-BT /F3 7.1 Tf 48 360.49999999999994 Td (if start_dt:) Tj ET
-BT /F3 7.1 Tf 48 351.49999999999994 Td (query = query.filter\(ProcessingJob.started_at >= start_dt\)) Tj ET
-BT /F3 7.1 Tf 48 342.49999999999994 Td (if end_dt:) Tj ET
-BT /F3 7.1 Tf 48 333.49999999999994 Td (query = query.filter\(ProcessingJob.started_at <= end_dt\)) Tj ET
-BT /F2 10.5 Tf 48 314.99999999999994 Td (8.3 Strict Empty-State Invariants) Tj ET
-BT /F1 8.35 Tf 48 299.99999999999994 Td (When a date range filter yields zero matching jobs:) Tj ET
-BT /F1 8.2 Tf 68 288.99999999999994 Td (1. Aggregations: All tallies evaluate strictly to 0 \(Total Records = 0, Accepted = 0, Rejected = 0, Duplicates = 0,) Tj ET
-BT /F1 8.2 Tf 68 278.29999999999995 Td (Skipped = 0\).) Tj ET
-BT /F1 8.2 Tf 68 267.59999999999997 Td (2. Quality Rate: Returns 0.0% with a prominent No data badge rather than misleading percentage figures.) Tj ET
-BT /F1 8.2 Tf 68 256.9 Td (3. Donut & Trends Charts: Donut center displays 0 with greyed tracks; trend line drops to 0.) Tj ET
-BT /F1 8.2 Tf 68 246.2 Td (4. Honest Empty Table Notices:) Tj ET
-BT /F1 8.1 Tf 94 235.5 Td (  - Jobs Table: "No processing jobs found for this date range.") Tj ET
-BT /F1 8.1 Tf 94 225 Td (  - Errors Table: "No validation errors found for this date range.") Tj ET
-BT /F1 8.1 Tf 94 214.5 Td (  - Clean Records Table: "No clean {dataset} records found for this date range.") Tj ET
-0.72 G 0.5 w 48 198.5 m 547 198.5 l S 0 G
-0.12 G 0.3 w 48 176 m 547 176 l S 0 G
-BT /F2 13 Tf 48 179 Td (9. Data Quality Score & Row Accounting Invariants) Tj ET
-BT /F2 10.5 Tf 48 148.5 Td (9.1 Mathematical Accounting Invariant) Tj ET
-BT /F1 8.35 Tf 48 133.5 Td (Every row processed by the platform is deterministically classified into exactly one mutually exclusive bucket: Row) Tj ET
-BT /F1 8.35 Tf 48 122.5 Td (accounting rule: Total records processed = accepted records + rejected records + duplicate records + skipped records.) Tj ET
-BT /F1 8.35 Tf 48 111.5 Td (No row can be both rejected and counted as a duplicate. An assertion verifies this identity prior to every database) Tj ET
-BT /F1 8.35 Tf 48 100.5 Td (commit.) Tj ET
-BT /F2 10.5 Tf 48 80 Td (9.2 Quality Score Formula) Tj ET
-BT /F1 8.35 Tf 48 65 Td (The platform calculates data quality score using the standard enterprise ratio: Quality Score formula: When total) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F3 7.1 Tf 48 785 Td ("status": "success",) Tj ET
+BT /F3 7.1 Tf 48 776 Td ("message": "The application data is already empty.",) Tj ET
+BT /F3 7.1 Tf 48 767 Td ("deleted": {) Tj ET
+BT /F3 7.1 Tf 48 758 Td ("processing_jobs": 0,) Tj ET
+BT /F3 7.1 Tf 48 749 Td ("validation_errors": 0,) Tj ET
+BT /F3 7.1 Tf 48 740 Td ("job_clean_records": 0,) Tj ET
+BT /F3 7.1 Tf 48 731 Td ("customers": 0,) Tj ET
+BT /F3 7.1 Tf 48 722 Td ("sales": 0,) Tj ET
+BT /F3 7.1 Tf 48 713 Td ("inventory": 0,) Tj ET
+BT /F3 7.1 Tf 48 704 Td ("physical_files_removed": 0) Tj ET
+BT /F3 7.1 Tf 48 695 Td (},) Tj ET
+BT /F3 7.1 Tf 48 686 Td ("deleted_counts": {) Tj ET
+BT /F3 7.1 Tf 48 677 Td ("processing_jobs": 0,) Tj ET
+BT /F3 7.1 Tf 48 668 Td ("validation_errors": 0,) Tj ET
+BT /F3 7.1 Tf 48 659 Td ("job_clean_records": 0,) Tj ET
+BT /F3 7.1 Tf 48 650 Td ("customers": 0,) Tj ET
+BT /F3 7.1 Tf 48 641 Td ("sales": 0,) Tj ET
+BT /F3 7.1 Tf 48 632 Td ("inventory": 0,) Tj ET
+BT /F3 7.1 Tf 48 623 Td ("physical_files_removed": 0) Tj ET
+BT /F3 7.1 Tf 48 614 Td (},) Tj ET
+BT /F3 7.1 Tf 48 605 Td ("database_schema_preserved": true) Tj ET
+BT /F3 7.1 Tf 48 596 Td (}) Tj ET
+BT /F1 8.35 Tf 48 587 Td (The frontend slide-to-reset interaction detects this response and provides clear tactile feedback \("Already Empty"\),) Tj ET
+BT /F1 8.35 Tf 48 576 Td (avoiding confusing warning dialogues.) Tj ET
+BT /F2 10.5 Tf 48 555.5 Td (7.5 Process Reload & Diagnostic Resolution) Tj ET
+BT /F1 8.35 Tf 48 540.5 Td (During long-running local development sessions, the initial HTTP 404 observed on POST /api/dashboard/reset-data was) Tj ET
+BT /F1 8.35 Tf 48 529.5 Td (diagnosed as a stale in-memory Uvicorn worker process that had been launched without --reload before the router) Tj ET
+BT /F1 8.35 Tf 48 518.5 Td (endpoint was bound. The runner configuration was updated to always pass --reload during development, ensuring dynamic) Tj ET
+BT /F1 8.35 Tf 48 507.5 Td (module synchronisation. Robust frontend fallback parsing was also implemented to safely catch non-JSON network) Tj ET
+BT /F1 8.35 Tf 48 496.5 Td (responses.) Tj ET
+0.72 G 0.5 w 48 480 m 547 480 l S 0 G
+0.80 G 0.5 w 48 457.5 m 547 457.5 l S 0 G
+BT /F2 13 Tf 48 460.5 Td (8. End-to-End Date-Range Filtering Architecture) Tj ET
+BT /F2 10.5 Tf 48 429 Td (8.1 Unified Date Filtering Protocol) Tj ET
+BT /F1 8.35 Tf 48 414 Td (To support historical data auditing, all 5 primary telemetry endpoints accept optional start_date and end_date query) Tj ET
+BT /F1 8.35 Tf 48 403 Td (parameters \(in ISO format YYYY-MM-DD\):) Tj ET
+BT /F1 8.2 Tf 58 392 Td (* GET /api/dashboard/summary?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
+BT /F1 8.2 Tf 58 381.3 Td (* GET /api/dashboard/trends?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
+BT /F1 8.2 Tf 58 370.6 Td (* GET /api/jobs?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
+BT /F1 8.2 Tf 58 359.90000000000003 Td (* GET /api/records?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
+BT /F1 8.2 Tf 58 349.20000000000005 Td (* GET /api/errors?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD) Tj ET
+BT /F2 10.5 Tf 48 329.00000000000006 Td (8.2 Relational Joining for Records and Errors) Tj ET
+BT /F1 8.35 Tf 48 314.00000000000006 Td (Because JobCleanRecord and ValidationError represent atomic audit entries created during job execution, their) Tj ET
+BT /F1 8.35 Tf 48 303.00000000000006 Td (timestamp filtering is joined against the parent ProcessingJob.started_at:) Tj ET
+BT /F3 7.1 Tf 48 292.00000000000006 Td (# Clean Records filtering) Tj ET
+BT /F3 7.1 Tf 48 283.00000000000006 Td (query = db.query\(JobCleanRecord\).join\(ProcessingJob, JobCleanRecord.job_id == ProcessingJob.id\)) Tj ET
+BT /F3 7.1 Tf 48 274.00000000000006 Td (if start_dt:) Tj ET
+BT /F3 7.1 Tf 48 265.00000000000006 Td (query = query.filter\(ProcessingJob.started_at >= start_dt\)) Tj ET
+BT /F3 7.1 Tf 48 256.00000000000006 Td (if end_dt:) Tj ET
+BT /F3 7.1 Tf 48 247.00000000000006 Td (query = query.filter\(ProcessingJob.started_at <= end_dt\)) Tj ET
+BT /F3 7.1 Tf 48 233.50000000000006 Td (# Validation Errors filtering) Tj ET
+BT /F3 7.1 Tf 48 224.50000000000006 Td (query = db.query\(ValidationError\).join\(ProcessingJob, ValidationError.job_id == ProcessingJob.id\)) Tj ET
+BT /F3 7.1 Tf 48 215.50000000000006 Td (if start_dt:) Tj ET
+BT /F3 7.1 Tf 48 206.50000000000006 Td (query = query.filter\(ProcessingJob.started_at >= start_dt\)) Tj ET
+BT /F3 7.1 Tf 48 197.50000000000006 Td (if end_dt:) Tj ET
+BT /F3 7.1 Tf 48 188.50000000000006 Td (query = query.filter\(ProcessingJob.started_at <= end_dt\)) Tj ET
+BT /F2 10.5 Tf 48 170.00000000000006 Td (8.3 Strict Empty-State Invariants) Tj ET
+BT /F1 8.35 Tf 48 155.00000000000006 Td (When a date range filter yields zero matching jobs:) Tj ET
+BT /F1 8.2 Tf 58 144.00000000000006 Td (1. Aggregations: All tallies evaluate strictly to 0 \(Total Records = 0, Accepted = 0, Rejected = 0, Duplicates = 0,) Tj ET
+BT /F1 8.2 Tf 58 133.30000000000007 Td (Skipped = 0\).) Tj ET
+BT /F1 8.2 Tf 58 122.60000000000007 Td (2. Quality Rate: Returns 0.0% with a prominent No data badge rather than misleading percentage figures.) Tj ET
+BT /F1 8.2 Tf 58 111.90000000000006 Td (3. Donut & Trends Charts: Donut center displays 0 with greyed tracks; trend line drops to 0.) Tj ET
+BT /F1 8.2 Tf 58 101.20000000000006 Td (4. Honest Empty Table Notices:) Tj ET
+BT /F1 8.1 Tf 76 90.50000000000006 Td (  - Jobs Table: "No processing jobs found for this date range.") Tj ET
+BT /F1 8.1 Tf 76 80.00000000000006 Td (  - Errors Table: "No validation errors found for this date range.") Tj ET
+BT /F1 8.1 Tf 76 69.50000000000006 Td (  - Clean Records Table: "No clean {dataset} records found for this date range.") Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 9 of 13) Tj ET
 
 endstream
@@ -711,73 +710,70 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 25 0 R >>
 endobj
 25 0 obj
-<< /Length 7025 >>
+<< /Length 6257 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F1 8.35 Tf 48 785 Td (records processed is greater than zero, divide accepted records by total records processed and multiply by 100. When no) Tj ET
-BT /F1 8.35 Tf 48 774 Td (records have been processed, show the application's no-data state instead of a historical comparison. Clicking the Data) Tj ET
-BT /F1 8.35 Tf 48 763 Td (Quality Score KPI card opens an interactive methodology modal displaying the current values for accepted records,) Tj ET
-BT /F1 8.35 Tf 48 752 Td (rejected records, duplicate keys, total rows, and the verified mathematical equation.) Tj ET
-0.72 G 0.5 w 48 735.5 m 547 735.5 l S 0 G
-0.12 G 0.3 w 48 713 m 547 713 l S 0 G
-BT /F2 13 Tf 48 716 Td (10. Dynamic Real-Time Event Notification Architecture) Tj ET
-BT /F2 10.5 Tf 48 685.5 Td (10.1 Real Event Store) Tj ET
-BT /F1 8.35 Tf 48 670.5 Td (The static dummy notification counter was replaced by a dynamic, event-driven notification store managed via) Tj ET
-BT /F1 8.35 Tf 48 659.5 Td (App.notifications and synchronized with browser localStorage \(edvexa_notifications\):) Tj ET
-BT /F1 8.2 Tf 68 648.5 Td (* Events Tracked:) Tj ET
-BT /F1 8.1 Tf 92 637.8 Td (  - UPLOAD_COMPLETED: Logged when a CSV ingestion run completes, including dataset type, row count, accepted records,) Tj ET
-BT /F1 8.1 Tf 92 627.3 Td (and error counts.) Tj ET
-BT /F1 8.1 Tf 92 616.8 Td (  - UPLOAD_FAILED: Logged when an upload fails validation or structural parsing.) Tj ET
-BT /F1 8.1 Tf 92 606.3 Td (  - EXPORT_DOWNLOADED: Logged when Clean CSV, Errors CSV, or Excel .xlsx reports are exported.) Tj ET
-BT /F1 8.1 Tf 92 595.8 Td (  - JOB_REPROCESSED: Logged when a historical job is re-executed.) Tj ET
-BT /F1 8.1 Tf 92 585.3 Td (  - DATA_RESET: Logged when destructive data reset is confirmed and executed.) Tj ET
-BT /F1 8.2 Tf 68 574.8 Td (* Auto-Hiding Unread Badge: If unread_count === 0, the #notificationBadge element receives the d-none class, cleanly) Tj ET
-BT /F1 8.2 Tf 68 564.0999999999999 Td (removing the badge from the UI.) Tj ET
-BT /F1 8.2 Tf 68 553.3999999999999 Td (* User Actions: The notification menu provides "Mark all as read" and "Clear all" actions with live DOM updates.) Tj ET
-0.72 G 0.5 w 48 537.1999999999998 m 547 537.1999999999998 l S 0 G
-0.12 G 0.3 w 48 514.6999999999998 m 547 514.6999999999998 l S 0 G
-BT /F2 13 Tf 48 517.6999999999998 Td (11. Dual Themes, WCAG AA Contrast Compliance & iPhone-Style Slide-to-Reset) Tj ET
-BT /F2 10.5 Tf 48 487.1999999999998 Td (11.1 Palette & Typography Specifications) Tj ET
-BT /F1 8.35 Tf 48 472.1999999999998 Td (The interface implements two curated color palettes designed for data density and long-session visual comfort:) Tj ET
-BT /F1 8.2 Tf 68 461.1999999999998 Td (* Default Light Theme \(Warm Ivory\):) Tj ET
-BT /F1 8.1 Tf 92 450.49999999999983 Td (  - Surface Background: Warm Ivory #FAF7F1) Tj ET
-BT /F1 8.1 Tf 92 439.99999999999983 Td (  - Main Content Background: #FFFEFC) Tj ET
-BT /F1 8.1 Tf 92 429.49999999999983 Td (  - Sidebar Background: Soft Oatmeal #F4EEE4) Tj ET
-BT /F1 8.1 Tf 92 418.99999999999983 Td (  - Card Surfaces: Pure White #FFFFFF with warm border #EADECB) Tj ET
-BT /F1 8.1 Tf 92 408.49999999999983 Td (  - Typography: Primary Charcoal #1A1917, Muted Text #6B655B) Tj ET
-BT /F1 8.1 Tf 92 397.99999999999983 Td (  - Accent / Primary Action: Warm Deep Navy #1E2B37) Tj ET
-BT /F1 8.1 Tf 92 387.49999999999983 Td (  - Metric Pill: Subdued Gold #D4A373) Tj ET
-BT /F1 8.2 Tf 68 376.99999999999983 Td (* Dark Theme \(Dark Espresso\):) Tj ET
-BT /F1 8.1 Tf 92 366.29999999999984 Td (  - Surface Background: Deep Espresso #181512) Tj ET
-BT /F1 8.1 Tf 92 355.79999999999984 Td (  - Main Content Background: #1F1B16) Tj ET
-BT /F1 8.1 Tf 92 345.29999999999984 Td (  - Sidebar Background: #1E1A15) Tj ET
-BT /F1 8.1 Tf 92 334.79999999999984 Td (  - Card Surfaces: Roasted Walnut #28231D with border #3D352B) Tj ET
-BT /F1 8.1 Tf 92 324.29999999999984 Td (  - Typography: Off-White #EDE6DD, Muted Text #9C948A) Tj ET
-BT /F1 8.1 Tf 92 313.79999999999984 Td (  - Accent / Primary Action: Muted Amber Gold #C2955A) Tj ET
-BT /F2 10.5 Tf 48 293.79999999999984 Td (11.2 WCAG AA Form Contrast Hardening) Tj ET
-BT /F1 8.35 Tf 48 278.79999999999984 Td (Audit of dark-mode form controls revealed contrast deficiencies that were resolved to ensure WCAG AA compliance, with a) Tj ET
-BT /F1 8.35 Tf 48 267.79999999999984 Td (contrast ratio of at least 4.5:1:) Tj ET
-BT /F1 8.2 Tf 68 256.79999999999984 Td (* Dataset Dropdown \(<select> & <option>\): Explicitly styled with dark background #28231D, border #3D352B, and text) Tj ET
-BT /F1 8.2 Tf 68 246.09999999999985 Td (#EDE6DD, preventing OS-level white select popups.) Tj ET
-BT /F1 8.2 Tf 68 235.39999999999986 Td (* Drop Zone Area \(.drop-zone\): Styled with dark background #231E18, dashed border #504538, and readable instructions) Tj ET
-BT /F1 8.2 Tf 68 224.69999999999987 Td (#EDE6DD.) Tj ET
-BT /F1 8.2 Tf 68 213.9999999999999 Td (* Schema Reference Cards \(.schema-box\): High-contrast header #EDE6DD, muted explanatory copy #9C948A, and highlighted) Tj ET
-BT /F1 8.2 Tf 68 203.2999999999999 Td (inline <code> tags #C2955A on dark backgrounds.) Tj ET
-BT /F1 8.2 Tf 68 192.5999999999999 Td (* Disabled State \(#submitUploadBtn\): Styled with high contrast #9C948A on #342D25 border #504538 rather than faded) Tj ET
-BT /F1 8.2 Tf 68 181.89999999999992 Td (opacity.) Tj ET
-BT /F2 10.5 Tf 48 161.69999999999993 Td (11.3 iPhone-Style Compact Slide-to-Reset Control) Tj ET
-BT /F1 8.35 Tf 48 146.69999999999993 Td (To prevent accidental destructive resets while delivering an intuitive, tactile interaction:) Tj ET
-BT /F1 8.2 Tf 68 135.69999999999993 Td (* Dimensions: Compact track 210px x 42px \(desktop\), scaling responsively to 140px x 36px on mobile viewports 480px wide) Tj ET
-BT /F1 8.2 Tf 68 124.99999999999993 Td (or narrower and 145px on ultra-compact devices 360px wide or narrower.) Tj ET
-BT /F1 8.2 Tf 68 114.29999999999993 Td (* Circular Thumb: 36px x 36px circular pill with directional chevron SVG icon, smooth gradient, and grab cursor.) Tj ET
-BT /F1 8.2 Tf 68 103.59999999999992 Td (* Safety Threshold: Requires dragging the thumb to at least 85% of track width to complete the gesture.) Tj ET
-BT /F1 8.2 Tf 68 92.89999999999992 Td (* Two-Step Interaction: Completing the slide opens the confirmation modal and unlocks the confirmation checkbox \("I) Tj ET
-BT /F1 8.2 Tf 68 82.19999999999992 Td (understand that this action will permanently delete the selected uploaded data and associated processing history."\).) Tj ET
-BT /F1 8.2 Tf 68 71.49999999999991 Td (* Explicit Button Activation: Ticking the checkbox enables the red "Permanently Delete" button; ticking the box alone) Tj ET
-BT /F1 8.2 Tf 68 60.79999999999991 Td (never deletes data.) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+0.72 G 0.5 w 48 785 m 547 785 l S 0 G
+0.80 G 0.5 w 48 762.5 m 547 762.5 l S 0 G
+BT /F2 13 Tf 48 765.5 Td (9. Data Quality Score & Row Accounting Invariants) Tj ET
+BT /F2 10.5 Tf 48 734 Td (9.1 Mathematical Accounting Invariant) Tj ET
+BT /F1 8.35 Tf 48 719 Td (Every row processed by the platform is deterministically classified into exactly one mutually exclusive bucket: Row) Tj ET
+BT /F1 8.35 Tf 48 708 Td (accounting rule: Total records processed = accepted records + rejected records + duplicate records + skipped records.) Tj ET
+BT /F1 8.35 Tf 48 697 Td (No row can be both rejected and counted as a duplicate. An assertion verifies this identity prior to every database) Tj ET
+BT /F1 8.35 Tf 48 686 Td (commit.) Tj ET
+BT /F2 10.5 Tf 48 665.5 Td (9.2 Quality Score Formula) Tj ET
+BT /F1 8.35 Tf 48 650.5 Td (The platform calculates data quality score using the standard enterprise ratio: Quality Score formula: When total) Tj ET
+BT /F1 8.35 Tf 48 639.5 Td (records processed is greater than zero, divide accepted records by total records processed and multiply by 100. When) Tj ET
+BT /F1 8.35 Tf 48 628.5 Td (no records have been processed, show the application's no-data state instead of a historical comparison. Clicking the) Tj ET
+BT /F1 8.35 Tf 48 617.5 Td (Data Quality Score KPI card opens an interactive methodology modal displaying the current values for accepted) Tj ET
+BT /F1 8.35 Tf 48 606.5 Td (records, rejected records, duplicate keys, total rows, and the verified mathematical equation.) Tj ET
+0.72 G 0.5 w 48 590 m 547 590 l S 0 G
+0.80 G 0.5 w 48 567.5 m 547 567.5 l S 0 G
+BT /F2 13 Tf 48 570.5 Td (10. Dynamic Real-Time Event Notification Architecture) Tj ET
+BT /F2 10.5 Tf 48 539 Td (10.1 Real Event Store) Tj ET
+BT /F1 8.35 Tf 48 524 Td (The static dummy notification counter was replaced by a dynamic, event-driven notification store managed via) Tj ET
+BT /F1 8.35 Tf 48 513 Td (App.notifications and synchronized with browser localStorage \(edvexa_notifications\):) Tj ET
+BT /F1 8.2 Tf 58 502 Td (* Events Tracked:) Tj ET
+BT /F1 8.1 Tf 74 491.3 Td (  - UPLOAD_COMPLETED: Logged when a CSV ingestion run completes, including dataset type, row count, accepted) Tj ET
+BT /F1 8.1 Tf 74 480.8 Td (records, and error counts.) Tj ET
+BT /F1 8.1 Tf 74 470.3 Td (  - UPLOAD_FAILED: Logged when an upload fails validation or structural parsing.) Tj ET
+BT /F1 8.1 Tf 74 459.8 Td (  - EXPORT_DOWNLOADED: Logged when Clean CSV, Errors CSV, or Excel .xlsx reports are exported.) Tj ET
+BT /F1 8.1 Tf 74 449.3 Td (  - JOB_REPROCESSED: Logged when a historical job is re-executed.) Tj ET
+BT /F1 8.1 Tf 74 438.8 Td (  - DATA_RESET: Logged when destructive data reset is confirmed and executed.) Tj ET
+BT /F1 8.2 Tf 58 428.3 Td (* Auto-Hiding Unread Badge: If unread_count === 0, the #notificationBadge element receives the d-none class, cleanly) Tj ET
+BT /F1 8.2 Tf 58 417.6 Td (removing the badge from the UI.) Tj ET
+BT /F1 8.2 Tf 58 406.90000000000003 Td (* User Actions: The notification menu provides "Mark all as read" and "Clear all" actions with live DOM updates.) Tj ET
+0.72 G 0.5 w 48 390.70000000000005 m 547 390.70000000000005 l S 0 G
+0.80 G 0.5 w 48 368.20000000000005 m 547 368.20000000000005 l S 0 G
+BT /F2 13 Tf 48 371.20000000000005 Td (11. Dual Themes, WCAG AA Contrast Compliance & iPhone-Style Slide-to-Reset) Tj ET
+BT /F2 10.5 Tf 48 339.70000000000005 Td (11.1 Palette & Typography Specifications) Tj ET
+BT /F1 8.35 Tf 48 324.70000000000005 Td (The interface implements two curated color palettes designed for data density and long-session visual comfort:) Tj ET
+BT /F1 8.2 Tf 58 313.70000000000005 Td (* Default Light Theme \(Warm Ivory\):) Tj ET
+BT /F1 8.1 Tf 74 303.00000000000006 Td (  - Surface Background: Warm Ivory #FAF7F1) Tj ET
+BT /F1 8.1 Tf 74 292.50000000000006 Td (  - Main Content Background: #FFFEFC) Tj ET
+BT /F1 8.1 Tf 74 282.00000000000006 Td (  - Sidebar Background: Soft Oatmeal #F4EEE4) Tj ET
+BT /F1 8.1 Tf 74 271.50000000000006 Td (  - Card Surfaces: Pure White #FFFFFF with warm border #EADECB) Tj ET
+BT /F1 8.1 Tf 74 261.00000000000006 Td (  - Typography: Primary Charcoal #1A1917, Muted Text #6B655B) Tj ET
+BT /F1 8.1 Tf 74 250.50000000000006 Td (  - Accent / Primary Action: Warm Deep Navy #1E2B37) Tj ET
+BT /F1 8.1 Tf 74 240.00000000000006 Td (  - Metric Pill: Subdued Gold #D4A373) Tj ET
+BT /F1 8.2 Tf 58 229.50000000000006 Td (* Dark Theme \(Dark Espresso\):) Tj ET
+BT /F1 8.1 Tf 74 218.80000000000007 Td (  - Surface Background: Deep Espresso #181512) Tj ET
+BT /F1 8.1 Tf 74 208.30000000000007 Td (  - Main Content Background: #1F1B16) Tj ET
+BT /F1 8.1 Tf 74 197.80000000000007 Td (  - Sidebar Background: #1E1A15) Tj ET
+BT /F1 8.1 Tf 74 187.30000000000007 Td (  - Card Surfaces: Roasted Walnut #28231D with border #3D352B) Tj ET
+BT /F1 8.1 Tf 74 176.80000000000007 Td (  - Typography: Off-White #EDE6DD, Muted Text #9C948A) Tj ET
+BT /F1 8.1 Tf 74 166.30000000000007 Td (  - Accent / Primary Action: Muted Amber Gold #C2955A) Tj ET
+BT /F2 10.5 Tf 48 146.30000000000007 Td (11.2 WCAG AA Form Contrast Hardening) Tj ET
+BT /F1 8.35 Tf 48 131.30000000000007 Td (Audit of dark-mode form controls revealed contrast deficiencies that were resolved to ensure WCAG AA compliance, with) Tj ET
+BT /F1 8.35 Tf 48 120.30000000000007 Td (a contrast ratio of at least 4.5:1:) Tj ET
+BT /F1 8.2 Tf 58 109.30000000000007 Td (* Dataset Dropdown \(<select> & <option>\): Explicitly styled with dark background #28231D, border #3D352B, and text) Tj ET
+BT /F1 8.2 Tf 58 98.60000000000007 Td (#EDE6DD, preventing OS-level white select popups.) Tj ET
+BT /F1 8.2 Tf 58 87.90000000000006 Td (* Drop Zone Area \(.drop-zone\): Styled with dark background #231E18, dashed border #504538, and readable instructions) Tj ET
+BT /F1 8.2 Tf 58 77.20000000000006 Td (#EDE6DD.) Tj ET
+BT /F1 8.2 Tf 58 66.50000000000006 Td (* Schema Reference Cards \(.schema-box\): High-contrast header #EDE6DD, muted explanatory copy #9C948A, and highlighted) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 10 of 13) Tj ET
 
 endstream
@@ -786,70 +782,71 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 27 0 R >>
 endobj
 27 0 obj
-<< /Length 7134 >>
+<< /Length 7477 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F1 8.2 Tf 68 785 Td (* Atomic Execution & Automatic Refresh: Clicking "Permanently Delete" executes POST /api/dashboard/reset-data. Upon) Tj ET
-BT /F1 8.2 Tf 68 774.3 Td (backend confirmation, the frontend triggers window.location.reload\(\), performing an automatic full page refresh so all) Tj ET
-BT /F1 8.2 Tf 68 763.5999999999999 Td (dashboard metrics, charts, and tables display the fresh updated state.) Tj ET
-BT /F1 8.2 Tf 68 752.8999999999999 Td (* Tactile Feedback: Completing the reset displays a loading spinner before smoothly returning to rest position.) Tj ET
-BT /F2 10.5 Tf 48 732.6999999999998 Td (11.4 Mobile Responsiveness & Slide-Out Drawer) Tj ET
-BT /F1 8.2 Tf 68 717.6999999999998 Td (* Full layout flexibility down to 320px viewport width \(tested on 320px, 375px, 768px, 1024px, 1920px\).) Tj ET
-BT /F1 8.2 Tf 68 706.9999999999998 Td (* Navigation collapses into a responsive slide-out drawer on screens narrower than 992px, with backdrop dimming and) Tj ET
-BT /F1 8.2 Tf 68 696.2999999999997 Td (touch-to-close behavior.) Tj ET
-BT /F1 8.2 Tf 68 685.5999999999997 Td (* Header items smoothly adapt: sun/moon icon labels collapse below 768px, preserving space for the compact slider and) Tj ET
-BT /F1 8.2 Tf 68 674.8999999999996 Td (notification bell without horizontal overflow.) Tj ET
-BT /F2 10.5 Tf 48 654.6999999999996 Td (11.5 Dark Theme Table Contrast Hardening & Status Badge Tokens) Tj ET
-BT /F1 8.35 Tf 48 639.6999999999996 Td (Processing history and audit tables \(.data-table-warm\) were upgraded with dedicated dark espresso tokens:) Tj ET
-BT /F1 8.2 Tf 68 628.6999999999996 Td (* Table Headers \(<thead>\): Deep charcoal-espresso #1A1612, uppercase warm sand labels #C4B7A5, and bottom separator) Tj ET
-BT /F1 8.2 Tf 68 617.9999999999995 Td (#352E25.) Tj ET
-BT /F1 8.2 Tf 68 607.2999999999995 Td (* Table Cells \(<td>\): Warm cream typography #EDE5DA with clean bottom cell dividers #2C261F and subtle hover) Tj ET
-BT /F1 8.2 Tf 68 596.5999999999995 Td (illumination #27211B.) Tj ET
-BT /F1 8.2 Tf 68 585.8999999999994 Td (* Job ID & Code Tokens: Pill wrappers #2C251C with warm amber text #D4AA70 and fine border #45392B.) Tj ET
-BT /F1 8.2 Tf 68 575.1999999999994 Td (* Status Badges: Distinct semantic tokens across both themes:) Tj ET
-BT /F1 8.1 Tf 92 564.4999999999993 Td (  - .badge-success: Deep emerald tint #152A20, emerald text #4ADE80, border #1F4A34.) Tj ET
-BT /F1 8.1 Tf 92 553.9999999999993 Td (  - .badge-danger: Crimson tint #2E1818, red text #F87171, border #522323.) Tj ET
-BT /F1 8.1 Tf 92 543.4999999999993 Td (  - .badge-warning: Amber tint #2D2314, warm amber #FBBF24, border #543E1B.) Tj ET
-BT /F1 8.1 Tf 92 532.9999999999993 Td (  - .badge-info: Deep slate #19232F, blue text #60A5FA, border #243A52.) Tj ET
-0.72 G 0.5 w 48 516.9999999999993 m 547 516.9999999999993 l S 0 G
-0.12 G 0.3 w 48 494.4999999999993 m 547 494.4999999999993 l S 0 G
-BT /F2 13 Tf 48 497.4999999999993 Td (12. Credits & Tools Used) Tj ET
-BT /F1 8.2 Tf 68 471.9999999999993 Td (* Project: EDVEXA Data Quality and ETL Monitoring Platform) Tj ET
-BT /F1 8.2 Tf 68 461.29999999999933 Td (* Author: Raghav Kumar) Tj ET
-BT /F2 10.5 Tf 48 441.09999999999934 Td (Development Tools & Genuine Engineering Contributions) Tj ET
-BT /F1 8.2 Tf 68 421.59999999999934 Td (1. Google Antigravity \(Advanced Agentic Pair Programming\):) Tj ET
-BT /F1 8.1 Tf 94 410.89999999999935 Td (  - Served as the primary engineering assistant for the complete end-to-end full-stack implementation, backend REST) Tj ET
-BT /F1 8.1 Tf 94 400.39999999999935 Td (API routing, SQLAlchemy 2.x relational persistence, openpyxl multi-sheet Excel workbook generator, responsive) Tj ET
-BT /F1 8.1 Tf 94 389.89999999999935 Td (HTML5/Vanilla JS frontend with dual themes \(Warm Ivory & Dark Espresso\), date-range filtering engine, iPhone-style) Tj ET
-BT /F1 8.1 Tf 94 379.39999999999935 Td (slide-to-reset control, automated verification scripts, and the 109-test automated pytest suite \(latest local run:) Tj ET
-BT /F1 8.1 Tf 94 368.89999999999935 Td (all tests passed\).) Tj ET
-BT /F1 8.2 Tf 68 353.89999999999935 Td (2. CodeZero:) Tj ET
-BT /F1 8.1 Tf 94 343.19999999999936 Td (  - Used for initial starter-material exploration and architecture planning, then for an independent repository) Tj ET
-BT /F1 8.1 Tf 94 332.69999999999936 Td (review, a 99-pass/17-warning baseline test run on in-memory SQLite, and a runtime probe reproducing a) Tj ET
-BT /F1 8.1 Tf 94 322.19999999999936 Td (reprocessing/audit-record defect. A separate follow-up pass applied targeted fixes and regression tests; a later) Tj ET
-BT /F1 8.1 Tf 94 311.69999999999936 Td (local run after pulling commit 1d45be9 passed 109 tests with 23 warnings in 19.91 seconds. Full findings and limits) Tj ET
-BT /F1 8.1 Tf 94 301.19999999999936 Td (are in CODEZERO_REVIEW.md <CODEZERO_REVIEW.md>.) Tj ET
-BT /F1 8.2 Tf 68 286.19999999999936 Td (3. Python 3.12, FastAPI & Uvicorn:) Tj ET
-BT /F1 8.1 Tf 94 275.4999999999994 Td (  - Core application runtime, asynchronous REST API transport layer, Pydantic v2 data validation, and OpenAPI) Tj ET
-BT /F1 8.1 Tf 94 264.9999999999994 Td (documentation endpoints \(/docs, /redoc\).) Tj ET
-BT /F1 8.2 Tf 68 249.99999999999937 Td (4. SQLAlchemy 2.x & SQLite:) Tj ET
-BT /F1 8.1 Tf 94 239.2999999999994 Td (  - Relational database models with declarative mapping, cascade relationships, index definitions, and transactional) Tj ET
-BT /F1 8.1 Tf 94 228.7999999999994 Td (boundary isolation.) Tj ET
-BT /F1 8.2 Tf 68 213.7999999999994 Td (5. openpyxl:) Tj ET
-BT /F1 8.1 Tf 94 203.0999999999994 Td (  - Dedicated multi-sheet Microsoft Excel reporting engine with automated column width calculations, cell formatting,) Tj ET
-BT /F1 8.1 Tf 94 192.5999999999994 Td (frozen panes, and CWE-1236 spreadsheet injection mitigation.) Tj ET
-BT /F1 8.2 Tf 68 177.5999999999994 Td (6. pytest & httpx:) Tj ET
-BT /F1 8.1 Tf 94 166.8999999999994 Td (  - Comprehensive automated unit, integration, ETL, reset, date-filtering, storage abstraction, and API testing suite;) Tj ET
-BT /F1 8.1 Tf 94 156.3999999999994 Td (latest local post-fix run: 109 passed, 0 failed, 23 deprecation warnings, with in-memory SQLite isolation.) Tj ET
-BT /F1 8.2 Tf 68 141.3999999999994 Td (7. Git & GitHub:) Tj ET
-BT /F1 8.1 Tf 94 130.69999999999942 Td (  - Version control, remote repository hosting, and structured commit history tracking.) Tj ET
-BT /F1 8.2 Tf 68 115.69999999999942 Td (8. Cloud Infrastructure \(Render, Neon & Neon Object Storage\):) Tj ET
-BT /F1 8.1 Tf 94 104.99999999999942 Td (  - Zero-cost production cloud hosting architecture utilizing Render \(ASGI compute\), Neon \(serverless PostgreSQL\), and) Tj ET
-BT /F1 8.1 Tf 94 94.49999999999942 Td (Neon Object Storage \(S3-compatible persistent object storage\).) Tj ET
-0.72 G 0.5 w 48 78.49999999999942 m 547 78.49999999999942 l S 0 G
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.2 Tf 58 785 Td (inline <code> tags #C2955A on dark backgrounds.) Tj ET
+BT /F1 8.2 Tf 58 774.3 Td (* Disabled State \(#submitUploadBtn\): Styled with high contrast #9C948A on #342D25 border #504538 rather than faded) Tj ET
+BT /F1 8.2 Tf 58 763.5999999999999 Td (opacity.) Tj ET
+BT /F2 10.5 Tf 48 743.3999999999999 Td (11.3 iPhone-Style Compact Slide-to-Reset Control) Tj ET
+BT /F1 8.35 Tf 48 728.3999999999999 Td (To prevent accidental destructive resets while delivering an intuitive, tactile interaction:) Tj ET
+BT /F1 8.2 Tf 58 717.3999999999999 Td (* Dimensions: Compact track 210px x 42px \(desktop\), scaling responsively to 140px x 36px on mobile viewports 480px) Tj ET
+BT /F1 8.2 Tf 58 706.6999999999998 Td (wide or narrower and 145px on ultra-compact devices 360px wide or narrower.) Tj ET
+BT /F1 8.2 Tf 58 695.9999999999998 Td (* Circular Thumb: 36px x 36px circular pill with directional chevron SVG icon, smooth gradient, and grab cursor.) Tj ET
+BT /F1 8.2 Tf 58 685.2999999999997 Td (* Safety Threshold: Requires dragging the thumb to at least 85% of track width to complete the gesture.) Tj ET
+BT /F1 8.2 Tf 58 674.5999999999997 Td (* Two-Step Interaction: Completing the slide opens the confirmation modal and unlocks the confirmation checkbox \("I) Tj ET
+BT /F1 8.2 Tf 58 663.8999999999996 Td (understand that this action will permanently delete the selected uploaded data and associated processing history."\).) Tj ET
+BT /F1 8.2 Tf 58 653.1999999999996 Td (* Explicit Button Activation: Ticking the checkbox enables the red "Permanently Delete" button; ticking the box alone) Tj ET
+BT /F1 8.2 Tf 58 642.4999999999995 Td (never deletes data.) Tj ET
+BT /F1 8.2 Tf 58 631.7999999999995 Td (* Atomic Execution & Automatic Refresh: Clicking "Permanently Delete" executes POST /api/dashboard/reset-data. Upon) Tj ET
+BT /F1 8.2 Tf 58 621.0999999999995 Td (backend confirmation, the frontend triggers window.location.reload\(\), performing an automatic full page refresh so) Tj ET
+BT /F1 8.2 Tf 58 610.3999999999994 Td (all dashboard metrics, charts, and tables display the fresh updated state.) Tj ET
+BT /F1 8.2 Tf 58 599.6999999999994 Td (* Tactile Feedback: Completing the reset displays a loading spinner before smoothly returning to rest position.) Tj ET
+BT /F2 10.5 Tf 48 579.4999999999993 Td (11.4 Mobile Responsiveness & Slide-Out Drawer) Tj ET
+BT /F1 8.2 Tf 58 564.4999999999993 Td (* Full layout flexibility down to 320px viewport width \(tested on 320px, 375px, 768px, 1024px, 1920px\).) Tj ET
+BT /F1 8.2 Tf 58 553.7999999999993 Td (* Navigation collapses into a responsive slide-out drawer on screens narrower than 992px, with backdrop dimming and) Tj ET
+BT /F1 8.2 Tf 58 543.0999999999992 Td (touch-to-close behavior.) Tj ET
+BT /F1 8.2 Tf 58 532.3999999999992 Td (* Header items smoothly adapt: sun/moon icon labels collapse below 768px, preserving space for the compact slider and) Tj ET
+BT /F1 8.2 Tf 58 521.6999999999991 Td (notification bell without horizontal overflow.) Tj ET
+BT /F2 10.5 Tf 48 501.49999999999915 Td (11.5 Dark Theme Table Contrast Hardening & Status Badge Tokens) Tj ET
+BT /F1 8.35 Tf 48 486.49999999999915 Td (Processing history and audit tables \(.data-table-warm\) were upgraded with dedicated dark espresso tokens:) Tj ET
+BT /F1 8.2 Tf 58 475.49999999999915 Td (* Table Headers \(<thead>\): Deep charcoal-espresso #1A1612, uppercase warm sand labels #C4B7A5, and bottom separator) Tj ET
+BT /F1 8.2 Tf 58 464.79999999999916 Td (#352E25.) Tj ET
+BT /F1 8.2 Tf 58 454.09999999999917 Td (* Table Cells \(<td>\): Warm cream typography #EDE5DA with clean bottom cell dividers #2C261F and subtle hover) Tj ET
+BT /F1 8.2 Tf 58 443.3999999999992 Td (illumination #27211B.) Tj ET
+BT /F1 8.2 Tf 58 432.6999999999992 Td (* Job ID & Code Tokens: Pill wrappers #2C251C with warm amber text #D4AA70 and fine border #45392B.) Tj ET
+BT /F1 8.2 Tf 58 421.9999999999992 Td (* Status Badges: Distinct semantic tokens across both themes:) Tj ET
+BT /F1 8.1 Tf 74 411.2999999999992 Td (  - .badge-success: Deep emerald tint #152A20, emerald text #4ADE80, border #1F4A34.) Tj ET
+BT /F1 8.1 Tf 74 400.7999999999992 Td (  - .badge-danger: Crimson tint #2E1818, red text #F87171, border #522323.) Tj ET
+BT /F1 8.1 Tf 74 390.2999999999992 Td (  - .badge-warning: Amber tint #2D2314, warm amber #FBBF24, border #543E1B.) Tj ET
+BT /F1 8.1 Tf 74 379.7999999999992 Td (  - .badge-info: Deep slate #19232F, blue text #60A5FA, border #243A52.) Tj ET
+0.72 G 0.5 w 48 363.7999999999992 m 547 363.7999999999992 l S 0 G
+0.80 G 0.5 w 48 341.2999999999992 m 547 341.2999999999992 l S 0 G
+BT /F2 13 Tf 48 344.2999999999992 Td (12. Credits & Tools Used) Tj ET
+BT /F1 8.2 Tf 58 317.7999999999992 Td (* Project: EDVEXA Data Quality and ETL Monitoring Platform) Tj ET
+BT /F1 8.2 Tf 58 307.0999999999992 Td (* Author: Raghav Kumar) Tj ET
+BT /F2 10.5 Tf 48 286.89999999999924 Td (Development Tools & Genuine Engineering Contributions) Tj ET
+BT /F1 8.2 Tf 58 267.39999999999924 Td (1. Google Antigravity \(Advanced Agentic Pair Programming\):) Tj ET
+BT /F1 8.1 Tf 76 256.69999999999925 Td (  - Served as the primary engineering assistant for the complete end-to-end full-stack implementation, backend REST) Tj ET
+BT /F1 8.1 Tf 76 246.19999999999925 Td (API routing, SQLAlchemy 2.x relational persistence, openpyxl multi-sheet Excel workbook generator, responsive) Tj ET
+BT /F1 8.1 Tf 76 235.69999999999925 Td (HTML5/Vanilla JS frontend with dual themes \(Warm Ivory & Dark Espresso\), date-range filtering engine, iPhone-style) Tj ET
+BT /F1 8.1 Tf 76 225.19999999999925 Td (slide-to-reset control, automated verification scripts, and the 109-test automated pytest suite \(latest local run:) Tj ET
+BT /F1 8.1 Tf 76 214.69999999999925 Td (all tests passed\).) Tj ET
+BT /F1 8.2 Tf 58 199.69999999999925 Td (2. CodeZero:) Tj ET
+BT /F1 8.1 Tf 76 188.99999999999926 Td (  - Used for initial starter-material exploration and architecture planning, then for an independent repository) Tj ET
+BT /F1 8.1 Tf 76 178.49999999999926 Td (review, a 99-pass/17-warning baseline test run on in-memory SQLite, and a runtime probe reproducing a) Tj ET
+BT /F1 8.1 Tf 76 167.99999999999926 Td (reprocessing/audit-record defect. A separate follow-up pass applied targeted fixes and regression tests; a later) Tj ET
+BT /F1 8.1 Tf 76 157.49999999999926 Td (local run after pulling commit 1d45be9 passed 109 tests with 23 warnings in 19.91 seconds. Full findings and) Tj ET
+BT /F1 8.1 Tf 76 146.99999999999926 Td (limits are in CODEZERO_REVIEW.md <CODEZERO_REVIEW.md>.) Tj ET
+BT /F1 8.2 Tf 58 131.99999999999926 Td (3. Python 3.12, FastAPI & Uvicorn:) Tj ET
+BT /F1 8.1 Tf 76 121.29999999999926 Td (  - Core application runtime, asynchronous REST API transport layer, Pydantic v2 data validation, and OpenAPI) Tj ET
+BT /F1 8.1 Tf 76 110.79999999999926 Td (documentation endpoints \(/docs, /redoc\).) Tj ET
+BT /F1 8.2 Tf 58 95.79999999999926 Td (4. SQLAlchemy 2.x & SQLite:) Tj ET
+BT /F1 8.1 Tf 76 85.09999999999926 Td (  - Relational database models with declarative mapping, cascade relationships, index definitions, and transactional) Tj ET
+BT /F1 8.1 Tf 76 74.59999999999926 Td (boundary isolation.) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 11 of 13) Tj ET
 
 endstream
@@ -858,75 +855,74 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 29 0 R >>
 endobj
 29 0 obj
-<< /Length 6734 >>
+<< /Length 6729 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-0.12 G 0.3 w 48 782 m 547 782 l S 0 G
-BT /F2 13 Tf 48 785 Td (13. Cloud Deployment & External Service Setup Guide) Tj ET
-BT /F1 8.35 Tf 48 759.5 Td (This guide outlines the deployment procedure for EDVEXA on Render, backed by Neon Serverless PostgreSQL and Neon Object) Tj ET
-BT /F1 8.35 Tf 48 748.5 Td (Storage, within the providers' free-tier limits.) Tj ET
-BT /F2 10.5 Tf 48 728 Td (13.1 Neon Serverless PostgreSQL Setup) Tj ET
-BT /F1 8.2 Tf 68 713 Td (1. Create Free Account: Sign up at neon.tech <https://neon.tech> using GitHub or Google SSO.) Tj ET
-BT /F1 8.2 Tf 68 702.3 Td (2. Create New Project:) Tj ET
-BT /F1 8.1 Tf 94 691.5999999999999 Td (  - Name: edvexa-production-db) Tj ET
-BT /F1 8.1 Tf 94 681.0999999999999 Td (  - Region: Select nearest AWS region \(e.g., ap-southeast-1 / Singapore or us-east-2 / Ohio\).) Tj ET
-BT /F1 8.1 Tf 94 670.5999999999999 Td (  - PostgreSQL Version: 16 or 17 \(default\).) Tj ET
-BT /F1 8.2 Tf 68 660.0999999999999 Td (3. Obtain Connection String:) Tj ET
-BT /F1 8.1 Tf 94 649.3999999999999 Td (  - On the Neon Dashboard, copy the connection string under Connection Details.) Tj ET
-BT /F1 8.1 Tf 94 638.8999999999999 Td (  - Select Pooled connection or direct connection string.) Tj ET
-BT /F1 8.1 Tf 94 628.3999999999999 Td (  - Example format:) Tj ET
-BT /F1 8.1 Tf 94 617.8999999999999 Td (postgresql://neondb_owner:npg_sample_pass@ep-cool-fog-123456.ap-southeast-1.aws.neon.tech/neondb?sslmode=require) Tj ET
-BT /F1 8.1 Tf 94 607.3999999999999 Td (  - The application automatically ensures postgresql:// protocol prefix and appends sslmode=require.) Tj ET
-BT /F2 10.5 Tf 48 587.3999999999999 Td (13.2 Neon Object Storage Setup) Tj ET
-BT /F1 8.2 Tf 68 572.3999999999999 Td (1. Navigate to Object Storage in Neon: In the edvexa-production-db project console, select Object Storage \(or Buckets\).) Tj ET
-BT /F1 8.2 Tf 68 561.6999999999998 Td (2. Create Bucket:) Tj ET
-BT /F1 8.1 Tf 94 550.9999999999998 Td (  - Click Create bucket.) Tj ET
-BT /F1 8.1 Tf 94 540.4999999999998 Td (  - Bucket name: edvexa-uploads \(Access: private\).) Tj ET
-BT /F1 8.2 Tf 68 529.9999999999998 Td (3. Generate S3 API Credentials:) Tj ET
-BT /F1 8.1 Tf 94 519.2999999999997 Td (  - Generate S3-compatible credentials with storage:read and storage:write scopes.) Tj ET
-BT /F1 8.1 Tf 94 508.7999999999997 Td (  - Securely record:) Tj ET
-BT /F1 8.1 Tf 98 498.2999999999997 Td (  - Access Key ID) Tj ET
-BT /F1 8.1 Tf 98 487.7999999999997 Td (  - Secret Access Key) Tj ET
-BT /F1 8.1 Tf 98 477.2999999999997 Td (  - S3 Endpoint URL \(e.g., https://<branch>.storage.<cell>.<region>.aws.neon.tech\)) Tj ET
-BT /F2 10.5 Tf 48 457.2999999999997 Td (13.3 Deploying to Render via GitHub Blueprint) Tj ET
-BT /F1 8.2 Tf 68 442.2999999999997 Td (1. Log in to Render: Go to render.com <https://render.com> and log in with GitHub.) Tj ET
-BT /F1 8.2 Tf 68 431.59999999999974 Td (2. Option A: Deploy via Blueprint \(render.yaml - Recommended\):) Tj ET
-BT /F1 8.1 Tf 94 420.89999999999975 Td (  - Click New + > Blueprint.) Tj ET
-BT /F1 8.1 Tf 94 410.39999999999975 Td (  - Connect repository https://github.com/renavaraghav/edvexa-data-quality-etl-monitor.) Tj ET
-BT /F1 8.1 Tf 94 399.89999999999975 Td (  - Render detects render.yaml automatically.) Tj ET
-BT /F1 8.1 Tf 94 389.39999999999975 Td (  - When prompted for non-synced environment variables, supply:) Tj ET
-BT /F1 8.1 Tf 98 378.89999999999975 Td (  - DATABASE_URL: Your Neon PostgreSQL connection string.) Tj ET
-BT /F1 8.1 Tf 98 368.39999999999975 Td (  - ADMIN_RESET_TOKEN: A secure random secret string \(e.g.,) Tj ET
-BT /F1 8.1 Tf 98 357.89999999999975 Td (edvexa_adm_c9c985cb4b64f9704662bdc05eccc2091cd35f3d796a5344\).) Tj ET
-BT /F1 8.1 Tf 98 347.39999999999975 Td (  - STORAGE_BACKEND: neon) Tj ET
-BT /F1 8.1 Tf 98 336.89999999999975 Td (  - NEON_STORAGE_ENDPOINT: Your Neon Object Storage S3 endpoint URL.) Tj ET
-BT /F1 8.1 Tf 98 326.39999999999975 Td (  - NEON_STORAGE_BUCKET_NAME: edvexa-uploads) Tj ET
-BT /F1 8.1 Tf 98 315.89999999999975 Td (  - NEON_STORAGE_ACCESS_KEY_ID: Neon storage Access Key ID.) Tj ET
-BT /F1 8.1 Tf 98 305.39999999999975 Td (  - NEON_STORAGE_SECRET_ACCESS_KEY: Neon storage Secret Access Key.) Tj ET
-BT /F1 8.1 Tf 94 294.89999999999975 Td (  - Click Apply. Render will automatically build the service, run migrations/initialization on startup, and expose a) Tj ET
-BT /F1 8.1 Tf 94 284.39999999999975 Td (live HTTPS URL.) Tj ET
-BT /F1 8.2 Tf 68 273.89999999999975 Td (3. Option B: Manual Web Service Creation:) Tj ET
-BT /F1 8.1 Tf 94 263.19999999999976 Td (  - Click New + > Web Service.) Tj ET
-BT /F1 8.1 Tf 94 252.69999999999976 Td (  - Connect repository https://github.com/renavaraghav/edvexa-data-quality-etl-monitor.) Tj ET
-BT /F1 8.1 Tf 94 242.19999999999976 Td (  - Runtime: Python 3.) Tj ET
-BT /F1 8.1 Tf 94 231.69999999999976 Td (  - Build Command: pip install --upgrade pip && pip install -r requirements.txt.) Tj ET
-BT /F1 8.1 Tf 94 221.19999999999976 Td (  - Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT.) Tj ET
-BT /F1 8.1 Tf 94 210.69999999999976 Td (  - Health Check Path: /api/health.) Tj ET
-BT /F1 8.1 Tf 94 200.19999999999976 Td (  - Plan: Free.) Tj ET
-BT /F1 8.1 Tf 94 189.69999999999976 Td (  - Under Environment Variables, add the variables documented above.) Tj ET
-BT /F1 8.1 Tf 94 179.19999999999976 Td (  - Click Create Web Service.) Tj ET
-BT /F2 10.5 Tf 48 159.19999999999976 Td (13.4 Environment Variables Reference) Tj ET
-BT /F3 7 Tf 48 138.69999999999976 Td (Variable Name | Required | Default | Description) Tj ET
-BT /F3 7 Tf 48 127.49999999999977 Td (ENVIRONMENT | Yes | development | Runtime mode: development or production. Governs security policies.) Tj ET
-BT /F3 7 Tf 48 116.29999999999977 Td (DATABASE_URL | Yes | sqlite:///... | Connection URI. PostgreSQL \(postgresql://...\) or SQLite.) Tj ET
-BT /F3 7 Tf 48 105.09999999999977 Td (STORAGE_BACKEND | Optional | local | local for filesystem storage or neon for Neon Object Storage.) Tj ET
-BT /F3 7 Tf 48 93.89999999999976 Td (NEON_STORAGE_ENDPOINT | If Neon | None | Neon S3-compatible endpoint URL.) Tj ET
-BT /F3 7 Tf 48 82.69999999999976 Td (NEON_STORAGE_BUCKET_NAME | If Neon | edvexa-uploads | Target bucket name.) Tj ET
-BT /F3 7 Tf 48 71.49999999999976 Td (NEON_STORAGE_ACCESS_KEY_ID | If Neon | None | S3 API Access Key ID.) Tj ET
-BT /F3 7 Tf 48 60.299999999999756 Td (NEON_STORAGE_SECRET_ACCESS_KEY | If Neon | None | S3 API Secret Access Key.) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.2 Tf 58 785 Td (5. openpyxl:) Tj ET
+BT /F1 8.1 Tf 76 774.3 Td (  - Dedicated multi-sheet Microsoft Excel reporting engine with automated column width calculations, cell) Tj ET
+BT /F1 8.1 Tf 76 763.8 Td (formatting, frozen panes, and CWE-1236 spreadsheet injection mitigation.) Tj ET
+BT /F1 8.2 Tf 58 748.8 Td (6. pytest & httpx:) Tj ET
+BT /F1 8.1 Tf 76 738.0999999999999 Td (  - Comprehensive automated unit, integration, ETL, reset, date-filtering, storage abstraction, and API testing) Tj ET
+BT /F1 8.1 Tf 76 727.5999999999999 Td (suite; latest local post-fix run: 109 passed, 0 failed, 23 deprecation warnings, with in-memory SQLite isolation.) Tj ET
+BT /F1 8.2 Tf 58 712.5999999999999 Td (7. Git & GitHub:) Tj ET
+BT /F1 8.1 Tf 76 701.8999999999999 Td (  - Version control, remote repository hosting, and structured commit history tracking.) Tj ET
+BT /F1 8.2 Tf 58 686.8999999999999 Td (8. Cloud Infrastructure \(Render, Neon & Neon Object Storage\):) Tj ET
+BT /F1 8.1 Tf 76 676.1999999999998 Td (  - Zero-cost production cloud hosting architecture utilizing Render \(ASGI compute\), Neon \(serverless PostgreSQL\),) Tj ET
+BT /F1 8.1 Tf 76 665.6999999999998 Td (and Neon Object Storage \(S3-compatible persistent object storage\).) Tj ET
+0.72 G 0.5 w 48 649.6999999999998 m 547 649.6999999999998 l S 0 G
+0.80 G 0.5 w 48 627.1999999999998 m 547 627.1999999999998 l S 0 G
+BT /F2 13 Tf 48 630.1999999999998 Td (13. Cloud Deployment & External Service Setup Guide) Tj ET
+BT /F1 8.35 Tf 48 603.6999999999998 Td (This guide outlines the deployment procedure for EDVEXA on Render, backed by Neon Serverless PostgreSQL and Neon) Tj ET
+BT /F1 8.35 Tf 48 592.6999999999998 Td (Object Storage, within the providers' free-tier limits.) Tj ET
+BT /F2 10.5 Tf 48 572.1999999999998 Td (13.1 Neon Serverless PostgreSQL Setup) Tj ET
+BT /F1 8.2 Tf 58 557.1999999999998 Td (1. Create Free Account: Sign up at neon.tech <https://neon.tech> using GitHub or Google SSO.) Tj ET
+BT /F1 8.2 Tf 58 546.4999999999998 Td (2. Create New Project:) Tj ET
+BT /F1 8.1 Tf 76 535.7999999999997 Td (  - Name: edvexa-production-db) Tj ET
+BT /F1 8.1 Tf 76 525.2999999999997 Td (  - Region: Select nearest AWS region \(e.g., ap-southeast-1 / Singapore or us-east-2 / Ohio\).) Tj ET
+BT /F1 8.1 Tf 76 514.7999999999997 Td (  - PostgreSQL Version: 16 or 17 \(default\).) Tj ET
+BT /F1 8.2 Tf 58 504.2999999999997 Td (3. Obtain Connection String:) Tj ET
+BT /F1 8.1 Tf 76 493.59999999999974 Td (  - On the Neon Dashboard, copy the connection string under Connection Details.) Tj ET
+BT /F1 8.1 Tf 76 483.09999999999974 Td (  - Select Pooled connection or direct connection string.) Tj ET
+BT /F1 8.1 Tf 76 472.59999999999974 Td (  - Example format: postgresql://<username>:<redacted>@<your-neon-host>/<database>?sslmode=require \(format reference) Tj ET
+BT /F1 8.1 Tf 76 462.09999999999974 Td (only; never a working credential\)) Tj ET
+BT /F1 8.1 Tf 76 451.59999999999974 Td (  - The application automatically ensures postgresql:// protocol prefix and appends sslmode=require.) Tj ET
+BT /F2 10.5 Tf 48 431.59999999999974 Td (13.2 Neon Object Storage Setup) Tj ET
+BT /F1 8.2 Tf 58 416.59999999999974 Td (1. Navigate to Object Storage in Neon: In the edvexa-production-db project console, select Object Storage \(or) Tj ET
+BT /F1 8.2 Tf 58 405.89999999999975 Td (Buckets\).) Tj ET
+BT /F1 8.2 Tf 58 395.19999999999976 Td (2. Create Bucket:) Tj ET
+BT /F1 8.1 Tf 76 384.4999999999998 Td (  - Click Create bucket.) Tj ET
+BT /F1 8.1 Tf 76 373.9999999999998 Td (  - Bucket name: edvexa-uploads \(Access: private\).) Tj ET
+BT /F1 8.2 Tf 58 363.4999999999998 Td (3. Generate S3 API Credentials:) Tj ET
+BT /F1 8.1 Tf 76 352.7999999999998 Td (  - Generate S3-compatible credentials with storage:read and storage:write scopes.) Tj ET
+BT /F1 8.1 Tf 76 342.2999999999998 Td (  - Securely record:) Tj ET
+BT /F1 8.1 Tf 80 331.7999999999998 Td (  - Access Key ID) Tj ET
+BT /F1 8.1 Tf 80 321.2999999999998 Td (  - Secret Access Key) Tj ET
+BT /F1 8.1 Tf 80 310.7999999999998 Td (  - S3 Endpoint URL \(e.g., https://<branch>.storage.<cell>.<region>.aws.neon.tech\)) Tj ET
+BT /F2 10.5 Tf 48 290.7999999999998 Td (13.3 Deploying to Render via GitHub Blueprint) Tj ET
+BT /F1 8.2 Tf 58 275.7999999999998 Td (1. Log in to Render: Go to render.com <https://render.com> and log in with GitHub.) Tj ET
+BT /F1 8.2 Tf 58 265.0999999999998 Td (2. Option A: Deploy via Blueprint \(render.yaml - Recommended\):) Tj ET
+BT /F1 8.1 Tf 76 254.3999999999998 Td (  - Click New + > Blueprint.) Tj ET
+BT /F1 8.1 Tf 76 243.8999999999998 Td (  - Connect repository https://github.com/renavaraghav/edvexa-data-quality-etl-monitor.) Tj ET
+BT /F1 8.1 Tf 76 233.3999999999998 Td (  - Render detects render.yaml automatically.) Tj ET
+BT /F1 8.1 Tf 76 222.8999999999998 Td (  - When prompted for non-synced environment variables, supply:) Tj ET
+BT /F1 8.1 Tf 80 212.3999999999998 Td (  - DATABASE_URL: Your Neon PostgreSQL connection string.) Tj ET
+BT /F1 8.1 Tf 80 201.8999999999998 Td (  - ADMIN_RESET_TOKEN: Generate a unique high-entropy value and set it only in Render's environment settings; do) Tj ET
+BT /F1 8.1 Tf 80 191.3999999999998 Td (not copy a token from documentation or commit a real value.) Tj ET
+BT /F1 8.1 Tf 80 180.8999999999998 Td (  - STORAGE_BACKEND: neon) Tj ET
+BT /F1 8.1 Tf 80 170.3999999999998 Td (  - NEON_STORAGE_ENDPOINT: Your Neon Object Storage S3 endpoint URL.) Tj ET
+BT /F1 8.1 Tf 80 159.8999999999998 Td (  - NEON_STORAGE_BUCKET_NAME: edvexa-uploads) Tj ET
+BT /F1 8.1 Tf 80 149.3999999999998 Td (  - NEON_STORAGE_ACCESS_KEY_ID: Neon storage Access Key ID.) Tj ET
+BT /F1 8.1 Tf 80 138.8999999999998 Td (  - NEON_STORAGE_SECRET_ACCESS_KEY: Neon storage Secret Access Key.) Tj ET
+BT /F1 8.1 Tf 76 128.3999999999998 Td (  - Click Apply. Render will automatically build the service, run migrations/initialization on startup, and expose a) Tj ET
+BT /F1 8.1 Tf 76 117.8999999999998 Td (live HTTPS URL.) Tj ET
+BT /F1 8.2 Tf 58 107.3999999999998 Td (3. Option B: Manual Web Service Creation:) Tj ET
+BT /F1 8.1 Tf 76 96.6999999999998 Td (  - Click New + > Web Service.) Tj ET
+BT /F1 8.1 Tf 76 86.1999999999998 Td (  - Connect repository https://github.com/renavaraghav/edvexa-data-quality-etl-monitor.) Tj ET
+BT /F1 8.1 Tf 76 75.6999999999998 Td (  - Runtime: Python 3.) Tj ET
+BT /F1 8.1 Tf 76 65.1999999999998 Td (  - Build Command: pip install --upgrade pip && pip install -r requirements.txt.) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 12 of 13) Tj ET
 
 endstream
@@ -935,69 +931,83 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 31 0 R >>
 endobj
 31 0 obj
-<< /Length 2028 >>
+<< /Length 3486 >>
 stream
-0.93 g 48 809 499 0.6 re f 0 g
+0.90 G 0.6 w 48 808 m 547 808 l S 0 G
 BT /F2 7 Tf 48 819 Td (EDVEXA DATA QUALITY AND ETL MONITOR) Tj ET
-BT /F3 7 Tf 48 785 Td (ADMIN_RESET_TOKEN | Optional | None | Secret token required to invoke POST /api/dashboard/reset-data when) Tj ET
-BT /F3 7 Tf 48 775.8 Td (administrative authorization is enforced.) Tj ET
-BT /F3 7 Tf 48 764.5999999999999 Td (FORCE_DISABLE_DESTRUCTIVE_RESET | Optional | false | Set to true to disable the destructive reset endpoint. When unset) Tj ET
-BT /F3 7 Tf 48 755.3999999999999 Td (or false, reset remains enabled for the assignment demo.) Tj ET
-BT /F3 7 Tf 48 744.1999999999998 Td (CORS_ORIGINS | Optional | * | Comma-delimited list of permitted CORS origins.) Tj ET
-BT /F3 7 Tf 48 732.9999999999998 Td (UPLOAD_MAX_SIZE_BYTES | Optional | 10485760 | Maximum file upload payload size \(10 MB\).) Tj ET
-BT /F2 10.5 Tf 48 713.2999999999997 Td (13.5 Free-Tier Sustainability & Operational Boundaries) Tj ET
-BT /F1 8.2 Tf 68 698.2999999999997 Td (* Render Web Service: In the free tier, Render automatically spins down services after 15 minutes of inactivity. When a) Tj ET
-BT /F1 8.2 Tf 68 687.5999999999997 Td (new incoming request arrives, a cold start of 30-50 seconds occurs. Because database state is persisted on Neon and) Tj ET
-BT /F1 8.2 Tf 68 676.8999999999996 Td (files are stored on Neon Object Storage, zero data is lost across spindowns.) Tj ET
-BT /F1 8.2 Tf 68 666.1999999999996 Td (* Neon PostgreSQL & Object Storage: Neon provides free-tier storage and compute hours more than sufficient for) Tj ET
-BT /F1 8.2 Tf 68 655.4999999999995 Td (thousands of CSV processing jobs. Both relational records and raw uploaded files reside in the same project and region) Tj ET
-BT /F1 8.2 Tf 68 644.7999999999995 Td (\(Singapore / ap-southeast-1\), minimizing network hops and avoiding third-party egress overhead.) Tj ET
-0.75 G 0.5 w 48 39 m 547 39 l S 0 G
-BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Post-fix verification: 109 tests passed locally) Tj ET
+BT /F1 8.1 Tf 76 785 Td (  - Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT.) Tj ET
+BT /F1 8.1 Tf 76 774.5 Td (  - Health Check Path: /api/health.) Tj ET
+BT /F1 8.1 Tf 76 764 Td (  - Plan: Free.) Tj ET
+BT /F1 8.1 Tf 76 753.5 Td (  - Under Environment Variables, add the variables documented above.) Tj ET
+BT /F1 8.1 Tf 76 743 Td (  - Click Create Web Service.) Tj ET
+BT /F2 10.5 Tf 48 723 Td (13.4 Environment Variables Reference) Tj ET
+BT /F3 7 Tf 48 702.5 Td (Variable Name | Required | Default | Description) Tj ET
+BT /F3 7 Tf 48 691.3 Td (ENVIRONMENT | Yes | development | Runtime mode: development or production. Governs security policies.) Tj ET
+BT /F3 7 Tf 48 680.0999999999999 Td (DATABASE_URL | Yes | sqlite:///... | Connection URI. PostgreSQL \(postgresql://...\) or SQLite.) Tj ET
+BT /F3 7 Tf 48 668.8999999999999 Td (STORAGE_BACKEND | Optional | local | local for filesystem storage or neon for Neon Object Storage.) Tj ET
+BT /F3 7 Tf 48 657.6999999999998 Td (NEON_STORAGE_ENDPOINT | If Neon | None | Neon S3-compatible endpoint URL.) Tj ET
+BT /F3 7 Tf 48 646.4999999999998 Td (NEON_STORAGE_BUCKET_NAME | If Neon | edvexa-uploads | Target bucket name.) Tj ET
+BT /F3 7 Tf 48 635.2999999999997 Td (NEON_STORAGE_ACCESS_KEY_ID | If Neon | None | S3 API Access Key ID.) Tj ET
+BT /F3 7 Tf 48 624.0999999999997 Td (NEON_STORAGE_SECRET_ACCESS_KEY | If Neon | None | S3 API Secret Access Key.) Tj ET
+BT /F3 7 Tf 48 612.8999999999996 Td (ADMIN_RESET_TOKEN | Optional | None | Secret token required to invoke POST /api/dashboard/reset-data when) Tj ET
+BT /F3 7 Tf 48 603.6999999999996 Td (administrative authorization is enforced.) Tj ET
+BT /F3 7 Tf 48 592.4999999999995 Td (FORCE_DISABLE_DESTRUCTIVE_RESET | Optional | false | Set to true to disable the destructive reset endpoint. When unset) Tj ET
+BT /F3 7 Tf 48 583.2999999999995 Td (or false, reset remains enabled for the assignment demo.) Tj ET
+BT /F3 7 Tf 48 572.0999999999995 Td (CORS_ORIGINS | Optional | * | Comma-delimited list of permitted CORS origins.) Tj ET
+BT /F3 7 Tf 48 560.8999999999994 Td (UPLOAD_MAX_SIZE_BYTES | Optional | 10485760 | Maximum file upload payload size \(10 MB\).) Tj ET
+BT /F2 10.5 Tf 48 541.1999999999994 Td (13.5 Free-Tier Sustainability & Operational Boundaries) Tj ET
+BT /F1 8.2 Tf 58 526.1999999999994 Td (* Render Web Service: In the free tier, Render automatically spins down services after 15 minutes of inactivity. When) Tj ET
+BT /F1 8.2 Tf 58 515.4999999999993 Td (a new incoming request arrives, a cold start of 30-50 seconds occurs. Because database state is persisted on Neon and) Tj ET
+BT /F1 8.2 Tf 58 504.79999999999933 Td (files are stored on Neon Object Storage, zero data is lost across spindowns.) Tj ET
+BT /F1 8.2 Tf 58 494.09999999999934 Td (* Neon PostgreSQL & Object Storage: Neon provides free-tier storage and compute hours more than sufficient for) Tj ET
+BT /F1 8.2 Tf 58 483.39999999999935 Td (thousands of CSV processing jobs. Both relational records and raw uploaded files reside in the same project and) Tj ET
+BT /F1 8.2 Tf 58 472.69999999999936 Td (region \(Singapore / ap-southeast-1\), minimizing network hops and avoiding third-party egress overhead.) Tj ET
+0.78 G 0.5 w 48 39 m 547 39 l S 0 G
+BT /F1 7 Tf 48 26 Td (EDVEXA Technical Notes | Updated credential hygiene and CodeZero evidence) Tj ET
 BT /F1 7 Tf 493 26 Td (Page 13 of 13) Tj ET
 
 endstream
 endobj
 32 0 obj
-<< /Title (Edvexa Data Quality and ETL Monitor - Technical Notes) /Author (Raghav Kumar) /Subject (Architecture, testing and CodeZero review) >>
+<< /Title (Edvexa Data Quality and ETL Monitor - Technical Notes) /Author (Raghav Kumar) /Subject (Architecture, testing, CodeZero workflow, and credential hygiene) >>
 endobj
 xref
 0 33
 0000000000 65535 f 
-0000000054 00000 n 
-0000000126 00000 n 
-0000000267 00000 n 
-0000000364 00000 n 
-0000000466 00000 n 
-0000000561 00000 n 
-0000000713 00000 n 
-0000008233 00000 n 
-0000008385 00000 n 
-0000016119 00000 n 
-0000016273 00000 n 
-0000023131 00000 n 
-0000023285 00000 n 
-0000030209 00000 n 
-0000030363 00000 n 
-0000038436 00000 n 
-0000038590 00000 n 
-0000047217 00000 n 
-0000047371 00000 n 
-0000055335 00000 n 
-0000055489 00000 n 
-0000062042 00000 n 
-0000062196 00000 n 
-0000068222 00000 n 
-0000068376 00000 n 
-0000075454 00000 n 
-0000075608 00000 n 
-0000082795 00000 n 
-0000082949 00000 n 
-0000089736 00000 n 
-0000089890 00000 n 
-0000091971 00000 n 
+0000000041 00000 n 
+0000000113 00000 n 
+0000000254 00000 n 
+0000000351 00000 n 
+0000000453 00000 n 
+0000000548 00000 n 
+0000000700 00000 n 
+0000008100 00000 n 
+0000008252 00000 n 
+0000015915 00000 n 
+0000016069 00000 n 
+0000023083 00000 n 
+0000023237 00000 n 
+0000029893 00000 n 
+0000030047 00000 n 
+0000038434 00000 n 
+0000038588 00000 n 
+0000046400 00000 n 
+0000046554 00000 n 
+0000055106 00000 n 
+0000055260 00000 n 
+0000062109 00000 n 
+0000062263 00000 n 
+0000068264 00000 n 
+0000068418 00000 n 
+0000074728 00000 n 
+0000074882 00000 n 
+0000082412 00000 n 
+0000082566 00000 n 
+0000089348 00000 n 
+0000089502 00000 n 
+0000093041 00000 n 
 trailer
 << /Size 33 /Root 1 0 R /Info 32 0 R >>
 startxref
-92132
+93225
 %%EOF
