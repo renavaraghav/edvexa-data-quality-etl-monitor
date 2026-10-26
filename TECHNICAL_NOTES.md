@@ -291,7 +291,7 @@ tests/test_validation.py::test_csv_import_utf8_bom PASSED                [100%]
 
 ## 5. Antigravity-Assisted Development & Review Process
 
-> **Compliance Note:** In accordance with Section 14 of the requirements, this section documents the actual tool used during this engineering session: **Google Antigravity (Advanced Agentic Pair Programming)**. No artificial claims or fabricated CodeZero prompts are included. When CodeZero is executed in subsequent evaluation steps, this section can be supplemented with those specific session logs.
+> **Tooling note:** This document distinguishes the main implementation work assisted by Google Antigravity from the actual CodeZero exploration and independent review. The CodeZero review and its limitations are recorded in Section 5.4 and `CODEZERO_REVIEW.md`.
 
 ### 5.1 Tasks Assisted by Antigravity
 1. **Workspace Architecture Scaffolding:** Designed the decoupled folder structure (`app/`, `tests/`, `sample_data/`, `scripts/`).
@@ -307,19 +307,24 @@ During the implementation, several critical design details were reviewed and ref
 1. **Pydantic Settings vs Dotenv:** Switched from `pydantic-settings` to native `python-dotenv` + `pydantic.BaseModel` to avoid external package version incompatibilities.
 2. **UTF-8 BOM Header Parsing:** Standard UTF-8 decoding can leave a leading zero-width no-break space (`\ufeff`) on the first header column. Implemented multi-tier decoding prioritizing `utf-8-sig` to cleanly strip the byte order mark.
 3. **Calendar Date Validation:** Rather than accepting any string that matches a regex pattern, strict calendar parsing via `datetime.strptime` was enforced, properly rejecting impossible calendar days such as February 29th on non-leap years (`2023-02-29`) or month values above `12`.
-4. **Row Number Line Indexing:** Line numbers are tracked as 1-based physical CSV line numbers (Line 1 = Header, Line 2 = Data Row 1). This aligns exactly with what data engineers and business auditors see when inspecting the source CSV file in Excel or VS Code.
+4. **CSV Row Numbering (review finding):** The current parser uses a 1-based CSV-record counter after the header. It does not reliably represent physical file line numbers when quoted fields contain embedded newlines. CodeZero identified this as an audit-reporting edge case; it remains a follow-up item until implemented and covered by a regression test.
 5. **Idempotent Job Reprocessing:** Added a dedicated `POST /api/jobs/{id}/reprocess` endpoint that retrieves the saved file artifact and re-runs the pipeline safely without duplicating clean records.
 6. **Spreadsheet Formula Injection Mitigation:** Sanitized cell values beginning with `=`, `+`, `-`, `@`, `\t`, `\r` by prepending a single quote in both CSV and multi-sheet Excel exports.
 
 ### 5.3 CodeZero Workflow & Tooling Demarcation
 This section documents the tools used in the actual development workflow for the assignment.
 
-- **CodeZero:** Used during initial exploration of the starter materials to inspect the standalone CLI exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial architecture and README scope (Git commit `7983368c3879efe141b90b7a269c1cb0882505b1`, Plan `6adcf6109cb64fb3236a5352`). The standalone exercise file is not included in the final web-app repository. The documented CodeZero work focused on exploration and planning rather than generating the main application implementation.
-- **Review and manual refinements:** The planned requirements were compared with the assignment and then verified through implementation checks and the automated test suite. Documented refinements included UTF-8 BOM handling, strict calendar-date validation, row-number indexing, idempotent reprocessing, and spreadsheet formula-injection mitigation (see Section 5.2). The current recorded local test run reports 99 passed tests, with 17 library deprecation warnings.
-- **Google Antigravity:** Assisted with the subsequent full-stack implementation, including FastAPI routes, SQLAlchemy persistence, the ETL pipeline, the HTML/CSS/JavaScript dashboard, Excel/CSV reporting, and automated tests.
+- **CodeZero — initial exploration:** Used to inspect the standalone starter exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial architecture and README scope (Git commit `7983368c3879efe141b90b7a269c1cb0882505b1`, Plan `6adcf6109cb64fb3236a5352`). That exercise file is not part of the final web-app repository.
+- **CodeZero — independent review and verification:** Later reviewed the current source against the assignment, ran `.\.venv\Scripts\python.exe -m pytest -q`, inspected code paths behind identified risks, and ran a runtime probe that reproduced the reprocessing/audit-record issue. The review reported 99 passing tests and 17 deprecation warnings; tests used in-memory SQLite. No application files were changed during that review. See Section 5.4 and [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md) for findings and scope limits.
+- **Google Antigravity:** Assisted with the main full-stack implementation, including FastAPI routes, SQLAlchemy persistence, the ETL pipeline, the HTML/CSS/JavaScript dashboard, Excel/CSV reporting, and automated tests.
 
-The CodeZero contribution is described narrowly to avoid overstating the tool's role. No synthetic sessions or unsupported claims about CodeZero-generated application code are included.
+Findings from the CodeZero review are recorded as identified—not fixed—until a code change and appropriate regression test are completed.
 
+
+### 5.4 CodeZero Repository Review — October 26, 2026
+The independent review is documented in [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md). In the review session, CodeZero inspected the repository files, ran the local pytest suite, and reproduced one reprocessing/audit-record defect using a runtime probe. The recorded suite result was **99 passed, 17 deprecation warnings**. The tests use in-memory SQLite; this run did not verify PostgreSQL or the deployed service.
+
+The report identified follow-up items involving reprocessing audit/export preservation, the trend chart's 30-job window, upload-size checking before a full read, malformed CSV row shapes and multiline row locations, invalid date-filter behavior, and documentation consistency for the SQL DDL and sample CSV inventory. These items are findings, not claims of completed fixes. The review session made no application-code modifications.
 ---
 
 ## 6. What Was Verified & Remaining Limitations
@@ -576,7 +581,7 @@ Processing history and audit tables (`.data-table-warm`) were upgraded with dedi
    - Served as the primary engineering assistant for the complete end-to-end full-stack implementation, backend REST API routing, SQLAlchemy 2.x relational persistence, openpyxl multi-sheet Excel workbook generator, responsive HTML5/Vanilla JS frontend with dual themes (Warm Ivory & Dark Espresso), date-range filtering engine, iPhone-style slide-to-reset control, automated verification scripts, and the 99 automated pytest test suite.
 
 2. **CodeZero:**
-   - Used during initial exploration of the starter materials to inspect the standalone CLI exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial README architecture scope (Git commit `7983368`, Plan `6adcf6109cb64fb3236a5352`). That exercise file is not included in the final web-app repository; CodeZero's documented role was exploration and planning, not full-stack implementation.
+   - Used for initial starter-material exploration and architecture planning, then for an independent repository review, a 99-pass/17-warning local test run on in-memory SQLite, and a runtime probe reproducing a reprocessing/audit-record defect. The review made no application-code changes. Full findings and limits are in [`CODEZERO_REVIEW.md`](CODEZERO_REVIEW.md).
 
 3. **Python 3.12, FastAPI & Uvicorn:**
    - Core application runtime, asynchronous REST API transport layer, Pydantic v2 data validation, and OpenAPI documentation endpoints (`/docs`, `/redoc`).
