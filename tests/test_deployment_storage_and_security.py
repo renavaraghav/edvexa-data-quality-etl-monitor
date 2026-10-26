@@ -74,10 +74,10 @@ def test_normalize_database_url_preserves_sqlite():
 
 def test_sanitize_database_url_redacts_credentials():
     """Verify passwords in connection strings are hidden in logs."""
-    raw = "postgresql://neon_admin:SuperSecretP@ssword123@ep-sample-999.neon.tech/neondb?sslmode=require"
+    raw = "postgresql://test_user:TEST_ONLY_PASSWORD%40NOT_REAL@ep-sample-999.neon.tech/neondb?sslmode=require"
     sanitized = sanitize_database_url(raw)
-    assert "SuperSecretP@ssword123" not in sanitized
-    assert "neon_admin:****@" in sanitized
+    assert "TEST_ONLY_PASSWORD%40NOT_REAL" not in sanitized
+    assert "test_user:****@" in sanitized
     assert "ep-sample-999.neon.tech/neondb" in sanitized
 
 
@@ -167,8 +167,8 @@ def test_neon_object_storage_backend_mocked(tmp_path: Path):
     with patch.object(settings, "UPLOADS_DIR", tmp_path):
         backend = NeonObjectStorageBackend(
             bucket_name="edvexa-uploads",
-            access_key_id="neon-access-key-123",
-            secret_access_key="neon-secret-key-456",
+            access_key_id="TEST_ONLY_ACCESS_KEY_NOT_REAL",
+            secret_access_key="TEST_ONLY_SECRET_KEY_NOT_REAL",
             endpoint_url="https://br-cool-branch.storage.ap-southeast-1.aws.neon.tech",
             region_name="ap-southeast-1"
         )
@@ -220,8 +220,8 @@ def test_neon_storage_factory_resolution(tmp_path: Path):
     reset_storage_instance()
     with patch.object(settings, "STORAGE_BACKEND", "neon"):
         with patch.object(settings, "S3_BUCKET_NAME", "edvexa-uploads"):
-            with patch.object(settings, "S3_ACCESS_KEY_ID", "key123"):
-                with patch.object(settings, "S3_SECRET_ACCESS_KEY", "secret123"):
+            with patch.object(settings, "S3_ACCESS_KEY_ID", "TEST_ONLY_ACCESS_KEY_NOT_REAL"):
+                with patch.object(settings, "S3_SECRET_ACCESS_KEY", "TEST_ONLY_SECRET_KEY_NOT_REAL"):
                     with patch.object(settings, "S3_ENDPOINT_URL", "https://storage.neon.tech"):
                         with patch("boto3.client") as mock_boto:
                             storage = get_storage()
@@ -257,8 +257,8 @@ def test_r2_storage_backend_mocked(tmp_path: Path):
         backend = R2StorageBackend(
             account_id="acc123",
             bucket_name="edvexa-uploads",
-            access_key_id="test-key",
-            secret_access_key="test-secret",
+            access_key_id="TEST_ONLY_ACCESS_KEY_NOT_REAL",
+            secret_access_key="TEST_ONLY_SECRET_KEY_NOT_REAL",
             endpoint_url="https://acc123.r2.cloudflarestorage.com"
         )
         backend.s3_client = mock_s3
