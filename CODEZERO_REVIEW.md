@@ -17,7 +17,7 @@
 
 - Reported **99 passed tests and 17 deprecation warnings**. The test fixture uses an in-memory SQLite database; this run did not establish compatibility with a live PostgreSQL database or verify the deployed application.
 - Ran a targeted runtime probe for reprocessing and confirmed that a job with one previously accepted record had one clean audit row before reprocessing and zero afterward; the reprocess result showed zero accepted and one duplicate. The review linked this to clean-record export behavior.
-- Produced the findings below. **CodeZero did not modify application files during this review session.** The findings below are not described as fixed.
+- Produced the findings below. **CodeZero did not modify application files during the review session.** A separate follow-up engineering pass subsequently applied targeted code/documentation fixes and added regression tests; that later work is described separately below.
 
 ## Findings from the review
 
@@ -25,31 +25,31 @@
 
 **Evidence:** `app/services/etl_pipeline.py`, `reprocess_existing_job` (around lines 278–299) deletes the job's `JobCleanRecord` rows before rerunning the pipeline. The runtime probe reported that a previously accepted record was then detected as an existing business-table duplicate, leaving no replacement job-scoped clean-record row. `app/services/export_service.py` rejects clean-record exports when there are no accepted records to export.
 
-**Suggested follow-up:** Define the expected audit semantics for reprocessing, preserve historical accepted-record evidence, and add a regression test that verifies both the job-scoped audit rows and clean-record export after reprocessing a successful job.
+**Follow-up applied after review:** `app/services/etl_pipeline.py` now captures keys previously accepted by the same job, avoids re-inserting those business rows, and replaces the job's errors/clean-record snapshot in the reprocessing transaction. Regression assertions were added to `tests/test_etl.py` and `tests/test_api.py` for accepted counts, audit-row preservation, and clean-record export. The updated tests have not yet been run.
 
 ### 2. Trend history can omit newer jobs
 
 **Evidence:** `app/routers/dashboard.py`, `get_dashboard_trends` (around lines 188–208) orders by ascending job ID before applying a 30-item limit. Once the database contains more than 30 jobs, the result can be limited to the oldest jobs.
 
-**Suggested follow-up:** Select the newest 30 points, then return that bounded set in chronological display order. Add a test with more than 30 jobs.
+**Follow-up applied after review:** `app/routers/dashboard.py` now selects the newest 30 completed jobs, then reverses that bounded set for chronological display. `tests/test_dashboard_upgrade.py` now includes a 35-job regression case. The updated test has not yet been run.
 
 ### 3. The upload-size guard runs after reading the full upload
 
 **Evidence:** `app/routers/uploads.py` reads the uploaded file into memory before enforcing the configured size limit.
 
-**Suggested follow-up:** Read in bounded chunks and stop once the maximum plus one byte is reached; test a payload just above the configured limit.
+**Follow-up applied after review:** `app/routers/uploads.py` now reads at most `UPLOAD_MAX_SIZE_BYTES + 1` bytes before rejecting an oversized upload. `tests/test_api.py` now checks rejection for a payload above the configured limit. The updated test has not yet been run.
 
 ### 4. CSV shape and row-location edge cases need explicit handling
 
 **Evidence:** `app/services/csv_import.py` pads short rows with empty strings and maps fields only up to the header count, so extra cells can be discarded. The row counter increments per CSV record and does not represent physical file lines correctly when quoted fields contain embedded newlines.
 
-**Suggested follow-up:** Reject unexpected field counts and define whether error locations mean logical CSV records or physical file lines. Add regression cases for extra cells and quoted multiline fields.
+**Follow-up applied after review:** `app/services/csv_import.py` now rejects data records whose field count differs from the header and records each logical record's physical starting line using `csv.reader.line_num`. `tests/test_validation.py` now covers short/extra field counts and quoted multiline rows. The updated tests have not yet been run.
 
 ### 5. Invalid date filters can be silently ignored
 
 **Evidence:** The review found date-parsing paths in the jobs, errors, records, and dashboard routers that catch invalid date input and continue without applying that filter.
 
-**Suggested follow-up:** Return a clear HTTP 422 for malformed date parameters and test the behavior across date-filtered endpoints.
+**Follow-up applied after review:** The jobs, errors, records, and dashboard date parsers now return HTTP 422 for malformed dates and reversed date ranges. Parameterized API regression tests were added in `tests/test_api.py`. The updated tests have not yet been run.
 
 ### 6. Schema and sample-data documentation needed consistency fixes
 
@@ -59,8 +59,8 @@
 
 ## Scope and limits
 
-- The test result is the result recorded by the CodeZero review session, not a fresh test run performed by this document.
+- The 99-pass result is the result recorded by the CodeZero review session for the pre-patch baseline, not a fresh post-fix test run.
 - The tests run against in-memory SQLite; the review did not run the suite against PostgreSQL.
 - The review did not perform a fresh live-deployment smoke test.
-- Items 1–5 above are reported findings awaiting appropriate code changes and regression tests. They must not be described as fixed merely because they were identified.
+- Targeted follow-up changes and regression tests have been added for Items 1–5. The full suite has **not** been run after those changes, so these are implemented but not yet test-verified. The earlier 99-pass result applies to the pre-patch baseline only.
 - This document records the actual review activity and distinguishes it from the earlier full-stack implementation work assisted by Google Antigravity.
