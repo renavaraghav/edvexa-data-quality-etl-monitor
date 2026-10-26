@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
-from app.models import Customer, ProcessingJob, ValidationError
+from app.models import Customer, ProcessingJob, ValidationError, JobCleanRecord
 from app.services.etl_pipeline import execute_etl_job, reprocess_existing_job
 
 def test_etl_valid_customers_loaded(db_session: Session):
@@ -114,8 +114,14 @@ def test_etl_reprocess_job(db_session: Session):
     updated_job = reprocess_existing_job(job.id, db_session)
     assert updated_job.id == job.id
     assert updated_job.status == "completed"
-    # Idempotent: row is recognized as existing DB key
-    assert updated_job.duplicate_rows == 1
+    # Reprocessing retains this job's original accepted-record semantics.
+    assert updated_job.accepted_rows == 1
+    assert updated_job.duplicate_rows == 0
+    clean_rows = db_session.scalars(
+        select(JobCleanRecord).where(JobCleanRecord.job_id == job.id)
+    ).all()
+    assert len(clean_rows) == 1
+    assert clean_rows[0].business_key == "CUST-301"
 
 def test_customers_mixed_quality_empty_db_vs_populated_db(db_session: Session):
     csv_content = (
