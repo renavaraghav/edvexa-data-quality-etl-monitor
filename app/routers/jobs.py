@@ -51,19 +51,35 @@ def list_jobs(
         else:
             query = query.where(ProcessingJob.filename.ilike(search_term))
 
+    start_dt = None
+    end_dt = None
     if start_date:
         try:
-            d = datetime.strptime(start_date.strip()[:10], "%Y-%m-%d").date()
-            query = query.where(ProcessingJob.started_at >= datetime.combine(d, time.min))
-        except Exception:
-            pass
+            d = datetime.strptime(start_date.strip(), "%Y-%m-%d").date()
+            start_dt = datetime.combine(d, time.min)
+            query = query.where(ProcessingJob.started_at >= start_dt)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid start_date '{start_date}'. Expected YYYY-MM-DD."
+            ) from exc
 
     if end_date:
         try:
-            d = datetime.strptime(end_date.strip()[:10], "%Y-%m-%d").date()
-            query = query.where(ProcessingJob.started_at <= datetime.combine(d, time.max))
-        except Exception:
-            pass
+            d = datetime.strptime(end_date.strip(), "%Y-%m-%d").date()
+            end_dt = datetime.combine(d, time.max)
+            query = query.where(ProcessingJob.started_at <= end_dt)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid end_date '{end_date}'. Expected YYYY-MM-DD."
+            ) from exc
+
+    if start_dt and end_dt and start_dt > end_dt:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date must be on or before end_date."
+        )
 
     # Total count query
     count_query = select(func.count()).select_from(query.subquery())
