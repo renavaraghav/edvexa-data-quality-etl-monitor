@@ -329,6 +329,10 @@ During the implementation, several critical design details were reviewed and ref
 6. **Spreadsheet Formula Injection Mitigation:** Sanitized cell values beginning with `=`, `+`, `-`, `@`, `\t`, `\r` by prepending a single quote in both CSV and multi-sheet Excel exports.
 
 ### 5.3 CodeZero Workflow & Tooling Demarcation
+
+Prompt wording and iteration evidence are documented separately in [`CODEZERO_PROMPT_EVIDENCE.md`](CODEZERO_PROMPT_EVIDENCE.md). That file distinguishes reconstructed examples from verbatim prompt logs because the original transcript was not preserved.
+
+
 This section documents the tools used in the actual development workflow for the assignment.
 
 - **CodeZero — initial exploration:** Used to inspect the standalone starter exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial architecture and README scope (Git commit `7983368c3879efe141b90b7a269c1cb0882505b1`, Plan `6adcf6109cb64fb3236a5352`). That exercise file is not part of the final web-app repository.
@@ -633,7 +637,7 @@ This guide outlines the deployment procedure for EDVEXA on **Render**, backed by
 3. **Obtain Connection String:**
    - On the Neon Dashboard, copy the connection string under **Connection Details**.
    - Select **Pooled connection** or direct connection string.
-   - Example format: `postgresql://neondb_owner:npg_sample_pass@ep-cool-fog-123456.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`
+   - Example format: `postgresql://<username>:<redacted>@<your-neon-host>/<database>?sslmode=require` (format reference only; never a working credential)
    - The application automatically ensures `postgresql://` protocol prefix and appends `sslmode=require`.
 
 ### 13.2 Neon Object Storage Setup
@@ -656,7 +660,7 @@ This guide outlines the deployment procedure for EDVEXA on **Render**, backed by
    - Render detects `render.yaml` automatically.
    - When prompted for non-synced environment variables, supply:
      - `DATABASE_URL`: Your Neon PostgreSQL connection string.
-     - `ADMIN_RESET_TOKEN`: A secure random secret string (e.g., `edvexa_adm_c9c985cb4b64f9704662bdc05eccc2091cd35f3d796a5344`).
+     - `ADMIN_RESET_TOKEN`: Generate a unique high-entropy value and set it only in Render's environment settings; do not copy a token from documentation or commit a real value.
      - `STORAGE_BACKEND`: `neon`
      - `NEON_STORAGE_ENDPOINT`: Your Neon Object Storage S3 endpoint URL.
      - `NEON_STORAGE_BUCKET_NAME`: `edvexa-uploads`
