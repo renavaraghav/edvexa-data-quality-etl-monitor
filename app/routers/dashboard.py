@@ -33,21 +33,32 @@ router = APIRouter(prefix="/api/dashboard", tags=["Dashboard & Analytics"])
 
 
 def parse_date_boundaries(start_date: str | None, end_date: str | None):
-    """Safely parse start and end date boundary strings into datetimes."""
+    """Parse optional YYYY-MM-DD filters, rejecting malformed dates with HTTP 422."""
     start_dt = None
     end_dt = None
     if start_date:
         try:
-            d = datetime.strptime(start_date.strip()[:10], "%Y-%m-%d").date()
+            d = datetime.strptime(start_date.strip(), "%Y-%m-%d").date()
             start_dt = datetime.combine(d, time.min)
-        except Exception:
-            pass
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid start_date '{start_date}'. Expected YYYY-MM-DD."
+            ) from exc
     if end_date:
         try:
-            d = datetime.strptime(end_date.strip()[:10], "%Y-%m-%d").date()
+            d = datetime.strptime(end_date.strip(), "%Y-%m-%d").date()
             end_dt = datetime.combine(d, time.max)
-        except Exception:
-            pass
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid end_date '{end_date}'. Expected YYYY-MM-DD."
+            ) from exc
+    if start_dt and end_dt and start_dt > end_dt:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date must be on or before end_date."
+        )
     return start_dt, end_dt
 
 
@@ -205,8 +216,10 @@ def get_dashboard_trends(
     if end_dt:
         stmt = stmt.where(ProcessingJob.started_at <= end_dt)
 
-    stmt = stmt.order_by(ProcessingJob.id.asc()).limit(30)
-    completed_jobs = db.scalars(stmt).all()
+    # Select the newest jobs, then reverse the bounded set for chronological display.
+    stmt = stmt.order_by(ProcessingJob.id.desc()).limit(30)
+    completed_jobs = list(db.scalars(stmt).all())
+    completed_jobs.reverse()
 
     trends: list[TrendDataPoint] = []
     for job in completed_jobs:
