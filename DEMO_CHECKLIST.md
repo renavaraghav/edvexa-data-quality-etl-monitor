@@ -166,8 +166,8 @@ Verified high-resolution application screenshots are saved directly in the `scre
 - [x] Example prompts are explicitly labelled **reconstructed, not verbatim historical transcripts**, because an original CodeZero prompt export was not found. Replace or supplement these with original session evidence if available.
 
 ### Credential hygiene
-- [x] Current tracked environment template is `.env.example`; no tracked production `.env` file appears in the current default-branch tree.
-- [x] `.gitignore` ignores `.env` and `.env.*`, while explicitly allowing `.env.example`.
+- [x] Neither `.env` nor `.env.example` is included in the current default branch.
+- [x] `.gitignore` ignores `.env` and `.env.*` variants.
 - [x] Common private-key/certificate file extensions are ignored, and no files with those extensions were found in the current repository tree.
 - [x] Database connection and admin-token examples use blank or redacted placeholders; test credential strings use explicit `TEST_ONLY_..._NOT_REAL` markers.
 - [ ] Run a dedicated secret scanner over the full Git history if available. Current-branch file checks do not prove that an actual secret was never committed in an earlier commit. Rotate/revoke any real credential ever pushed.
