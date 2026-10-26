@@ -157,3 +157,30 @@ def test_csv_import_utf8_bom():
     assert res.is_valid is True
     assert res.headers[0] == "customer_id"
     assert len(res.rows) == 1
+
+
+
+def test_csv_parser_tracks_physical_start_line_for_multiline_record():
+    content = (
+        'customer_id,name,email,created_at\n'
+        'CUST-1,"Name with\nembedded newline",one@example.com,2024-01-01\n'
+        'CUST-2,Bad Email,not-an-email,2024-01-02\n'
+    ).encode("utf-8")
+    result = parse_and_validate_csv(content, "multiline.csv", "customers")
+    assert result.is_valid is True
+    assert [row.line_number for row in result.rows] == [2, 4]
+
+
+@pytest.mark.parametrize("bad_row,found_count", [
+    ("CUST-1,Alice,alice@example.com", 3),
+    ("CUST-1,Alice,alice@example.com,2024-01-01,unexpected", 5),
+])
+def test_csv_parser_rejects_rows_with_wrong_field_count(bad_row: str, found_count: int):
+    content = (
+        "customer_id,name,email,created_at\n" + bad_row + "\n"
+    ).encode("utf-8")
+    result = parse_and_validate_csv(content, "wrong-shape.csv", "customers")
+    assert result.is_valid is False
+    assert "physical line 2" in result.error_message
+    assert "expected 4 fields" in result.error_message
+    assert f"found {found_count}" in result.error_message
