@@ -72,9 +72,9 @@ Result: **109 passed, 0 failed, 23 deprecation warnings in 19.91 seconds**. The 
 A current-default-branch review was made while preparing this evidence:
 
 - `.env.example` is the only tracked environment-file template; a tracked `.env` file was not present in the repository tree.
-- The `.gitignore` is being hardened to ignore `.env` and `.env.*`, while explicitly allowing the non-secret `.env.example` template, and to ignore common private-key file extensions.
+- The current `.gitignore` ignores `.env` and `.env.*`, explicitly allows the non-secret `.env.example` template, and ignores common private-key file extensions.
 - Sample database URL and reset-token examples are being replaced with redacted/blank placeholders. Test-only credential strings are being made explicit as non-real test values.
-- Repository code searches for several common provider-token prefixes returned no matches. Searches are not a substitute for a dedicated secret scanner, and a full historical Git-object scan has **not** been completed.
+- A targeted review of the current versions of the files inspected found no populated production credential in `.env.example` and no known provider-token value in those inspected files. Search indexing can lag, and this was not a dedicated whole-repository secret scan. A full historical Git-object scan has **not** been completed.
 
 **Important:** Never commit real database URLs, passwords, API keys, object-storage keys, reset tokens, private keys, or production `.env` files. If a genuine credential was ever pushed, rotate/revoke it even after removing it from the latest files; deleting a value from the current branch does not remove it from Git history.
 
