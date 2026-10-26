@@ -319,7 +319,7 @@ The platform includes an iPhone-style Slide-to-Reset control to clear uploaded d
 > [!NOTE]
 > **Assignment Demo Configuration:**  
 > The app computes its internal `ALLOW_DESTRUCTIVE_RESET` setting from `FORCE_DISABLE_DESTRUCTIVE_RESET`. In the current assignment-demo configuration, `FORCE_DISABLE_DESTRUCTIVE_RESET` is unset or `false`, so reset is enabled without an administrative token or login.  
-> Direct API requests to `POST /api/dashboard/reset-data` bypass the frontend slider and checkbox controls because backend token enforcement is disabled in this evaluation mode. (A complete, session-based admin authentication module is implemented in `app/routers/auth.py` for enterprise production deployments).
+> Direct API requests to `POST /api/dashboard/reset-data` bypass the frontend slider and checkbox controls because backend token enforcement is disabled in this evaluation mode. The separate module at `app/routers/auth.py` is not wired to this reset endpoint in the current demo, so it does not protect this route.
 
 ---
 
@@ -414,7 +414,7 @@ Detailed engineering architecture notes, data models, trade-offs, and tooling de
 - **Author:** Raghav Kumar
 - **Project:** Edvexa Data Quality & ETL Monitoring Platform
 
-**CodeZero:** Used during the initial project exploration to inspect the existing `csv_quality_checker.py` exercise, analyze baseline data-validation requirements, and plan the initial architecture and README structure. The documented CodeZero contribution was exploration and planning.
+**CodeZero:** Used during initial exploration of the starter materials to inspect the standalone `csv_quality_checker.py` exercise, analyze baseline data-validation requirements, and plan the initial architecture and README structure. That exercise file is not part of the final web-app repository; the documented CodeZero contribution was exploration and planning.
 
 **Review and verification:** The implementation was checked against the assignment requirements, and development notes record manual refinements for UTF-8 BOM parsing, strict calendar-date validation, row numbering, idempotent reprocessing, and spreadsheet formula-injection mitigation. The current documented local test run reports 99 passed tests and 17 library deprecation warnings.
 
