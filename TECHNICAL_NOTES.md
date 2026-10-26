@@ -302,7 +302,7 @@ tests/test_validation.py::test_csv_import_utf8_bom PASSED                [100%]
 4. **ETL Pipeline & Transaction Boundaries:** Authored the Extract-Transform-Load pipeline enforcing the mutual-exclusion accounting equation.
 5. **REST API Construction:** Implemented OpenAPI-documented endpoints for health, ingestion, jobs, validation error itemization, clean records browsing, and dashboard trends.
 6. **Frontend Dashboard:** Created a responsive, modern HTML5/CSS3/Vanilla JS single-page interface with Chart.js visualization.
-7. **Automated Testing Suite:** Implemented 99 tests covering all layers including destructive reset, concurrency guards, date filtering on all endpoints, OpenAPI schema presence, empty-database idempotency, and accounting invariants.
+7. **Automated Testing Suite:** The pre-review baseline had 99 test cases. Ten additional test cases were added in the CodeZero-review follow-up for reprocessing export preservation, bounded uploads, invalid date filters, malformed CSV widths, multiline row locations, and trend-window selection. The expected current collection is 109 test cases, but the post-patch suite has not yet been run.
 
 ### 5.2 Review & Manual Corrections Made During Development
 During the implementation, several critical design details were reviewed and refined:
