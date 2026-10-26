@@ -188,14 +188,14 @@ A real-world case study was audited in Job #10 (`customers_mixed_quality.csv`, 6
    - Lines 3 through 6 failed field validation: categorized as **`REJECTED`** (Rejected #1, #2, #3, #4).
    - When Line 7 was evaluated, it passed schema validation, but `CUST101` had already appeared on Line 2 of this file: categorized as **`DUPLICATE_KEY_IN_FILE`** (Duplicate #2).
    - Result: **Total: 6, Accepted: 0, Rejected: 4, Duplicates: 2, Skipped: 0**.
-   - Accounting check: $0 + 4 + 2 + 0 = 6$.
+   - Accounting check: `0 + 4 + 2 + 0 = 6`.
    - Validation Error Records: Exactly 6 (1 for DB duplicate on row 2, 4 for rejected rows, 1 for in-file duplicate on row 7).
 3. **Execution Against an Empty Database:**
    - If the same file is run against a fresh empty database, Line 2 is **Accepted** (inserted into clean tables).
    - Lines 3 through 6 remain **Rejected** (4).
    - Line 7 remains an in-file **Duplicate** (1).
    - Result: **Total: 6, Accepted: 1, Rejected: 4, Duplicates: 1, Skipped: 0**.
-   - Accounting check: $1 + 4 + 1 + 0 = 6$.
+   - Accounting check: `1 + 4 + 1 + 0 = 6`.
    - Validation Error Records: Exactly 5.
 
 ---
@@ -306,7 +306,7 @@ tests/test_validation.py::test_csv_import_utf8_bom PASSED                [100%]
 During the implementation, several critical design details were reviewed and refined:
 1. **Pydantic Settings vs Dotenv:** Switched from `pydantic-settings` to native `python-dotenv` + `pydantic.BaseModel` to avoid external package version incompatibilities.
 2. **UTF-8 BOM Header Parsing:** Standard UTF-8 decoding can leave a leading zero-width no-break space (`\ufeff`) on the first header column. Implemented multi-tier decoding prioritizing `utf-8-sig` to cleanly strip the byte order mark.
-3. **Calendar Date Validation:** Rather than accepting any string that matches a regex pattern, strict calendar parsing via `datetime.strptime` was enforced, properly rejecting impossible calendar days such as February 29th on non-leap years (`2023-02-29`) or month numbers $> 12$.
+3. **Calendar Date Validation:** Rather than accepting any string that matches a regex pattern, strict calendar parsing via `datetime.strptime` was enforced, properly rejecting impossible calendar days such as February 29th on non-leap years (`2023-02-29`) or month values above `12`.
 4. **Row Number Line Indexing:** Line numbers are tracked as 1-based physical CSV line numbers (Line 1 = Header, Line 2 = Data Row 1). This aligns exactly with what data engineers and business auditors see when inspecting the source CSV file in Excel or VS Code.
 5. **Idempotent Job Reprocessing:** Added a dedicated `POST /api/jobs/{id}/reprocess` endpoint that retrieves the saved file artifact and re-runs the pipeline safely without duplicating clean records.
 6. **Spreadsheet Formula Injection Mitigation:** Sanitized cell values beginning with `=`, `+`, `-`, `@`, `\t`, `\r` by prepending a single quote in both CSV and multi-sheet Excel exports.
@@ -344,8 +344,8 @@ The CodeZero contribution is described narrowly to avoid overstating the tool's 
 - [x] Complete UI integration in upload feedback card and Job Details modal with disabled states, tooltips, loading feedback, and double-click prevention.
 - [x] Destructive Data Reset (`POST /api/dashboard/reset-data`) with concurrency lock (`threading.Lock()`), foreign-key safe cascade deletion, physical file unlinking with path traversal protection, transaction rollback, and schema preservation.
 - [x] End-to-end date filtering across all 5 telemetry endpoints (`/api/dashboard/summary`, `/api/dashboard/trends`, `/api/jobs`, `/api/records`, `/api/errors`) with SQL joins and strict zero-state displays.
-- [x] Data quality score formula and KPI row accounting invariant: $\text{Total Records} = \text{Accepted} + \text{Rejected} + \text{Duplicates} + \text{Skipped}$; score is strictly $0.0\%$ (`No data`) when total is 0.
-- [x] Compact iPhone-style slide-to-reset control ($210\text{px} \times 42\text{px}$, circular thumb, chevron icon, touch/mouse dragging, threshold $\ge 85\%$, confirmation modal).
+- [x] Data quality score and KPI row accounting invariant: `Total Records = Accepted + Rejected + Duplicates + Skipped`; the score is `0.0%` (`No data`) when the total is 0.
+- [x] Compact iPhone-style slide-to-reset control (`210px × 42px`), with a circular thumb, chevron icon, touch/mouse dragging, an 85% threshold, and a confirmation modal.
 - [x] Dual themes (Warm Ivory & Dark Espresso) with WCAG AA compliant contrast on dataset select, drop zone, schema boxes, and disabled buttons.
 - [x] Dynamic real-event notification store in `localStorage` tracking uploads, downloads, reprocessing, and resets with auto-hiding badge.
 
@@ -531,7 +531,7 @@ The interface implements two curated color palettes designed for data density an
   - Accent / Primary Action: Muted Amber Gold `#C2955A`
 
 ### 11.2 WCAG AA Form Contrast Hardening
-Audit of dark mode form controls revealed contrast deficiencies that were resolved to ensure WCAG AA compliance ($\ge 4.5:1$ contrast ratio):
+Audit of dark-mode form controls revealed contrast deficiencies that were resolved to ensure WCAG AA compliance, with a contrast ratio of at least `4.5:1`:
 - **Dataset Dropdown (`<select>` & `<option>`):** Explicitly styled with dark background `#28231D`, border `#3D352B`, and text `#EDE6DD`, preventing OS-level white select popups.
 - **Drop Zone Area (`.drop-zone`):** Styled with dark background `#231E18`, dashed border `#504538`, and readable instructions `#EDE6DD`.
 - **Schema Reference Cards (`.schema-box`):** High-contrast header `#EDE6DD`, muted explanatory copy `#9C948A`, and highlighted inline `<code>` tags `#C2955A` on dark backgrounds.
@@ -539,9 +539,9 @@ Audit of dark mode form controls revealed contrast deficiencies that were resolv
 
 ### 11.3 iPhone-Style Compact Slide-to-Reset Control
 To prevent accidental destructive resets while delivering an intuitive, tactile interaction:
-- **Dimensions:** Compact track `210px × 42px` (desktop) scaling responsively to `140px × 36px` on mobile viewports ($\le 480\text{px}$) and `145px` on ultra-compact devices ($\le 360\text{px}$).
+- **Dimensions:** Compact track `210px × 42px` (desktop), scaling responsively to `140px × 36px` on mobile viewports 480px wide or narrower and `145px` on ultra-compact devices 360px wide or narrower.
 - **Circular Thumb:** `36px × 36px` circular pill with directional chevron SVG icon, smooth gradient, and grab cursor.
-- **Safety Threshold:** Requires dragging the thumb past $\ge 85\%$ of track width to complete the gesture.
+- **Safety Threshold:** Requires dragging the thumb to at least 85% of track width to complete the gesture.
 - **Two-Step Interaction:** Completing the slide opens the confirmation modal and unlocks the confirmation checkbox ("I understand that this action will permanently delete the selected uploaded data and associated processing history.").
 - **Explicit Button Activation:** Ticking the checkbox enables the red "Permanently Delete" button; ticking the box alone never deletes data.
 - **Atomic Execution & Automatic Refresh:** Clicking "Permanently Delete" executes `POST /api/dashboard/reset-data`. Upon backend confirmation, the frontend triggers `window.location.reload()`, performing an automatic full page refresh so all dashboard metrics, charts, and tables display the fresh updated state.
@@ -549,7 +549,7 @@ To prevent accidental destructive resets while delivering an intuitive, tactile 
 
 ### 11.4 Mobile Responsiveness & Slide-Out Drawer
 - Full layout flexibility down to 320px viewport width (tested on 320px, 375px, 768px, 1024px, 1920px).
-- Navigation collapses into a responsive slide-out drawer on screens $< 992\text{px}$ with backdrop dimming and touch close.
+- Navigation collapses into a responsive slide-out drawer on screens narrower than 992px, with backdrop dimming and touch-to-close behavior.
 - Header items smoothly adapt: sun/moon icon labels collapse below 768px, preserving space for the compact slider and notification bell without horizontal overflow.
 
 ### 11.5 Dark Theme Table Contrast Hardening & Status Badge Tokens
@@ -600,7 +600,7 @@ Processing history and audit tables (`.data-table-warm`) were upgraded with dedi
 
 ## 13. Cloud Deployment & External Service Setup Guide
 
-This guide outlines the complete procedure to deploy EDVEXA to a production cloud environment on **Render**, backed by **Neon Serverless PostgreSQL** and **Neon Object Storage**, entirely within free-tier limits ($0/month).
+This guide outlines the deployment procedure for EDVEXA on **Render**, backed by **Neon Serverless PostgreSQL** and **Neon Object Storage**, within the providers' free-tier limits.
 
 ### 13.1 Neon Serverless PostgreSQL Setup
 1. **Create Free Account:** Sign up at [neon.tech](https://neon.tech) using GitHub or Google SSO.
