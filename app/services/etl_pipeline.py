@@ -81,6 +81,14 @@ def execute_etl_job(
         db.add(job)
         db.flush()  # Populate job.id
 
+    # Remember keys previously accepted by this job. Reprocessing should not mark
+    # the same job's original accepted rows as database duplicates.
+    previous_job_clean_keys: set[str] = set()
+    if existing_job is not None:
+        previous_job_clean_keys = set(db.scalars(
+            select(JobCleanRecord.business_key).where(JobCleanRecord.job_id == job.id)
+        ).all())
+
     # Securely store file artifact for audit & potential re-processing
     try:
         save_upload_artifact(job.id, file_hash, content)
@@ -99,6 +107,10 @@ def execute_etl_job(
         job.skipped_rows = 0
         job.completed_at = utc_now()
         job.processing_duration = round(time.perf_counter() - start_time, 4)
+        if existing_job is not None:
+            # Failed reprocessing replaces previous child audit rows atomically.
+            db.query(ValidationError).filter(ValidationError.job_id == job.id).delete(synchronize_session=False)
+            db.query(JobCleanRecord).filter(JobCleanRecord.job_id == job.id).delete(synchronize_session=False)
         db.commit()
         db.refresh(job)
         return job
@@ -121,8 +133,12 @@ def execute_etl_job(
             if key_val:
                 candidate_keys.add(key_val)
 
-    # Fetch existing DB keys for duplicate check
-    existing_db_keys = get_existing_business_keys(db, dataset_type, candidate_keys)
+    # During reprocessing, previously accepted keys for this job remain accepted
+    # in its audit snapshot even though their business rows already exist globally.
+    database_keys_before_run = get_existing_business_keys(db, dataset_type, candidate_keys)
+    existing_db_keys = set(database_keys_before_run)
+    if existing_job is not None:
+        existing_db_keys.difference_update(previous_job_clean_keys)
 
     # Categories for mutual-exclusion accounting
     accepted_records: list[dict[str, Any]] = []
@@ -201,9 +217,20 @@ def execute_etl_job(
 
     # 4. LOAD (ATOMIC TRANSACTION)
     try:
+        if existing_job is not None:
+            # Replace prior audit rows within the same transaction as the rerun.
+            db.query(ValidationError).filter(ValidationError.job_id == job.id).delete(synchronize_session=False)
+            db.query(JobCleanRecord).filter(JobCleanRecord.job_id == job.id).delete(synchronize_session=False)
+
+        # Avoid duplicate inserts to business tables while rebuilding this job's audit snapshot.
+        new_accepted_records = [
+            rec for rec in accepted_records
+            if rec.get(primary_key_field) not in database_keys_before_run
+        ]
+
         # Load clean records
         if dataset_type == "customers":
-            for rec in accepted_records:
+            for rec in new_accepted_records:
                 db.add(Customer(
                     customer_id=rec["customer_id"],
                     name=rec["name"],
@@ -213,7 +240,7 @@ def execute_etl_job(
                     created_timestamp=utc_now()
                 ))
         elif dataset_type == "sales":
-            for rec in accepted_records:
+            for rec in new_accepted_records:
                 db.add(Sale(
                     sale_id=rec["sale_id"],
                     customer_id=rec["customer_id"],
@@ -222,7 +249,7 @@ def execute_etl_job(
                     currency=rec["currency"],
                 ))
         elif dataset_type == "inventory":
-            for rec in accepted_records:
+            for rec in new_accepted_records:
                 db.add(Inventory(
                     product_id=rec["product_id"],
                     product_name=rec["product_name"],
@@ -291,10 +318,7 @@ def reprocess_existing_job(job_id: int, db: Session) -> ProcessingJob:
     except FileNotFoundError:
         raise FileNotFoundError(f"Source file artifact for job {job_id} is no longer available in storage.")
 
-    # Clear previous validation errors and clean records for this job before re-running
-    db.query(ValidationError).filter(ValidationError.job_id == job.id).delete()
-    db.query(JobCleanRecord).filter(JobCleanRecord.job_id == job.id).delete()
-    db.commit()
+    # Keep the previous audit snapshot until execute_etl_job replaces it atomically.
 
     return execute_etl_job(
         content=content,
