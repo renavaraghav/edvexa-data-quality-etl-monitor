@@ -314,7 +314,7 @@ During the implementation, several critical design details were reviewed and ref
 ### 5.3 CodeZero Workflow & Tooling Demarcation
 This section documents the tools used in the actual development workflow for the assignment.
 
-- **CodeZero:** Used during the initial project exploration phase in `renavaraghav/edvexa-data-quality-etl-monitor` to inspect the standalone CLI exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial architecture and README scope (Git commit `7983368c3879efe141b90b7a269c1cb0882505b1`, Plan `6adcf6109cb64fb3236a5352`). The documented CodeZero work focused on exploration and planning rather than generating the main application implementation.
+- **CodeZero:** Used during initial exploration of the starter materials to inspect the standalone CLI exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial architecture and README scope (Git commit `7983368c3879efe141b90b7a269c1cb0882505b1`, Plan `6adcf6109cb64fb3236a5352`). The standalone exercise file is not included in the final web-app repository. The documented CodeZero work focused on exploration and planning rather than generating the main application implementation.
 - **Review and manual refinements:** The planned requirements were compared with the assignment and then verified through implementation checks and the automated test suite. Documented refinements included UTF-8 BOM handling, strict calendar-date validation, row-number indexing, idempotent reprocessing, and spreadsheet formula-injection mitigation (see Section 5.2). The current recorded local test run reports 99 passed tests, with 17 library deprecation warnings.
 - **Google Antigravity:** Assisted with the subsequent full-stack implementation, including FastAPI routes, SQLAlchemy persistence, the ETL pipeline, the HTML/CSS/JavaScript dashboard, Excel/CSV reporting, and automated tests.
 
@@ -569,7 +569,6 @@ Processing history and audit tables (`.data-table-warm`) were upgraded with dedi
 
 - **Project:** EDVEXA Data Quality and ETL Monitoring Platform
 - **Author:** Raghav Kumar
-- **Role:** Software Engineer
 
 ### Development Tools & Genuine Engineering Contributions
 
@@ -577,7 +576,7 @@ Processing history and audit tables (`.data-table-warm`) were upgraded with dedi
    - Served as the primary engineering assistant for the complete end-to-end full-stack implementation, backend REST API routing, SQLAlchemy 2.x relational persistence, openpyxl multi-sheet Excel workbook generator, responsive HTML5/Vanilla JS frontend with dual themes (Warm Ivory & Dark Espresso), date-range filtering engine, iPhone-style slide-to-reset control, automated verification scripts, and the 99 automated pytest test suite.
 
 2. **CodeZero:**
-   - Assisted in the initial project exploration phase within repository `renavaraghav/edvexa-data-quality-etl-monitor`, specifically for inspecting the initial standalone CLI exercise (`csv_quality_checker.py`), analyzing baseline validation requirements, and authoring the initial planned architecture scope in `README.md` (Git commit `7983368`, Plan `6adcf6109cb64fb3236a5352`).
+   - Used during initial exploration of the starter materials to inspect the standalone CLI exercise (`csv_quality_checker.py`), analyze baseline validation requirements, and plan the initial README architecture scope (Git commit `7983368`, Plan `6adcf6109cb64fb3236a5352`). That exercise file is not included in the final web-app repository; CodeZero's documented role was exploration and planning, not full-stack implementation.
 
 3. **Python 3.12, FastAPI & Uvicorn:**
    - Core application runtime, asynchronous REST API transport layer, Pydantic v2 data validation, and OpenAPI documentation endpoints (`/docs`, `/redoc`).
