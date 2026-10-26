@@ -176,6 +176,9 @@ Synthetic sample datasets are provided in the `sample_data/` directory.
 | `customers.csv` | Customers | 13 | Comprehensive mixed dataset testing clean records, duplicates, and errors in a single file. |
 | `sales.csv` | Sales | 12 | Comprehensive mixed sales dataset with negative amounts, currency, and date boundary checks. |
 | `inventory.csv` | Inventory | 12 | Comprehensive mixed inventory dataset testing negative stock, decimal quantities, and blank names. |
+| `customers_mixed_quality.csv` | Customers | 6 | Mixed-quality data including whitespace/case normalization, missing and invalid emails, a missing name, an invalid date, and a duplicate key. |
+| `sales_mixed_quality.csv` | Sales | 5 | Mixed-quality data including a valid row, negative amount, non-numeric amount, invalid date, and duplicate sale ID. |
+| `inventory_mixed_quality.csv` | Inventory | 5 | Mixed-quality data including a valid row, negative quantity, negative unit price, blank product name, and duplicate product ID. |
 
 ---
 
@@ -354,13 +357,13 @@ edvexa-data-quality/
 │       ├── css/styles.css          # Design tokens, Warm Ivory theme, Dark Espresso mode
 │       └── js/app.js               # SPA navigation, modals, upload dropzone, Chart.js & slider
 │
-├── sample_data/                    # 10 synthetic test CSV datasets (valid, invalid, duplicates, mixed)
+├── sample_data/                    # 13 synthetic CSV datasets (valid, invalid, duplicates, mixed-quality)
 ├── screenshots/                    # 6 high-resolution application screenshots
 ├── demo/
 │   ├── README.md                   # Video walkthrough documentation & streaming link
 │   └── edvexa-demo.mp4             # 4m 23s demonstration video (local file, gitignored)
 ├── tests/                          # 99 automated tests covering API, ETL, validation, reset, and storage
-├── schema.sql                      # Standalone ANSI SQL DDL schema definitions & indexes
+├── schema.sql                      # SQLite-specific DDL schema definitions and indexes
 ├── requirements.txt                # Pinned dependencies
 ├── render.yaml                     # Render Blueprint infrastructure specification
 ├── TECHNICAL_NOTES.md              # In-depth architectural notes & trade-offs
@@ -414,10 +417,8 @@ Detailed engineering architecture notes, data models, trade-offs, and tooling de
 - **Author:** Raghav Kumar
 - **Project:** Edvexa Data Quality & ETL Monitoring Platform
 
-**CodeZero:** Used during initial exploration of the starter materials to inspect the standalone `csv_quality_checker.py` exercise, analyze baseline data-validation requirements, and plan the initial architecture and README structure. That exercise file is not part of the final web-app repository; the documented CodeZero contribution was exploration and planning.
+**CodeZero:** Used during initial exploration of the starter materials to inspect the standalone `csv_quality_checker.py` exercise, analyze baseline validation requirements, and plan the initial architecture and README scope. It was later used for an independent source-code review against the assignment, a local full-suite test run, and a runtime probe that reproduced a reprocessing/audit-record defect. The review reported **99 tests passed and 17 deprecation warnings** using in-memory SQLite; it did not modify application files. The findings and their verification limits are recorded in [CodeZero Review](CODEZERO_REVIEW.md).
 
-**Review and verification:** The implementation was checked against the assignment requirements, and development notes record manual refinements for UTF-8 BOM parsing, strict calendar-date validation, row numbering, idempotent reprocessing, and spreadsheet formula-injection mitigation. The current documented local test run reports 99 passed tests and 17 library deprecation warnings.
+**Google Antigravity:** Assisted with the main full-stack implementation, including FastAPI endpoints, SQLAlchemy models, ETL processing, the dashboard, reporting, and automated tests. The CodeZero review identified follow-up issues; they are not described as fixed unless a corresponding code change and regression test are completed.
 
-**Google Antigravity:** Assisted with subsequent full-stack implementation, including FastAPI endpoints, SQLAlchemy models, ETL processing, the dashboard, reporting, and automated tests.
-
-For the detailed architecture, challenges, development workflow, and tool contributions, see [Technical Notes](TECHNICAL_NOTES.md).
+For the architecture, development workflow, tool contributions, and review findings, see [Technical Notes](TECHNICAL_NOTES.md) and [CodeZero Review](CODEZERO_REVIEW.md).
