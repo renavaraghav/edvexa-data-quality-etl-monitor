@@ -19,7 +19,8 @@ services:
         value: production
       - key: STORAGE_BACKEND
         value: neon
-      - key: ALLOW_DESTRUCTIVE_RESET
+      # Preserve the assignment-demo workflow. Set to "true" to disable the public reset endpoint.
+      - key: FORCE_DISABLE_DESTRUCTIVE_RESET
         value: "false"
       - key: DATABASE_URL
         sync: false
