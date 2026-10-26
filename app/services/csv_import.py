@@ -163,29 +163,40 @@ def parse_and_validate_csv(
                 total_raw_rows=0
             )
 
-        # Read data rows
+        # csv.reader.line_num counts physical lines. Capture each record's starting
+        # line so quoted fields with embedded newlines do not shift later diagnostics.
         parsed_rows: list[ParsedCSVRow] = []
-        line_num = 1  # Line 1 was the header
-        
+
         import json
-        for row_fields in reader:
-            line_num += 1
-            
-            # Check if row is completely empty
+        while True:
+            row_start_line = reader.line_num + 1
+            try:
+                row_fields = next(reader)
+            except StopIteration:
+                break
+
             if not row_fields or all(f.strip() == "" for f in row_fields):
                 continue
-                
-            # Map headers to fields
-            row_dict: dict[str, Any] = {}
-            for idx, col_name in enumerate(normalized_headers):
-                if idx < len(row_fields):
-                    row_dict[col_name] = row_fields[idx]
-                else:
-                    row_dict[col_name] = ""
-                    
+
+            # Reject structurally malformed records rather than dropping extra cells or
+            # padding omitted CSV columns. Blank values in existing columns are validated later.
+            if len(row_fields) != len(normalized_headers):
+                return CSVExtractionResult(
+                    is_valid=False,
+                    file_hash=file_hash,
+                    error_message=(
+                        f"Malformed CSV row starting at physical line {row_start_line}: "
+                        f"expected {len(normalized_headers)} fields but found {len(row_fields)}."
+                    ),
+                    headers=normalized_headers,
+                    rows=[],
+                    total_raw_rows=0
+                )
+
+            row_dict: dict[str, Any] = dict(zip(normalized_headers, row_fields))
             raw_json = json.dumps(row_dict, default=str)
             parsed_rows.append(ParsedCSVRow(
-                line_number=line_num,
+                line_number=row_start_line,
                 data=row_dict,
                 raw_json=raw_json
             ))
