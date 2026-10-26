@@ -36,13 +36,13 @@ After pulling the latest `main` code at commit `1d45be9`, the project owner rera
 
 **Evidence:** `app/routers/dashboard.py`, `get_dashboard_trends` (around lines 188–208) orders by ascending job ID before applying a 30-item limit. Once the database contains more than 30 jobs, the result can be limited to the oldest jobs.
 
-**Follow-up applied after review:** `app/routers/dashboard.py` now selects the newest 30 completed jobs, then reverses that bounded set for chronological display. `tests/test_dashboard_upgrade.py` now includes a 35-job regression case. The updated test has not yet been run.
+**Follow-up applied after review:** `app/routers/dashboard.py` now selects the newest 30 completed jobs, then reverses that bounded set for chronological display. `tests/test_dashboard_upgrade.py` now includes a 35-job regression case. It passed in the post-fix local full-suite run documented above.
 
 ### 3. The upload-size guard runs after reading the full upload
 
 **Evidence:** `app/routers/uploads.py` reads the uploaded file into memory before enforcing the configured size limit.
 
-**Follow-up applied after review:** `app/routers/uploads.py` now reads at most `UPLOAD_MAX_SIZE_BYTES + 1` bytes before rejecting an oversized upload. `tests/test_api.py` now checks rejection for a payload above the configured limit. The updated test has not yet been run.
+**Follow-up applied after review:** `app/routers/uploads.py` now reads at most `UPLOAD_MAX_SIZE_BYTES + 1` bytes before rejecting an oversized upload. `tests/test_api.py` now checks rejection for a payload above the configured limit. It passed in the post-fix local full-suite run documented above.
 
 ### 4. CSV shape and row-location edge cases need explicit handling
 
