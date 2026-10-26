@@ -157,3 +157,17 @@ Verified high-resolution application screenshots are saved directly in the `scre
 - `04_processing_jobs_audit.png`: Processing job history table in dark mode with high-contrast status badges.
 - `05_slide_to_reset_modal.png`: iPhone-style compact slide-to-reset secondary confirmation modal.
 - `06_mobile_responsive_view.png`: 375px mobile viewport rendering.
+
+## 4. Final Submission — CodeZero Evidence & Credential Hygiene
+
+### CodeZero prompt evidence
+- [x] Separate evidence document is available at [`CODEZERO_PROMPT_EVIDENCE.md`](CODEZERO_PROMPT_EVIDENCE.md).
+- [x] The document records four iterations: starter exercise exploration, read-only review, reprocessing defect probe, and separate post-fix verification.
+- [x] Example prompts are explicitly labelled **reconstructed, not verbatim historical transcripts**, because an original CodeZero prompt export was not found. Replace or supplement these with original session evidence if available.
+
+### Credential hygiene
+- [x] Current tracked environment template is `.env.example`; no tracked production `.env` file appears in the current default-branch tree.
+- [x] `.gitignore` ignores `.env` and `.env.*`, while explicitly allowing `.env.example`.
+- [x] Common private-key/certificate file extensions are ignored, and no files with those extensions were found in the current repository tree.
+- [x] Database connection and admin-token examples use blank or redacted placeholders; test credential strings use explicit `TEST_ONLY_..._NOT_REAL` markers.
+- [ ] Run a dedicated secret scanner over the full Git history if available. Current-branch file checks do not prove that an actual secret was never committed in an earlier commit. Rotate/revoke any real credential ever pushed.
