@@ -318,14 +318,28 @@ curl.exe -O -J "http://127.0.0.1:8010/api/jobs/1/download/summary"
 
 ### Environment Variables Reference
 
+The application loads a private `.env` file from the project root when present. The same settings can be configured in the hosting provider's environment dashboard.
+
 | Variable | Required | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `ENVIRONMENT` | Yes | `development` | Runtime environment (`development` or `production`). |
-| `DATABASE_URL` | Yes | `sqlite:///./edvexa_data.db` | Database connection string. Supports SQLite and PostgreSQL with SSL. |
-| `STORAGE_BACKEND` | Optional | `local` | `local` for filesystem storage or `neon` for Neon Object Storage. |
-| `FORCE_DISABLE_DESTRUCTIVE_RESET` | Optional | `false` | Set to `true` to disable the destructive reset endpoint. When unset or `false`, reset remains enabled in the assignment demo configuration. |
-| `CORS_ORIGINS` | Optional | `*` | Comma-delimited list of permitted CORS origins. |
-| `UPLOAD_MAX_SIZE_BYTES` | Optional | `10485760` | Maximum file upload payload size (10 MB). |
+| `ENVIRONMENT` | No | `development` | Runtime environment label. |
+| `DATABASE_URL` | No | Local SQLite database | SQLAlchemy connection URL. Remote PostgreSQL URLs are normalized to require SSL if no `sslmode` is supplied. |
+| `STORAGE_BACKEND` | No | `local` | Selects `local`, `neon`, `s3`, or `r2`. Remote modes fall back to local storage if endpoint, bucket, or credentials are incomplete. |
+| `NEON_STORAGE_ENDPOINT` | For remote storage | None | S3-compatible endpoint. Also accepts `AWS_ENDPOINT_URL_S3`, `S3_ENDPOINT_URL`, or `R2_ENDPOINT_URL`. |
+| `NEON_STORAGE_BUCKET_NAME` | For remote storage | `edvexa-uploads` | Bucket name. Also accepts `S3_BUCKET_NAME` or `R2_BUCKET_NAME`. |
+| `NEON_STORAGE_ACCESS_KEY_ID` | For remote storage | None | Storage access key. Also accepts `AWS_ACCESS_KEY_ID`, `S3_ACCESS_KEY_ID`, or `R2_ACCESS_KEY_ID`. |
+| `NEON_STORAGE_SECRET_ACCESS_KEY` | For remote storage | None | Storage secret key. Also accepts `AWS_SECRET_ACCESS_KEY`, `S3_SECRET_ACCESS_KEY`, or `R2_SECRET_ACCESS_KEY`. |
+| `NEON_STORAGE_REGION` | No | `ap-southeast-1` | Storage region. Also accepts `AWS_REGION`. |
+| `R2_ACCOUNT_ID` | No | None | Optional Cloudflare R2 account ID used to derive the endpoint if no explicit endpoint is configured. |
+| `UPLOAD_MAX_SIZE_BYTES` | No | `10485760` | Maximum upload size in bytes (10 MiB by default). |
+| `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins. Configure explicit trusted origins for production. |
+| `FORCE_DISABLE_DESTRUCTIVE_RESET` | No | `false` | Set to `true`, `1`, or `yes` to disable the destructive reset endpoint. |
+| `ADMIN_RESET_TOKEN` | For admin login | None | Administrator credential used by the admin login flow and direct admin authentication. Store only in a private environment setting. |
+| `SECRET_KEY` | Recommended in production | Falls back to `ADMIN_RESET_TOKEN` or a development fallback | Independent high-entropy key for signing admin sessions. Set explicitly in production and never commit it. |
+
+**Remote-storage setup:** For `STORAGE_BACKEND=neon`, `s3`, or `r2`, provide the endpoint, bucket, access key, and secret key. Check `GET /api/health` after startup to confirm the effective backend; incomplete remote configuration falls back to local storage after logging a warning.
+
+**Security note:** `ADMIN_RESET_TOKEN` enables the admin authentication flow, but does not by itself disable the public reset endpoint. Set `FORCE_DISABLE_DESTRUCTIVE_RESET=true` when the reset endpoint must be disabled.
 
 ### Two-Step Destructive Data Reset
 The platform includes an iPhone-style Slide-to-Reset control to clear uploaded data without dropping database tables:
