@@ -335,6 +335,20 @@ def _get_survey_file(artifact_name: str) -> bytes:
                 return content
         except Exception:
             pass
+
+        # If direct lookup did not match, check for matching remote key in surveys/
+        try:
+            for rk in storage.list_keys(prefix="surveys/"):
+                if rk.endswith(f"_{clean_name}") or rk == f"surveys/{clean_name}":
+                    content = storage.get(rk)
+                    if content:
+                        recovered_path = settings.SURVEYS_DIR / Path(rk).name
+                        recovered_path.parent.mkdir(parents=True, exist_ok=True)
+                        with open(recovered_path, "wb") as f:
+                            f.write(content)
+                        return content
+        except Exception:
+            pass
     except Exception as e:
         logger.warning(f"Error checking cloud storage for survey artifact '{artifact_name}': {e}")
 

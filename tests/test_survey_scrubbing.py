@@ -988,24 +988,61 @@ def test_admin_auth_rate_limiting_cookie_security_and_fail_closed(client: TestCl
 
 def test_survey_storage_recovery_and_excel_reconstruction(auth_client: TestClient, db_session: Session, tmp_path):
     """
-    Demonstrate complete disaster recovery and report reconstruction:
-    1. Upload questionnaire and dataset artifacts.
-    2. Execute QC audit and persist respondent records.
-    3. Simulate local disk wipe (ephemeral container destruction).
-    4. Simulate cloud storage artifact recovery.
+    Demonstrate disaster recovery and report reconstruction using a mocked S3-compatible client:
+    1. Upload questionnaire and dataset artifacts with cloud storage backend configured.
+    2. Verify artifacts are stored in cloud namespace (surveys/).
+    3. Simulate container restart / ephemeral storage loss: completely delete local disk cache.
+    4. Execute QC audit: verify automatic recovery from cloud object storage and cache self-healing.
     5. Reconstruct 8-sheet Excel report from database and recovered storage.
-    6. Simulate database backup/restore and verify strict respondent accounting persistence.
+    6. Verify cloud retrieval failures surface 404 rather than reporting false recovery.
+    7. Verify database respondent accounting persistence across sessions.
     """
-    from unittest.mock import patch
+    from unittest.mock import patch, MagicMock
     import shutil
     from openpyxl import load_workbook
+    from app.services.storage import NeonObjectStorageBackend
 
     local_dir = tmp_path / "ephemeral_surveys"
-    cloud_backup_dir = tmp_path / "cloud_object_storage_vault"
     local_dir.mkdir(parents=True, exist_ok=True)
-    cloud_backup_dir.mkdir(parents=True, exist_ok=True)
 
-    with patch.object(settings, "SURVEYS_DIR", local_dir):
+    s3_store = {}
+    mock_s3 = MagicMock()
+
+    def mock_put_object(Bucket, Key, Body, ContentType=None):
+        s3_store[Key] = Body if isinstance(Body, bytes) else Body.read()
+        return {}
+
+    def mock_get_object(Bucket, Key):
+        if Key in s3_store:
+            return {"Body": io.BytesIO(s3_store[Key])}
+        raise Exception("NoSuchKey")
+
+    def mock_paginate(Bucket, Prefix):
+        contents = [{"Key": k} for k in s3_store.keys() if k.startswith(Prefix)]
+        return [{"Contents": contents}]
+
+    mock_s3.put_object.side_effect = mock_put_object
+    mock_s3.get_object.side_effect = mock_get_object
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.side_effect = mock_paginate
+    mock_s3.get_paginator.return_value = mock_paginator
+
+    backend = NeonObjectStorageBackend(
+        bucket_name="edvexa-vault",
+        access_key_id="mock-key",
+        secret_access_key="mock-secret",
+        endpoint_url="https://mock.vault.neon.tech"
+    )
+    backend.s3_client = mock_s3
+
+    with patch("app.services.storage.get_storage", return_value=backend), \
+         patch.object(settings, "STORAGE_BACKEND", "neon"), \
+         patch.object(settings, "S3_BUCKET_NAME", "edvexa-vault"), \
+         patch.object(settings, "S3_ACCESS_KEY_ID", "mock-key"), \
+         patch.object(settings, "S3_SECRET_ACCESS_KEY", "mock-secret"), \
+         patch.object(settings, "S3_ENDPOINT_URL", "https://mock.vault.neon.tech"), \
+         patch.object(settings, "SURVEYS_DIR", local_dir):
+
         # 1. Upload files
         qq_content = b"Study: Cloud Tooling Benchmark. Q1. Age? Terminate if under 18."
         raw_csv = (
@@ -1022,24 +1059,21 @@ def test_survey_storage_recovery_and_excel_reconstruction(auth_client: TestClien
         assert raw_resp.status_code == 200
         raw_fname = raw_resp.json()["filename"]
 
-        # Run Audit
-        audit_resp = auth_client.post("/api/surveys/run-audit", json={"raw_filename": raw_fname, "qq_filename": qq_fname})
-        assert audit_resp.status_code == 200
-        audit_id = audit_resp.json()["audit_id"]
+        # 2. Verify files are uploaded to mocked S3 in surveys/ namespace
+        assert any(k.startswith("surveys/qq_") for k in s3_store.keys())
+        assert any(k.startswith("surveys/raw_") for k in s3_store.keys())
 
-        # Replicate local files to simulated cloud object storage backup
-        for f in local_dir.glob("*"):
-            shutil.copy2(f, cloud_backup_dir / f.name)
-        assert len(list(cloud_backup_dir.glob("*"))) >= 2
-
-        # 3. Simulate container restart / ephemeral storage loss: completely delete local disk directory
+        # 3. Simulate ephemeral container restart: completely delete local disk cache
         shutil.rmtree(local_dir)
         local_dir.mkdir(parents=True, exist_ok=True)
         assert len(list(local_dir.glob("*"))) == 0
 
-        # 4. Demonstrate Cloud Storage Recovery: restore artifacts from backup vault to local cache
-        for f in cloud_backup_dir.glob("*"):
-            shutil.copy2(f, local_dir / f.name)
+        # 4. Execute QC audit: verifies automatic retrieval from cloud storage and local cache self-healing
+        audit_resp = auth_client.post("/api/surveys/run-audit", json={"raw_filename": raw_fname, "qq_filename": qq_fname})
+        assert audit_resp.status_code == 200
+        audit_id = audit_resp.json()["audit_id"]
+
+        # Local cache self-healed
         assert len(list(local_dir.glob("*"))) >= 2
 
         # 5. Verify 8-worksheet Excel Report Reconstruction
@@ -1051,8 +1085,18 @@ def test_survey_storage_recovery_and_excel_reconstruction(auth_client: TestClien
         assert "Rejected Data" in wb.sheetnames
         assert "QC Coverage" in wb.sheetnames
 
-        # 6. Simulate Database Backup & Restore:
-        # Extract audit record state and verify model integrity across sessions
+        # 6. Verify cloud retrieval failures surface 404 rather than reporting false recovery
+        shutil.rmtree(local_dir)
+        local_dir.mkdir(parents=True, exist_ok=True)
+        s3_store.clear()  # S3 bucket empty
+        fail_resp = auth_client.post(
+            "/api/surveys/preview",
+            data={"artifact_name": "raw_nonexistent_data.csv", "filename": "nonexistent.csv", "header_row_index": 0}
+        )
+        assert fail_resp.status_code == 404
+        assert "not found on storage" in fail_resp.json()["detail"].lower()
+
+        # 7. Verify model integrity and respondent accounting persistence
         saved_audit = db_session.query(SurveyAuditRun).filter_by(id=audit_id).first()
         assert saved_audit is not None
         assert saved_audit.total_respondents == 2
