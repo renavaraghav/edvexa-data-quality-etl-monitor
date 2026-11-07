@@ -29,7 +29,7 @@ async def upload_csv_file(
     if clean_dataset not in settings.SUPPORTED_DATASETS:
         supported = ", ".join(settings.SUPPORTED_DATASETS)
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid dataset_type '{dataset_type}'. Supported datasets are: {supported}."
         )
 
@@ -61,7 +61,7 @@ async def upload_csv_file(
     if len(content) > settings.UPLOAD_MAX_SIZE_BYTES:
         max_mb = settings.UPLOAD_MAX_SIZE_BYTES / (1024 * 1024)
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"File exceeds maximum allowed upload size of {max_mb:.0f} MB."
         )
 

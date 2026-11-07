@@ -36,3 +36,9 @@ services:
         sync: false
       - key: CORS_ORIGINS
         value: "*"
+      - key: SURVEYS_STORAGE_PATH
+        value: /var/data/surveys_storage
+    disk:
+      name: edvexa-surveys-data
+      mountPath: /var/data
+      sizeGB: 1
