@@ -50,6 +50,7 @@ def admin_login(body: AdminLoginRequest, request: Request, response: Response):
     """
     Authenticate an administrator and establish a secure, HttpOnly session cookie.
     Enforces IP-based rate limiting (5 attempts/minute) and fails closed when unconfigured.
+    Under least-privilege session security, credentials are NEVER exposed in the JSON response body.
     """
     forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
@@ -94,7 +95,6 @@ def admin_login(body: AdminLoginRequest, request: Request, response: Response):
         "status": "success",
         "message": "Admin session established successfully.",
         "authenticated": True,
-        "session_token": session_token,
     }
 
 

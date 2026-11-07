@@ -324,17 +324,17 @@ def _get_survey_file(artifact_name: str) -> bytes:
     try:
         from app.services.storage import get_storage
         storage = get_storage()
-        for candidate_key in [f"surveys/{clean_name}", clean_name]:
-            try:
-                content = storage.get(candidate_key)
-                if content:
-                    # Self-heal local cache
-                    target_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(target_path, "wb") as f:
-                        f.write(content)
-                    return content
-            except Exception:
-                pass
+        cloud_key = f"surveys/{clean_name}"
+        try:
+            content = storage.get(cloud_key)
+            if content:
+                # Self-heal local cache
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(target_path, "wb") as f:
+                    f.write(content)
+                return content
+        except Exception:
+            pass
     except Exception as e:
         logger.warning(f"Error checking cloud storage for survey artifact '{artifact_name}': {e}")
 
@@ -1169,20 +1169,46 @@ def reset_all_survey_data(
                     except Exception:
                         pass
 
-        # Also purge from Cloud Storage if configured
-        try:
-            from app.services.storage import get_storage
-            storage = get_storage()
-            if settings.STORAGE_BACKEND != "local" and settings.is_s3_configured:
+        cloud_deletion_errors: list[str] = []
+        cloud_deleted_count = 0
+
+        # Purge from Cloud Storage if configured
+        if settings.STORAGE_BACKEND != "local" and settings.is_s3_configured:
+            try:
+                from app.services.storage import get_storage
+                storage = get_storage()
                 remote_keys = storage.list_keys(prefix="surveys/")
                 for k in remote_keys:
                     try:
-                        storage.delete(k)
-                        deleted_files += 1
-                    except Exception:
-                        pass
-        except Exception as e:
-            logger.warning(f"Failed to clear cloud storage survey files: {e}")
+                        success = storage.delete(k)
+                        if success:
+                            cloud_deleted_count += 1
+                            deleted_files += 1
+                        else:
+                            cloud_deletion_errors.append(f"Failed to delete cloud object '{k}'")
+                    except Exception as del_err:
+                        cloud_deletion_errors.append(f"Error deleting cloud object '{k}': {del_err}")
+            except Exception as e:
+                err_msg = f"Cloud storage survey cleanup error: {e}"
+                logger.error(err_msg)
+                cloud_deletion_errors.append(err_msg)
+
+        if cloud_deletion_errors:
+            logger.warning(f"Survey reset completed database wipe, but cloud storage had errors: {cloud_deletion_errors}")
+            return {
+                "status": "partial_success",
+                "message": "Survey scrubbing database records were cleared, but some remote cloud storage objects could not be deleted.",
+                "deleted_counts": {
+                    "audits": count_audits,
+                    "respondents": count_respondents,
+                    "findings": count_findings,
+                    "mappings": count_mappings,
+                    "files": deleted_files,
+                    "cloud_files": cloud_deleted_count
+                },
+                "cloud_deletion_errors": cloud_deletion_errors,
+                "etl_records_preserved": True
+            }
 
         return {
             "status": "success",
@@ -1192,7 +1218,8 @@ def reset_all_survey_data(
                 "respondents": count_respondents,
                 "findings": count_findings,
                 "mappings": count_mappings,
-                "files": deleted_files
+                "files": deleted_files,
+                "cloud_files": cloud_deleted_count
             },
             "etl_records_preserved": True
         }
