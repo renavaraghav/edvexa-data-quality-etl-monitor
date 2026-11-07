@@ -19,6 +19,7 @@ sqlite3.register_adapter(datetime.datetime, lambda val: val.isoformat())
 
 # Configure dedicated test admin secret token for deterministic test suite execution
 settings.ADMIN_RESET_TOKEN = "test-secret-token-for-pytest"
+settings.SECRET_KEY = "test-session-secret-key-for-pytest"
 
 # In-memory SQLite database isolated for tests
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"

@@ -130,6 +130,10 @@ class Settings:
 
     # Security & Destructive Action Safeguards: Public reset is enabled by default in all environments
     # ADMIN_RESET_TOKEN has no fallback: application fails closed when not configured in production
+    # Cryptographic Session Signing Key: completely independent from ADMIN_RESET_TOKEN
+    # Never falls back to machine reset credentials. Fails closed in production if unset.
+    SECRET_KEY: str | None = os.getenv("SECRET_KEY")
+
     ADMIN_RESET_TOKEN: str | None = os.getenv("ADMIN_RESET_TOKEN")
     ALLOW_DESTRUCTIVE_RESET: bool = (
         os.getenv("FORCE_DISABLE_DESTRUCTIVE_RESET", "false").lower() not in ("true", "1", "yes")

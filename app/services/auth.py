@@ -12,15 +12,21 @@ SESSION_MAX_AGE_SECONDS = 86400  # 24 hours
 
 
 def get_secret_key() -> str:
-    """Retrieve or derive the application secret key for signing sessions. Fails closed in production."""
-    key = os.getenv("SECRET_KEY") or (settings.ADMIN_RESET_TOKEN or "").strip()
+    """
+    Retrieve the application secret key strictly for HMAC session signing.
+    Under the principle of credential separation, SECRET_KEY never falls back
+    to ADMIN_RESET_TOKEN or any other machine credential.
+    Fails closed in production if unset.
+    """
+    key = (os.getenv("SECRET_KEY") or (settings.SECRET_KEY or "")).strip()
     if not key:
         if settings.ENVIRONMENT == "production":
             raise RuntimeError(
-                "CRITICAL SECURITY CONFIGURATION ERROR: SECRET_KEY or ADMIN_RESET_TOKEN must be set in production. "
-                "Application fails closed to prevent unauthorized access."
+                "CRITICAL SECURITY CONFIGURATION ERROR: SECRET_KEY must be set in production for session signing. "
+                "Application fails closed to prevent unauthorized access. "
+                "Do NOT use ADMIN_RESET_TOKEN for session signing."
             )
-        return "edvexa-dev-ephemeral-signing-key"
+        return "edvexa-dev-ephemeral-session-signing-key"
     return key
 
 

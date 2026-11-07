@@ -6,7 +6,9 @@ QC audit execution, respondent disposition browsing, manual reviewer decisions,
 and 8-worksheet Excel report downloads.
 """
 
+import io
 import json
+import zipfile
 import logging
 import os
 import secrets
@@ -162,10 +164,94 @@ router = APIRouter(
 )
 
 
-def _save_survey_file(content: bytes, prefix: str, file_hash: str, filename: str) -> str:
+def _validate_uploaded_survey_content(content: bytes, filename: str, is_qq: bool = False):
+    """
+    Validate uploaded file content via magic byte inspection and reject unsupported legacy formats (.doc, .xls).
+    Raises HTTPException with HTTP 422 if invalid, corrupt, or legacy binary format, or HTTP 400 if empty.
+    """
+    clean_name = (filename or "").strip()
+    lower = clean_name.lower()
+
+    # 1. Reject legacy binary formats with clear, actionable guidance
+    if lower.endswith(".doc"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Legacy Word (.doc) binary format is not supported. Please save or export your questionnaire as modern Word (.docx) or plain text (.txt)."
+        )
+    if lower.endswith(".xls"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Legacy Excel (.xls) binary format is not supported. Please save or export your file as modern Excel (.xlsx) or standard (.csv)."
+        )
+
+    # 2. Check empty file (0 bytes)
+    if len(content) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty (0 bytes). Please upload a valid file with content."
+        )
+
+    # 3. Content signature validation
+    if lower.endswith(".pdf"):
+        if not content.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid PDF format: missing PDF file signature (%PDF-)."
+            )
+    elif lower.endswith(".docx"):
+        if not zipfile.is_zipfile(io.BytesIO(content)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid DOCX format: file is not a valid OpenXML document package."
+            )
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as z:
+                names = z.namelist()
+                if not any(n.startswith("word/") or n == "[Content_Types].xml" for n in names):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail="Invalid DOCX format: missing OpenXML document structure."
+                    )
+        except zipfile.BadZipFile:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Corrupt DOCX package: unable to read zip structure."
+            )
+    elif lower.endswith(".xlsx"):
+        if not zipfile.is_zipfile(io.BytesIO(content)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid XLSX format: file is not a valid OpenXML spreadsheet package."
+            )
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as z:
+                names = z.namelist()
+                if not any(n.startswith("xl/") or n == "[Content_Types].xml" for n in names):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail="Invalid XLSX format: missing OpenXML workbook structure."
+                    )
+        except zipfile.BadZipFile:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Corrupt XLSX package: unable to read zip structure."
+            )
+    elif lower.endswith((".csv", ".txt", ".md")):
+        # Check leading 8KB for null bytes indicating binary data
+        header_sample = content[:8192]
+        if b"\x00" in header_sample:
+            file_type = "CSV" if lower.endswith(".csv") else "text"
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Invalid {file_type} file: binary data or null bytes detected."
+            )
+
+
+def _save_survey_file(content: bytes, prefix: str, file_hash: str, filename: str) -> dict[str, Any]:
     """
     Save immutable survey file artifact into isolated surveys_storage directory
     and replicate to durable cloud object storage (Neon / S3) when configured.
+    Explicitly tracks storage tier, durability status, and replication failures.
     """
     clean_name = Path(filename).name
     artifact_name = f"{prefix}_{file_hash[:12]}_{clean_name}"
@@ -175,12 +261,18 @@ def _save_survey_file(content: bytes, prefix: str, file_hash: str, filename: str
     target_path.parent.mkdir(parents=True, exist_ok=True)
     with open(target_path, "wb") as f:
         f.write(content)
-        
+
+    storage_tier = "local"
+    durability_status = "LOCAL_STORAGE"
+    cloud_replicated = False
+    replication_error = None
+
     # 2. Replicate to Cloud Storage (Neon/S3/R2) if configured
-    try:
-        from app.services.storage import get_storage
-        storage = get_storage()
-        if settings.STORAGE_BACKEND != "local" and settings.is_s3_configured:
+    if settings.STORAGE_BACKEND != "local" and settings.is_s3_configured:
+        storage_tier = settings.STORAGE_BACKEND
+        try:
+            from app.services.storage import get_storage
+            storage = get_storage()
             cloud_key = f"surveys/{artifact_name}"
             content_type = "application/octet-stream"
             if clean_name.endswith(".csv"):
@@ -190,11 +282,22 @@ def _save_survey_file(content: bytes, prefix: str, file_hash: str, filename: str
             elif clean_name.endswith(".pdf"):
                 content_type = "application/pdf"
             storage.save(cloud_key, content, content_type=content_type)
+            cloud_replicated = True
+            durability_status = "DURABLE_CLOUD"
             logger.info(f"Replicated survey artifact to cloud storage: {cloud_key}")
-    except Exception as e:
-        logger.warning(f"Could not replicate survey file to cloud storage: {e}")
+        except Exception as e:
+            replication_error = str(e)
+            durability_status = "REPLICATION_FAILED"
+            storage_tier = "local_cache_only"
+            logger.warning(f"Could not replicate survey file to cloud storage: {e}")
 
-    return artifact_name
+    return {
+        "artifact_name": artifact_name,
+        "storage_tier": storage_tier,
+        "durability_status": durability_status,
+        "cloud_replicated": cloud_replicated,
+        "replication_error": replication_error,
+    }
 
 
 def _get_survey_file(artifact_name: str) -> bytes:
@@ -251,7 +354,20 @@ async def upload_questionnaire(
     """
     filename = file.filename or "questionnaire.pdf"
     lower = filename.lower()
-    allowed = (".pdf", ".docx", ".doc", ".xlsx", ".xls", ".txt", ".md")
+
+    # Reject legacy .doc upfront with 422
+    if lower.endswith(".doc"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Legacy Word (.doc) binary format is not supported. Please save or export your questionnaire as modern Word (.docx) or plain text (.txt)."
+        )
+    if lower.endswith(".xls"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Legacy Excel (.xls) binary format is not supported. Please save or export your file as modern Excel (.xlsx) or standard (.csv)."
+        )
+
+    allowed = (".pdf", ".docx", ".xlsx", ".txt", ".md")
     if not any(lower.endswith(ext) for ext in allowed):
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -263,21 +379,26 @@ async def upload_questionnaire(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to read file: {e}")
 
-    if len(content) == 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty (0 bytes).")
     if len(content) > settings.UPLOAD_MAX_SIZE_BYTES:
         raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="File exceeds 10 MB limit.")
 
+    # Validate file content signature (magic bytes)
+    _validate_uploaded_survey_content(content, filename, is_qq=True)
+
     file_hash = compute_file_hash(content)
-    artifact_name = _save_survey_file(content, "qq", file_hash, filename)
+    save_result = _save_survey_file(content, "qq", file_hash, filename)
+    artifact_name = save_result["artifact_name"]
 
     extraction = parse_questionnaire(content, filename)
 
-    return {
+    res = {
         "status": "success",
         "filename": filename,
         "file_hash": file_hash,
         "artifact_name": artifact_name,
+        "storage_tier": save_result["storage_tier"],
+        "durability_status": save_result["durability_status"],
+        "cloud_replicated": save_result["cloud_replicated"],
         "document_format": extraction.document_format,
         "unreadable_or_scanned": extraction.unreadable_or_scanned,
         "raw_text_length": extraction.raw_text_length,
@@ -303,6 +424,14 @@ async def upload_questionnaire(
         "notes": extraction.extraction_notes
     }
 
+    if save_result["durability_status"] == "REPLICATION_FAILED":
+        res["storage_warning"] = (
+            f"Warning: Survey questionnaire is temporarily cached on local disk, but cloud replication to {settings.STORAGE_BACKEND} failed: {save_result['replication_error']}. "
+            "File may not persist across container redeployments until cloud storage replication succeeds."
+        )
+
+    return res
+
 
 @router.post("/upload-raw")
 async def upload_raw_respondent_data(
@@ -314,7 +443,14 @@ async def upload_raw_respondent_data(
     """
     filename = file.filename or "respondents.csv"
     lower = filename.lower()
-    allowed = (".csv", ".xlsx", ".xls")
+
+    if lower.endswith(".xls"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Legacy Excel (.xls) binary format is not supported. Please save or export your file as modern Excel (.xlsx) or standard (.csv)."
+        )
+
+    allowed = (".csv", ".xlsx")
     if not any(lower.endswith(ext) for ext in allowed):
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -326,17 +462,28 @@ async def upload_raw_respondent_data(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to read file: {e}")
 
-    if len(content) == 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty (0 bytes).")
     if len(content) > settings.UPLOAD_MAX_SIZE_BYTES:
         raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="File exceeds 10 MB limit.")
 
+    # Validate file content signature (magic bytes)
+    _validate_uploaded_survey_content(content, filename, is_qq=False)
+
     file_hash = compute_file_hash(content)
-    artifact_name = _save_survey_file(content, "raw", file_hash, filename)
+    save_result = _save_survey_file(content, "raw", file_hash, filename)
+    artifact_name = save_result["artifact_name"]
 
     preview = preview_survey_data(content, filename)
     preview["file_hash"] = file_hash
     preview["artifact_name"] = artifact_name
+    preview["storage_tier"] = save_result["storage_tier"]
+    preview["durability_status"] = save_result["durability_status"]
+    preview["cloud_replicated"] = save_result["cloud_replicated"]
+
+    if save_result["durability_status"] == "REPLICATION_FAILED":
+        preview["storage_warning"] = (
+            f"Warning: Survey dataset is temporarily cached on local disk, but cloud replication to {settings.STORAGE_BACKEND} failed: {save_result['replication_error']}. "
+            "File may not persist across container redeployments until cloud storage replication succeeds."
+        )
 
     return preview
 
@@ -796,16 +943,20 @@ def record_manual_review_decision(
     audit_id: int,
     respondent_key: str,
     review_req: SurveyReviewDecisionRequest,
+    row_number: int | None = Query(None, description="Optional physical 1-based source row number to target specific row if duplicate keys exist"),
     db: Session = Depends(get_db)
 ):
     """
     Record human reviewer decision on a Review Required or contested respondent.
     Updates disposition, audit counts, and audit trail.
+    Under least-privilege security, restricted to authenticated administrators.
     """
     stmt = select(SurveyRespondent).where(
         SurveyRespondent.audit_id == audit_id,
         SurveyRespondent.respondent_key == respondent_key
     )
+    if row_number is not None:
+        stmt = stmt.where(SurveyRespondent.row_number == row_number)
     resp = db.scalars(stmt).first()
     if not resp:
         raise HTTPException(

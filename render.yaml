@@ -24,6 +24,8 @@ services:
         value: "false"
       - key: DATABASE_URL
         sync: false
+      - key: SECRET_KEY
+        generateValue: true
       - key: ADMIN_RESET_TOKEN
         sync: false
       - key: NEON_STORAGE_ENDPOINT
@@ -37,8 +39,12 @@ services:
       - key: CORS_ORIGINS
         value: "*"
       - key: SURVEYS_STORAGE_PATH
-        value: /var/data/surveys_storage
-    disk:
-      name: edvexa-surveys-data
-      mountPath: /var/data
-      sizeGB: 1
+        value: ./surveys_storage
+    # NOTE: Render Free Web Services do not support persistent disks ('disk:').
+    # For Free Tier deployments, storage durability is provided by Neon/S3 object storage
+    # (STORAGE_BACKEND: neon) with self-healing local cache in ./surveys_storage.
+    # To attach an SSD persistent disk, change plan to 'starter' ($7/mo) and uncomment:
+    # disk:
+    #   name: edvexa-surveys-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

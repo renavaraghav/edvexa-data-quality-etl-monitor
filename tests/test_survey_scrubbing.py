@@ -1059,3 +1059,199 @@ def test_survey_storage_recovery_and_excel_reconstruction(auth_client: TestClien
         assert saved_audit.accepted_count == 1
         assert saved_audit.rejected_count == 1
 
+
+def test_secret_key_credential_separation():
+    """
+    Verify strict cryptographic separation between SECRET_KEY and ADMIN_RESET_TOKEN:
+    1. Altering ADMIN_RESET_TOKEN does not invalidate or affect session signing.
+    2. In production mode (ENVIRONMENT='production'), if SECRET_KEY is missing,
+       get_secret_key() MUST fail closed and raise RuntimeError, even if ADMIN_RESET_TOKEN is set.
+    """
+    import os
+    from unittest.mock import patch
+    from app.services.auth import (
+        get_secret_key,
+        create_admin_session_token,
+        verify_admin_session_token,
+    )
+
+    with patch.object(settings, "SECRET_KEY", "isolated-secret-key-12345"),          patch.object(settings, "ADMIN_RESET_TOKEN", "different-machine-token-67890"):
+        # Create token using SECRET_KEY
+        token = create_admin_session_token()
+        assert verify_admin_session_token(token) is True
+
+        # Change ADMIN_RESET_TOKEN: token verification MUST NOT be affected
+        with patch.object(settings, "ADMIN_RESET_TOKEN", "completely-rotated-token-99999"):
+            assert verify_admin_session_token(token) is True
+
+        # In production mode without SECRET_KEY: get_secret_key() MUST fail closed
+        with patch.object(settings, "ENVIRONMENT", "production"),              patch.object(settings, "SECRET_KEY", None),              patch.dict(os.environ, {"SECRET_KEY": ""}):
+            with pytest.raises(RuntimeError) as exc_info:
+                get_secret_key()
+            assert "CRITICAL SECURITY CONFIGURATION ERROR: SECRET_KEY must be set in production" in str(exc_info.value)
+            assert "Do NOT use ADMIN_RESET_TOKEN for session signing" in str(exc_info.value)
+
+
+def test_survey_file_content_validation_and_legacy_rejection(auth_client: TestClient):
+    """
+    Verify comprehensive file upload content validation and rejection of legacy binary formats:
+    1. Legacy Word (.doc) binary is rejected with HTTP 422 and helpful upgrade message.
+    2. Legacy Excel (.xls) binary is rejected with HTTP 422 and helpful upgrade message.
+    3. Empty files (0 bytes) are rejected with HTTP 400.
+    4. Spoofed PDF (non-PDF bytes with .pdf extension) is rejected with HTTP 422.
+    5. Spoofed DOCX (corrupt/non-zip with .docx extension) is rejected with HTTP 422.
+    6. Spoofed XLSX (corrupt/non-zip with .xlsx extension) is rejected with HTTP 422.
+    7. Binary null-byte data disguised as CSV is rejected with HTTP 422.
+    """
+    # 1. Legacy .doc rejection on QQ upload
+    resp_doc = auth_client.post(
+        "/api/surveys/upload-qq",
+        files={"file": ("survey_questionnaire.doc", io.BytesIO(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1legacy_word_ole2"), "application/msword")}
+    )
+    assert resp_doc.status_code == 422
+    assert "legacy word (.doc)" in resp_doc.json()["detail"].lower()
+    assert ".docx" in resp_doc.json()["detail"].lower()
+
+    # 2. Legacy .xls rejection on QQ and raw data upload
+    resp_xls_qq = auth_client.post(
+        "/api/surveys/upload-qq",
+        files={"file": ("questions.xls", io.BytesIO(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1legacy_excel_biff8"), "application/vnd.ms-excel")}
+    )
+    assert resp_xls_qq.status_code == 422
+    assert "legacy excel (.xls)" in resp_xls_qq.json()["detail"].lower()
+
+    resp_xls_raw = auth_client.post(
+        "/api/surveys/upload-raw",
+        files={"file": ("dataset.xls", io.BytesIO(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1legacy_excel_biff8"), "application/vnd.ms-excel")}
+    )
+    assert resp_xls_raw.status_code == 422
+    assert "legacy excel (.xls)" in resp_xls_raw.json()["detail"].lower()
+
+    # 3. Empty file (0 bytes) rejection
+    resp_empty = auth_client.post(
+        "/api/surveys/upload-qq",
+        files={"file": ("empty.txt", io.BytesIO(b""), "text/plain")}
+    )
+    assert resp_empty.status_code == 400
+    assert "empty" in resp_empty.json()["detail"].lower()
+
+    # 4. Spoofed PDF missing %PDF- header
+    resp_fake_pdf = auth_client.post(
+        "/api/surveys/upload-qq",
+        files={"file": ("fake.pdf", io.BytesIO(b"This is a text file masquerading as a PDF document."), "application/pdf")}
+    )
+    assert resp_fake_pdf.status_code == 422
+    assert "invalid pdf format" in resp_fake_pdf.json()["detail"].lower()
+
+    # 5. Spoofed DOCX (not a valid zip or missing OpenXML structure)
+    resp_fake_docx = auth_client.post(
+        "/api/surveys/upload-qq",
+        files={"file": ("fake.docx", io.BytesIO(b"PK\x03\x04not_a_valid_docx_archive"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+    )
+    assert resp_fake_docx.status_code == 422
+    assert "docx" in resp_fake_docx.json()["detail"].lower()
+
+    # 6. Spoofed XLSX (not a valid zip)
+    resp_fake_xlsx = auth_client.post(
+        "/api/surveys/upload-raw",
+        files={"file": ("fake.xlsx", io.BytesIO(b"PK\x03\x04not_a_valid_xlsx_archive"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+    )
+    assert resp_fake_xlsx.status_code == 422
+    assert "xlsx" in resp_fake_xlsx.json()["detail"].lower()
+
+    # 7. Binary null-byte CSV rejection
+    binary_csv = b"ResponseId,Age,Status\nR1,25,\x00\x01\x02\x03binary_junk\n"
+    resp_null_csv = auth_client.post(
+        "/api/surveys/upload-raw",
+        files={"file": ("corrupt.csv", io.BytesIO(binary_csv), "text/csv")}
+    )
+    assert resp_null_csv.status_code == 422
+    assert "null bytes detected" in resp_null_csv.json()["detail"].lower()
+
+
+def test_cloud_storage_replication_failure_explicitly_reported(auth_client: TestClient):
+    """
+    Verify that when cloud-storage replication fails, the application:
+    1. Does NOT report the file as durably stored in cloud.
+    2. Explicitly records durability_status = 'REPLICATION_FAILED'.
+    3. Explicitly records storage_tier = 'local_cache_only'.
+    4. Communicates the limitation via 'storage_warning' in the API response.
+    """
+    from unittest.mock import MagicMock, patch
+
+    mock_storage = MagicMock()
+    mock_storage.save.side_effect = RuntimeError("S3 replication timeout: Connection reset by peer")
+
+    with patch.object(settings, "STORAGE_BACKEND", "neon"),          patch.object(settings, "S3_BUCKET_NAME", "mock-vault"),          patch.object(settings, "S3_ACCESS_KEY_ID", "mock-key"),          patch.object(settings, "S3_SECRET_ACCESS_KEY", "mock-secret"),          patch.object(settings, "S3_ENDPOINT_URL", "https://mock.neon.tech"),          patch("app.services.storage.get_storage", return_value=mock_storage):
+
+        # Upload QQ
+        qq_resp = auth_client.post(
+            "/api/surveys/upload-qq",
+            files={"file": ("qq.txt", io.BytesIO(b"Study title: Cloud Storage Test\nQ1: Age?"), "text/plain")}
+        )
+        assert qq_resp.status_code == 200
+        qq_data = qq_resp.json()
+        assert qq_data["durability_status"] == "REPLICATION_FAILED"
+        assert qq_data["storage_tier"] == "local_cache_only"
+        assert qq_data["cloud_replicated"] is False
+        assert "storage_warning" in qq_data
+        assert "cloud replication to neon failed" in qq_data["storage_warning"].lower()
+
+        # Upload Raw
+        raw_csv = b"ResponseId,Age,Duration (in seconds)\nR_01,25,300\n"
+        raw_resp = auth_client.post(
+            "/api/surveys/upload-raw",
+            files={"file": ("raw.csv", io.BytesIO(raw_csv), "text/csv")}
+        )
+        assert raw_resp.status_code == 200
+        raw_data = raw_resp.json()
+        assert raw_data["durability_status"] == "REPLICATION_FAILED"
+        assert raw_data["storage_tier"] == "local_cache_only"
+        assert raw_data["cloud_replicated"] is False
+        assert "storage_warning" in raw_data
+        assert "cloud replication to neon failed" in raw_data["storage_warning"].lower()
+
+
+def test_manual_review_decision_with_row_number_targeting(auth_client: TestClient, db_session: Session):
+    """
+    Verify that human reviewer decisions can target exact physical rows using row_number,
+    ensuring deterministic review auditing even when duplicate respondent keys exist.
+    """
+    # 1. Ingest dataset with two respondents sharing the same respondent_key
+    raw_csv = (
+        "ResponseId,Age,Score,Duration (in seconds)\n"
+        "RESP_DUP,30,85,450\n"
+        "RESP_DUP,30,85,450\n"
+    ).encode("utf-8")
+
+    raw_resp = auth_client.post("/api/surveys/upload-raw", files={"file": ("dup_test.csv", io.BytesIO(raw_csv), "text/csv")})
+    assert raw_resp.status_code == 200
+    raw_fname = raw_resp.json()["filename"]
+
+    audit_resp = auth_client.post("/api/surveys/run-audit", json={"raw_filename": raw_fname})
+    assert audit_resp.status_code == 200
+    audit_id = audit_resp.json()["audit_id"]
+
+    # Fetch physical rows from database
+    rows = db_session.query(SurveyRespondent).filter_by(audit_id=audit_id).order_by(SurveyRespondent.row_number.asc()).all()
+    assert len(rows) == 2
+    row1, row2 = rows[0], rows[1]
+
+    # Target specifically row2 for manual review
+    review_resp = auth_client.post(
+        f"/api/surveys/audits/{audit_id}/review/RESP_DUP?row_number={row2.row_number}",
+        json={
+            "decision": "ACCEPTED",
+            "reviewer_name": "Senior QC Lead",
+            "reviewer_notes": "Second instance verified as separate valid completion despite duplicate ID"
+        }
+    )
+    assert review_resp.status_code == 200
+    assert review_resp.json()["disposition"] == "ACCEPTED"
+
+    # Verify that row2 was updated while row1 remains unaffected
+    db_session.refresh(row1)
+    db_session.refresh(row2)
+    assert row2.disposition == "ACCEPTED"
+    assert row2.reviewed_by == "Senior QC Lead"
+    assert row1.reviewed_by is None
