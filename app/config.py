@@ -56,6 +56,13 @@ class Settings:
     ALLOWED_EXTENSIONS: set[str] = {"csv"}
     UPLOADS_DIR: Path = BASE_DIR / "uploads_storage"
     
+    # Survey Data Scrubbing Storage Isolation & Durability
+    # Supports Render Persistent Disk mounts (e.g. /var/data/surveys_storage),
+    # environment overrides via SURVEYS_STORAGE_PATH, or fallback to BASE_DIR / "surveys_storage"
+    _surveys_disk_override: str | None = os.getenv("SURVEYS_STORAGE_PATH") or os.getenv("RENDER_DISK_PATH")
+    SURVEYS_DIR: Path = Path(_surveys_disk_override) if _surveys_disk_override else (BASE_DIR / "surveys_storage")
+    SURVEY_ALLOWED_EXTENSIONS: set[str] = {"csv", "xlsx", "pdf", "docx", "txt"}
+    
     # Storage Backend ('local', 'neon', 's3', 'r2')
     STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local").lower()
     
@@ -122,6 +129,11 @@ class Settings:
         return self.is_s3_configured
 
     # Security & Destructive Action Safeguards: Public reset is enabled by default in all environments
+    # ADMIN_RESET_TOKEN has no fallback: application fails closed when not configured in production
+    # Cryptographic Session Signing Key: completely independent from ADMIN_RESET_TOKEN
+    # Never falls back to machine reset credentials. Fails closed in production if unset.
+    SECRET_KEY: str | None = os.getenv("SECRET_KEY")
+
     ADMIN_RESET_TOKEN: str | None = os.getenv("ADMIN_RESET_TOKEN")
     ALLOW_DESTRUCTIVE_RESET: bool = (
         os.getenv("FORCE_DISABLE_DESTRUCTIVE_RESET", "false").lower() not in ("true", "1", "yes")
@@ -144,5 +156,6 @@ class Settings:
 
 settings = Settings()
 
-# Ensure uploads directory exists for local backend or local cache
+# Ensure uploads and survey directories exist for local backend or local cache
 settings.UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+settings.SURVEYS_DIR.mkdir(parents=True, exist_ok=True)

@@ -85,6 +85,14 @@
           <span>Import Data</span>
         </button>
 
+        <!-- Survey Scrubbing -->
+        <button class="nav-item" data-view="surveys" id="nav-surveys" data-tooltip="Survey Scrubbing" aria-label="Survey Scrubbing">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+          <span>Survey Scrubbing</span>
+        </button>
+
         <!-- 3. Processing Jobs -->
         <button class="nav-item" data-view="jobs" id="nav-jobs" data-tooltip="Processing Jobs" aria-label="Processing Jobs">
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -880,6 +888,7 @@
                       <option value="customers">Customers (customer_id, name, email, phone, created_at)</option>
                       <option value="sales">Sales (sale_id, customer_id, amount, sale_date, currency)</option>
                       <option value="inventory">Inventory (product_id, product_name, quantity, unit_price, updated_at)</option>
+                      <option value="surveys">Survey Data Scrubbing (Questionnaire &amp; Respondent QC)</option>
                     </select>
                   </div>
 
@@ -956,6 +965,500 @@
                       <li><code>updated_at</code>: ISO format YYYY-MM-DD (Required)</li>
                     </ul>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================================
+             VIEW: SURVEY DATA SCRUBBING & QC
+             ========================================================================= -->
+        <section id="view-surveys" class="view-panel">
+          <!-- Top Overview Banner & Quick Actions -->
+          <div class="card mb-4">
+            <div class="card-header-refined flex-between flex-wrap gap-2">
+              <div>
+                <h3 class="card-heading-serif">Survey Data Scrubbing &amp; Quality Control</h3>
+                <p class="card-desc-muted">Auditable questionnaire parsing, raw intake, intelligent mapping, contextual quality checks, and 8-sheet Excel reporting.</p>
+              </div>
+              <div class="flex-center gap-2 flex-wrap">
+                <button id="surveyStartAuditBtn" class="btn btn-primary btn-sm">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  <span>New Survey Audit</span>
+                </button>
+                <button id="surveyToggleDashboardBtn" class="btn btn-outline btn-sm">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1.5"/><rect width="7" height="5" x="14" y="3" rx="1.5"/><rect width="7" height="9" x="14" y="12" rx="1.5"/><rect width="7" height="5" x="3" y="16" rx="1.5"/></svg>
+                  <span>Quality Overview</span>
+                </button>
+                <button id="surveyExportCurrentBtn" class="btn btn-outline-success btn-sm" disabled>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Download 8-Sheet Excel (.xlsx)</span>
+                </button>
+                <button id="surveyOpenResetBtn" class="btn btn-outline-danger btn-sm" title="Reset Survey Data Only">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>Reset Survey Data</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Admin Security Access Card (Displayed when unauthenticated) -->
+          <div id="surveyAuthRequiredCard" class="card mb-4 d-none" style="border-left: 4px solid var(--accent, #a05a2c); background: rgba(160, 90, 44, 0.06);">
+            <div class="card-body p-3 flex-between flex-wrap gap-2">
+              <div>
+                <h4 class="font-bold text-sm mb-1 text-primary">Admin Authentication Required</h4>
+                <p class="text-xs text-muted mb-0">Survey Data Scrubbing endpoints, respondent PII, and destructive resets are access-protected. Enter your Admin Key to unlock this module.</p>
+              </div>
+              <div class="flex-center gap-2">
+                <input type="password" id="surveyAdminPasswordInput" class="form-control form-control-sm" placeholder="Admin Secret Key" style="width: 200px;">
+                <button type="button" id="surveyAdminLoginBtn" class="btn btn-primary btn-sm">Unlock Module</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 1: INGESTION & AUDIT WORKFLOW CARD -->
+          <div id="surveyWizardCard" class="card mb-4">
+            <div class="card-body">
+              <!-- Wizard Progress Navigation -->
+              <div class="survey-wizard-nav">
+                <button type="button" class="survey-step-btn active" data-step="1" id="wizardBtn1">
+                  <span class="survey-step-num">1</span>
+                  <span>Questionnaire (QQ)</span>
+                </button>
+                <span class="text-muted">&rarr;</span>
+                <button type="button" class="survey-step-btn" data-step="2" id="wizardBtn2">
+                  <span class="survey-step-num">2</span>
+                  <span>Raw Dataset Intake</span>
+                </button>
+                <span class="text-muted">&rarr;</span>
+                <button type="button" class="survey-step-btn" data-step="3" id="wizardBtn3">
+                  <span class="survey-step-num">3</span>
+                  <span>Column Mapping</span>
+                </button>
+                <span class="text-muted">&rarr;</span>
+                <button type="button" class="survey-step-btn" data-step="4" id="wizardBtn4">
+                  <span class="survey-step-num">4</span>
+                  <span>QC Rules &amp; Execute</span>
+                </button>
+              </div>
+
+              <!-- Step 1: Questionnaire Upload -->
+              <div class="survey-wizard-step" id="surveyStep1">
+                <h4 class="text-base font-bold mb-2">Step 1: Upload Survey Questionnaire Specification (QQ)</h4>
+                <p class="text-sm text-muted mb-3">Accepts PDF, DOCX, XLSX, or TXT. Edvexa automatically extracts question numbers, question text, response types, matrix statements, target completion duration, page submit timers, screening criteria, and skip logic.</p>
+                <div class="survey-dropzone" id="surveyQqDropzone">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="text-muted mb-2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  <p class="font-bold text-sm">Drag &amp; drop Questionnaire file here, or <span class="text-primary font-bold">browse</span></p>
+                  <p class="text-xs text-muted">Supports .pdf, .docx, .xlsx, .txt, .md (Max 20MB)</p>
+                  <input type="file" id="surveyQqFileInput" accept=".pdf,.docx,.xlsx,.txt,.md" style="display:none;">
+                </div>
+                <!-- QQ summary box -->
+                <div id="surveyQqSummaryBox" class="mt-3 p-3 bg-surface-secondary border rounded d-none">
+                  <div class="flex-between mb-2">
+                    <span class="font-bold text-sm" id="surveyQqFileName">questionnaire.pdf</span>
+                    <span class="badge-success text-xs font-bold" id="surveyQqStatusBadge">Parsed Successfully</span>
+                  </div>
+                  <div id="surveyQqLimitationsAlert" class="alert alert-warning text-xs mb-2 d-none"></div>
+                  <div class="flex-wrap gap-2 text-xs text-muted" id="surveyQqPills"></div>
+                </div>
+                <div class="mt-4 flex-between">
+                  <span></span>
+                  <button type="button" class="btn btn-solid-brown btn-sm" id="surveyStep1NextBtn" disabled>Next: Raw Dataset Intake &rarr;</button>
+                </div>
+              </div>
+
+              <!-- Step 2: Raw Dataset Upload -->
+              <div class="survey-wizard-step d-none" id="surveyStep2">
+                <h4 class="text-base font-bold mb-2">Step 2: Raw Respondent Dataset Intake</h4>
+                <p class="text-sm text-muted mb-3">Accepts CSV or Excel (.xlsx) respondent exports (Qualtrics, Decipher, Confirmit, SurveyMonkey, etc.). Preserves all original columns and rows unmodified.</p>
+                <div class="survey-dropzone" id="surveyRawDropzone">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="text-muted mb-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <p class="font-bold text-sm">Drag &amp; drop Respondent Data (CSV or XLSX) here, or <span class="text-primary font-bold">browse</span></p>
+                  <p class="text-xs text-muted">Supports multi-sheet workbooks and multi-row headers</p>
+                  <input type="file" id="surveyRawFileInput" accept=".csv,.xlsx" style="display:none;">
+                </div>
+                <!-- Excel Sheet Selector and Metadata Info -->
+                <div id="surveySheetSelectContainer" class="mt-3 d-none">
+                  <div class="form-group mb-2">
+                    <label class="form-label text-xs font-bold">Workbook Sheet Selection:</label>
+                    <select id="surveySheetSelect" class="form-control text-xs"></select>
+                  </div>
+                </div>
+                <div id="surveyMetadataAlert" class="alert alert-info text-xs mt-2 d-none"></div>
+                <!-- Preview Table -->
+                <div id="surveyDataPreviewContainer" class="mt-3 d-none">
+                  <div class="flex-between mb-2">
+                    <span class="font-bold text-xs">Dataset Preview (First 5 Rows):</span>
+                    <span class="text-xs text-muted" id="surveyPreviewMeta"></span>
+                  </div>
+                  <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+                    <table class="data-table-warm text-xs" id="surveyPreviewTable">
+                      <thead id="surveyPreviewHead"></thead>
+                      <tbody id="surveyPreviewBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="mt-4 flex-between">
+                  <button type="button" class="btn btn-outline btn-sm" id="surveyStep2PrevBtn">&larr; Back to Questionnaire</button>
+                  <button type="button" class="btn btn-solid-brown btn-sm" id="surveyStep2NextBtn" disabled>Next: Review Column Mapping &rarr;</button>
+                </div>
+              </div>
+
+              <!-- Step 3: Column Mapping -->
+              <div class="survey-wizard-step d-none" id="surveyStep3">
+                <div class="flex-between mb-2">
+                  <div>
+                    <h4 class="text-base font-bold">Step 3: Question-to-Column Mapping Review</h4>
+                    <p class="text-sm text-muted">Correlate questionnaire questions to dataset columns with confidence scoring and evidence. You can manually adjust any assignment.</p>
+                  </div>
+                  <div class="flex-center gap-2">
+                    <span class="badge-confidence-high" id="surveyMapHighCount">High: 0</span>
+                    <span class="badge-confidence-medium" id="surveyMapMedCount">Medium: 0</span>
+                    <span class="badge-confidence-low" id="surveyMapLowCount">Low: 0</span>
+                    <span class="badge-confidence-unmapped" id="surveyMapUnmappedCount">Unmapped: 0</span>
+                  </div>
+                </div>
+                <!-- Telemetry columns identified -->
+                <div class="p-2 mb-3 bg-surface-secondary border rounded text-xs flex-wrap gap-2" id="surveyTelemetryPills">
+                  <span class="font-bold">System Telemetry Detected:</span>
+                  <span id="surveyTelemetryList" class="text-muted">None detected</span>
+                </div>
+                <!-- Mapping Table -->
+                <div class="table-responsive" style="max-height: 340px; overflow-y: auto;">
+                  <table class="data-table-warm text-xs" id="surveyMappingTable">
+                    <thead>
+                      <tr>
+                        <th style="width: 15%;">Question Code</th>
+                        <th style="width: 30%;">Question Wording</th>
+                        <th style="width: 25%;">Assigned Column</th>
+                        <th style="width: 15%;">Match Confidence</th>
+                        <th style="width: 15%;">Evidence</th>
+                      </tr>
+                    </thead>
+                    <tbody id="surveyMappingTableBody">
+                      <tr><td colspan="5" class="text-center py-3 text-muted">Loading mapping suggestions...</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="mt-4 flex-between">
+                  <button type="button" class="btn btn-outline btn-sm" id="surveyStep3PrevBtn">&larr; Back to Dataset</button>
+                  <button type="button" class="btn btn-solid-brown btn-sm" id="surveyStep3NextBtn">Next: QC Rules &amp; Execute &rarr;</button>
+                </div>
+              </div>
+
+              <!-- Step 4: QC Rules & Execution -->
+              <div class="survey-wizard-step d-none" id="surveyStep4">
+                <h4 class="text-base font-bold mb-2">Step 4: Configure Quality Control Rules &amp; Thresholds</h4>
+                <p class="text-sm text-muted mb-3">Tune quality thresholds according to study design before executing the audit.</p>
+
+                <div class="grid-2-cols gap-3 mb-3">
+                  <!-- Timing & Speeding Rules -->
+                  <div class="survey-rule-card">
+                    <h5 class="text-sm font-bold mb-2">1. Survey Duration &amp; Speeding Thresholds</h5>
+                    <div class="form-group mb-2">
+                      <label class="form-label text-xs">Target Duration Range (minutes):</label>
+                      <div class="flex-center gap-2">
+                        <input type="number" id="ruleMinExpectedDuration" class="form-control text-xs" value="7" min="1" max="60" style="width: 80px;">
+                        <span class="text-xs">to</span>
+                        <input type="number" id="ruleMaxExpectedDuration" class="form-control text-xs" value="15" min="1" max="180" style="width: 80px;">
+                        <span class="text-xs text-muted">mins</span>
+                      </div>
+                    </div>
+                    <div class="form-group mb-2">
+                      <label class="form-label text-xs">Concern Threshold (&lt; minutes):</label>
+                      <input type="number" id="ruleSpeedingThreshold" class="form-control text-xs" value="5" min="1" max="30" style="width: 80px;">
+                      <span class="text-xs text-muted">Completions faster than this trigger speeding concern</span>
+                    </div>
+                    <div class="form-group mb-2">
+                      <label class="form-label text-xs">Extreme Speeding Cutoff (&lt; minutes):</label>
+                      <input type="number" id="ruleExtremeSpeeding" class="form-control text-xs" value="2" min="1" max="10" style="width: 80px;">
+                      <span class="text-xs text-muted">Physically impossible completions trigger critical flag</span>
+                    </div>
+                    <div class="form-group mb-0">
+                      <label class="form-label text-xs">Page Submit Timer Minimum (seconds):</label>
+                      <input type="number" id="rulePageTimer" class="form-control text-xs" value="20" min="5" max="60" style="width: 80px;">
+                      <span class="text-xs text-muted">Pages submitted faster than 20s are flagged</span>
+                    </div>
+                  </div>
+
+                  <!-- Straightlining & Open-Text Rules -->
+                  <div class="survey-rule-card">
+                    <h5 class="text-sm font-bold mb-2">2. Straightlining &amp; Open-Ended Text Rules</h5>
+                    <div class="form-group mb-2">
+                      <label class="form-label text-xs">Straightlining Minimum Statements:</label>
+                      <input type="number" id="ruleStraightlineMinStatements" class="form-control text-xs" value="4" min="3" max="20" style="width: 80px;">
+                      <span class="text-xs text-muted">Matrix scale must contain at least N statements</span>
+                    </div>
+                    <div class="form-group mb-2">
+                      <label class="form-label text-xs">Straightlining Identical Threshold (%):</label>
+                      <input type="number" id="ruleStraightlineThreshold" class="form-control text-xs" value="80" min="50" max="100" style="width: 80px;">
+                      <span class="text-xs text-muted">E.g., 80% identical ratings across matrix items</span>
+                    </div>
+                    <div class="form-group mb-2">
+                      <label class="form-label text-xs">Open-Text Evaluation Engine:</label>
+                      <div class="text-xs text-muted">
+                        &bull; Recognizes valid no-recall answers ("IDK", "none come to mind")<br>
+                        &bull; Recognizes meaningful off-topic brands (e.g. "Nike" for orthodontic brand)<br>
+                        &bull; Flags keyboard walks, repeated characters, vowel-less strings ("asdfgh", "12345")<br>
+                        &bull; Routes ambiguous/unrecognized text to Review Required
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Execution Button Container -->
+                <div class="p-3 bg-surface-secondary border rounded flex-between flex-wrap gap-2">
+                  <div>
+                    <span class="font-bold text-sm">Ready to execute Survey Scrubbing Audit</span>
+                    <p class="text-xs text-muted">Runs all quality checks, assigns deterministic dispositions, and generates 8-sheet audit data.</p>
+                  </div>
+                  <button type="button" class="btn btn-primary" id="surveyExecuteAuditBtn">
+                    <span id="surveyAuditBtnSpinner" class="spinner-border spinner-border-sm d-none mr-1"></span>
+                    <span id="surveyAuditBtnText">Run Survey Scrubbing Audit</span>
+                  </button>
+                </div>
+                <div class="mt-4 flex-between">
+                  <button type="button" class="btn btn-outline btn-sm" id="surveyStep4PrevBtn">&larr; Back to Mapping</button>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 2: SURVEY QUALITY OVERVIEW DASHBOARD -->
+          <div id="surveyDashboardContainer">
+            <!-- Strict Accounting Invariant Verification Banner -->
+            <div class="card mb-4" id="surveyAccountingBanner">
+              <div class="card-body p-3 flex-between flex-wrap gap-2">
+                <div class="flex-center gap-2">
+                  <span class="badge-success text-xs font-bold" id="surveyInvariantBadge">&check; Strict Accounting Verified</span>
+                  <span class="text-xs text-muted" id="surveyAccountingFormula">Total (0) = Accepted (0) + Rejected (0) + Review Required (0) &bull; 100% Accounted</span>
+                </div>
+                <span class="text-xs text-muted" id="surveyAuditTimestamp">Last Audit: Never</span>
+              </div>
+            </div>
+
+            <!-- 10 KPI Cards Grid -->
+            <div class="survey-kpi-grid">
+              <!-- KPI 1: Total Respondents -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title">Total Respondents</div>
+                <div class="kpi-value-serif" id="surveyKpiTotal">0</div>
+                <div class="text-xs text-muted">Ingested rows</div>
+              </div>
+              <!-- KPI 2: Accepted -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title text-success">Accepted</div>
+                <div class="kpi-value-serif text-success" id="surveyKpiAccepted">0</div>
+                <div class="text-xs text-muted" id="surveyKpiAcceptedPct">0% of total</div>
+              </div>
+              <!-- KPI 3: Rejected -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title text-danger">Rejected</div>
+                <div class="kpi-value-serif text-danger" id="surveyKpiRejected">0</div>
+                <div class="text-xs text-muted" id="surveyKpiRejectedPct">0% of total</div>
+              </div>
+              <!-- KPI 4: Review Required -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title text-warning">Review Required</div>
+                <div class="kpi-value-serif text-warning" id="surveyKpiReview">0</div>
+                <div class="text-xs text-muted" id="surveyKpiReviewPct">0% of total</div>
+              </div>
+              <!-- KPI 5: Speeding Concerns -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title">Speeding Concerns</div>
+                <div class="kpi-value-serif" id="surveyKpiSpeeding">0</div>
+                <div class="text-xs text-muted">&lt;5m or &lt;20s page</div>
+              </div>
+              <!-- KPI 6: Straightlining -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title">Straightlining</div>
+                <div class="kpi-value-serif" id="surveyKpiStraightline">0</div>
+                <div class="text-xs text-muted">Matrix flatlines</div>
+              </div>
+              <!-- KPI 7: Suspicious Text -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title">Suspicious Open-Text</div>
+                <div class="kpi-value-serif" id="surveyKpiGibberish">0</div>
+                <div class="text-xs text-muted">Gibberish &amp; keymash</div>
+              </div>
+              <!-- KPI 8: Confirmed Duplicates -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title">Confirmed Duplicates</div>
+                <div class="kpi-value-serif" id="surveyKpiConfirmedDup">0</div>
+                <div class="text-xs text-muted">Exact ID / Row duplicate</div>
+              </div>
+              <!-- KPI 9: Potential Duplicates -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title">Potential Duplicates</div>
+                <div class="kpi-value-serif" id="surveyKpiPotentialDup">0</div>
+                <div class="text-xs text-muted">IP / Pattern similarity</div>
+              </div>
+              <!-- KPI 10: Routing / Screeners -->
+              <div class="kpi-card-rich">
+                <div class="kpi-card-title">Routing / Screeners</div>
+                <div class="kpi-value-serif" id="surveyKpiRouting">0</div>
+                <div class="text-xs text-muted">Eligibility &amp; skip errors</div>
+              </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid-2-cols gap-4 mb-4">
+              <div class="card">
+                <div class="card-header-refined">
+                  <h4 class="card-heading-serif">Respondent Disposition Breakdown</h4>
+                  <p class="card-desc-muted">Accepted vs. Review Required vs. Rejected</p>
+                </div>
+                <div class="card-body card-chart-body" style="height: 240px; position: relative;">
+                  <canvas id="surveyDispositionChart"></canvas>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header-refined">
+                  <h4 class="card-heading-serif">Quality Control Findings by Category</h4>
+                  <p class="card-desc-muted">Frequency of flags across QC modules</p>
+                </div>
+                <div class="card-body card-chart-body" style="height: 240px; position: relative;">
+                  <canvas id="surveyFindingsCategoryChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- QC Coverage Matrix Table -->
+            <div class="card mb-4">
+              <div class="card-header-refined">
+                <h4 class="card-heading-serif">Quality Control Coverage &amp; Methodology Matrix</h4>
+                <p class="card-desc-muted">Transparent overview of checks applied, statuses, counts, and limitations</p>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="data-table-warm text-xs" id="surveyCoverageTable">
+                    <thead>
+                      <tr>
+                        <th style="width: 20%;">QC Check Category</th>
+                        <th style="width: 15%;">Status</th>
+                        <th style="width: 15%;">Flagged Count</th>
+                        <th style="width: 25%;">Detection Logic Applied</th>
+                        <th style="width: 25%;">Limitations &amp; Review Guidance</th>
+                      </tr>
+                    </thead>
+                    <tbody id="surveyCoverageTableBody">
+                      <tr><td colspan="5" class="text-center py-3 text-muted">No audit executed yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Respondents Explorer Table with Tabs -->
+            <div class="card mb-4">
+              <div class="card-header-refined flex-between flex-wrap gap-2">
+                <div>
+                  <h4 class="card-heading-serif">Respondent Dispositions &amp; Audit Trail</h4>
+                  <p class="card-desc-muted">Inspect individual respondents, timing telemetry, flags, and perform manual overrides.</p>
+                </div>
+                <div class="flex-center gap-2">
+                  <input type="text" id="surveyRespondentSearch" class="form-control text-xs" placeholder="Search by ID, IP, or disposition..." style="width: 220px;">
+                </div>
+              </div>
+              <div class="card-body">
+                <!-- Filter Tabs -->
+                <div class="tabs mb-3 flex-wrap gap-2">
+                  <button type="button" class="tab-btn active" data-tab="ALL" id="surveyTabAll">All Respondents (<span id="surveyTabCountAll">0</span>)</button>
+                  <button type="button" class="tab-btn" data-tab="ACCEPTED" id="surveyTabAccepted">Accepted (<span id="surveyTabCountAccepted">0</span>)</button>
+                  <button type="button" class="tab-btn" data-tab="REVIEW_REQUIRED" id="surveyTabReview">Review Required (<span id="surveyTabCountReview">0</span>)</button>
+                  <button type="button" class="tab-btn" data-tab="REJECTED" id="surveyTabRejected">Rejected (<span id="surveyTabCountRejected">0</span>)</button>
+                </div>
+                <!-- Table -->
+                <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                  <table class="data-table-warm text-xs" id="surveyRespondentsTable">
+                    <thead>
+                      <tr>
+                        <th>Respondent Key</th>
+                        <th>Disposition</th>
+                        <th>Duration</th>
+                        <th>Overnight</th>
+                        <th>Speeding</th>
+                        <th>Straightlining</th>
+                        <th>Open-Text</th>
+                        <th>Duplicates</th>
+                        <th>Findings</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="surveyRespondentsTableBody">
+                      <tr><td colspan="10" class="text-center py-3 text-muted">No audit executed yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detailed QC Findings Table -->
+            <div class="card mb-4">
+              <div class="card-header-refined flex-between flex-wrap gap-2">
+                <div>
+                  <h4 class="card-heading-serif">Detailed Quality Control Findings</h4>
+                  <p class="card-desc-muted">Specific rule violations with observed values, thresholds, and evidence.</p>
+                </div>
+                <div class="flex-center gap-2">
+                  <select id="surveyFindingSeverityFilter" class="form-control text-xs" style="width: 140px;">
+                    <option value="ALL">All Severities</option>
+                    <option value="CRITICAL">Critical Only</option>
+                    <option value="WARNING">Warning Only</option>
+                    <option value="INFO">Info Only</option>
+                  </select>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                  <table class="data-table-warm text-xs" id="surveyFindingsTable">
+                    <thead>
+                      <tr>
+                        <th>Finding ID</th>
+                        <th>Respondent Key</th>
+                        <th>Check Type</th>
+                        <th>Severity</th>
+                        <th>Description</th>
+                        <th>Observed Value</th>
+                        <th>Threshold</th>
+                      </tr>
+                    </thead>
+                    <tbody id="surveyFindingsTableBody">
+                      <tr><td colspan="7" class="text-center py-3 text-muted">No findings recorded.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Past Audit Runs Section -->
+            <div class="card mb-4">
+              <div class="card-header-refined">
+                <h4 class="card-heading-serif">Survey Audit Run History</h4>
+                <p class="card-desc-muted">Historical record of all survey scrubbing audit runs</p>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="data-table-warm text-xs" id="surveyAuditRunsTable">
+                    <thead>
+                      <tr>
+                        <th>Audit ID</th>
+                        <th>Executed At</th>
+                        <th>Dataset File</th>
+                        <th>Questionnaire File</th>
+                        <th>Total</th>
+                        <th>Accepted</th>
+                        <th>Review</th>
+                        <th>Rejected</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="surveyAuditRunsTableBody">
+                      <tr><td colspan="9" class="text-center py-3 text-muted">No audit runs on record.</td></tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -1572,7 +2075,72 @@
     </div>
   </div>
 
+  <!-- Modal: Survey Respondent Manual Review -->
+  <div id="surveyReviewModal" class="modal-backdrop d-none">
+    <div class="modal-dialog modal-md">
+      <div class="modal-header">
+        <h3 class="modal-title font-serif">Human Reviewer Decision Override</h3>
+        <button id="closeSurveyReviewModalBtn" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-xs text-muted mb-3">Inspect findings and manually override disposition for respondent: <strong id="surveyReviewRespKey"></strong></p>
+        <div class="p-2 mb-3 bg-surface-secondary border rounded text-xs" id="surveyReviewFindingsList">
+          <!-- Dynamic findings summary -->
+        </div>
+        <form id="surveyReviewForm">
+          <div class="form-group mb-2">
+            <label class="form-label text-xs font-bold">New Disposition:</label>
+            <select id="surveyReviewDecisionSelect" class="form-control text-xs" required>
+              <option value="ACCEPTED">ACCEPTED (Approve record)</option>
+              <option value="REJECTED">REJECTED (Disqualify record)</option>
+              <option value="REVIEW_REQUIRED">REVIEW_REQUIRED (Keep flagged for review)</option>
+            </select>
+          </div>
+          <div class="form-group mb-2">
+            <label class="form-label text-xs font-bold">Reviewer Name / ID:</label>
+            <input type="text" id="surveyReviewerName" class="form-control text-xs" placeholder="e.g. Lead QC Auditor" required>
+          </div>
+          <div class="form-group mb-2">
+            <label class="form-label text-xs font-bold">Justification &amp; Audit Notes <span class="text-danger">*</span>:</label>
+            <textarea id="surveyReviewNotes" class="form-control text-xs" rows="3" placeholder="Provide audit trail rationale for this decision..." required></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer flex-between">
+        <button id="cancelSurveyReviewBtn" class="btn btn-outline btn-sm">Cancel</button>
+        <button id="saveSurveyReviewBtn" class="btn btn-solid-brown btn-sm">Save &amp; Reconcile Invariant</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Survey Data Reset Confirmation -->
+  <div id="surveyResetModal" class="modal-backdrop d-none">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title font-serif text-danger">Reset Survey Scrubbing Data</h3>
+        <button id="closeSurveyResetModalBtn" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-xs mb-2">Are you sure you want to permanently delete all Survey Scrubbing audit runs, respondents, QC findings, and mapping definitions?</p>
+        <div class="alert alert-warning text-xs mb-3">
+          <strong>Strict Isolation Guarantee:</strong> This operation ONLY deletes survey scrubbing data. It does NOT touch ETL Customers, Sales, Inventory, or processing jobs.
+        </div>
+        <div class="form-group mb-0">
+          <label class="flex-center gap-2 text-xs">
+            <input type="checkbox" id="surveyResetConfirmCheck">
+            <span>I understand this permanently deletes all survey audit data.</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer flex-between">
+        <button id="cancelSurveyResetBtn" class="btn btn-outline btn-sm">Cancel</button>
+        <button id="confirmSurveyResetBtn" class="btn btn-danger btn-sm" disabled>Permanently Reset Surveys</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/js/app.js?v=2.4"></script>
   <script src="/static/js/dashboard.js?v=2.4"></script>
+  <script src="/static/js/surveys.js?v=2.7"></script>
 </body>
 </html>

@@ -784,6 +784,11 @@ const App = {
       Dashboard.fetchErrors();
     } else if (viewName === 'records') {
       Dashboard.fetchRecords();
+    } else if (viewName === 'surveys') {
+      if (window.Surveys) {
+        Surveys.loadHistory();
+        Surveys.loadLatestDashboard();
+      }
     }
   },
 

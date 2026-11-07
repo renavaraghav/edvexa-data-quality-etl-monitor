@@ -12,12 +12,22 @@ SESSION_MAX_AGE_SECONDS = 86400  # 24 hours
 
 
 def get_secret_key() -> str:
-    """Retrieve or derive the application secret key for signing sessions."""
-    return (
-        os.getenv("SECRET_KEY")
-        or settings.ADMIN_RESET_TOKEN
-        or "edvexa-secure-session-signing-key-default"
-    )
+    """
+    Retrieve the application secret key strictly for HMAC session signing.
+    Under the principle of credential separation, SECRET_KEY never falls back
+    to ADMIN_RESET_TOKEN or any other machine credential.
+    Fails closed in production if unset.
+    """
+    key = (os.getenv("SECRET_KEY") or (settings.SECRET_KEY or "")).strip()
+    if not key:
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError(
+                "CRITICAL SECURITY CONFIGURATION ERROR: SECRET_KEY must be set in production for session signing. "
+                "Application fails closed to prevent unauthorized access. "
+                "Do NOT use ADMIN_RESET_TOKEN for session signing."
+            )
+        return "edvexa-dev-ephemeral-session-signing-key"
+    return key
 
 
 def create_admin_session_token() -> str:
@@ -65,7 +75,10 @@ def verify_admin_session_token(token: str | None) -> bool:
 def is_authenticated_admin(request: Request) -> bool:
     """
     Check if the incoming request carries a valid admin session cookie,
-    Bearer token, or verified administrative credential.
+    Bearer token, or X-Admin-Session-Token.
+    Note: Under the principle of least privilege, machine reset tokens
+    (X-Admin-Reset-Token) DO NOT grant broad administrative access to
+    general endpoints (see is_authorized_reset_client for reset scoping).
     """
     # 1. Check HttpOnly session cookie
     cookie_token = request.cookies.get(SESSION_COOKIE_NAME)
@@ -84,7 +97,19 @@ def is_authenticated_admin(request: Request) -> bool:
     if session_header and verify_admin_session_token(session_header):
         return True
 
-    # 4. Check direct admin secret token for machine-to-machine admin automation
+    return False
+
+
+def is_authorized_reset_client(request: Request) -> bool:
+    """
+    Check if the incoming request is authorized specifically for destructive reset operations.
+    Accepts:
+      1. Full authenticated admin session (cookie, Bearer, session token).
+      2. Scoped machine reset token (X-Admin-Reset-Token or ?token=).
+    """
+    if is_authenticated_admin(request):
+        return True
+
     configured_token = (settings.ADMIN_RESET_TOKEN or "").strip()
     if configured_token:
         direct_token = (

@@ -12,7 +12,7 @@ from app.config import settings
 from app.database import get_db, init_db
 from app.models import utc_now
 from app.schemas import HealthResponse
-from app.routers import uploads, jobs, errors, records, dashboard, auth
+from app.routers import uploads, jobs, errors, records, dashboard, auth, surveys
 
 # Setup structured logging
 logging.basicConfig(
@@ -61,6 +61,7 @@ app.include_router(errors.router)
 app.include_router(records.router)
 app.include_router(dashboard.router)
 app.include_router(auth.router)
+app.include_router(surveys.router)
 
 # Health endpoint
 @app.get("/api/health", response_model=HealthResponse, tags=["System Health"])

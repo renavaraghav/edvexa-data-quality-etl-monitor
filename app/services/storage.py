@@ -1,8 +1,12 @@
 """
 Storage Abstraction Layer for EDVEXA Platform.
-Provides unified, interchangeable storage interfaces for:
+Provides unified, interchangeable, and namespace-isolated storage interfaces for:
 - Local Filesystem (development, tests, Windows local)
 - Neon Object Storage / S3-Compatible Storage (production persistent uploads)
+
+Supported Namespaces:
+- 'uploads/': ETL datasets (customers, sales, inventory) and processing job artifacts
+- 'surveys/': Survey Data Scrubbing questionnaires (QQ) and raw survey datasets
 """
 
 import logging
@@ -15,9 +19,11 @@ from app.config import settings
 
 logger = logging.getLogger("edvexa.storage")
 
+VALID_STORAGE_NAMESPACES = {"uploads", "surveys"}
+
 
 class StorageBackend(ABC):
-    """Abstract base class for file and object storage operations."""
+    """Abstract base class for file and object storage operations with namespace isolation."""
 
     @abstractmethod
     def save(self, key: str, content: bytes, content_type: str = "text/csv") -> str:
@@ -46,22 +52,56 @@ class StorageBackend(ABC):
 
     @abstractmethod
     def clear_all(self) -> int:
-        """Clear all stored upload artifacts. Returns number of removed items."""
+        """Clear all stored ETL upload artifacts. Never clears survey artifacts. Returns removed count."""
         pass
 
 
 class LocalStorageBackend(StorageBackend):
-    """Local filesystem storage using settings.UPLOADS_DIR."""
+    """Local filesystem storage supporting uploads/ and surveys/ namespaces."""
 
     def __init__(self, base_dir: Path | None = None):
         self.base_dir = (base_dir or settings.UPLOADS_DIR).resolve()
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
-    def _resolve_key_path(self, key: str) -> Path:
-        """Resolve path and verify against path-traversal attacks."""
-        sanitized_key = Path(key).name  # Strips any directory traversals
-        target = (self.base_dir / sanitized_key).resolve()
-        if not target.is_relative_to(self.base_dir):
+    def _resolve_key_path(self, key: str, default_namespace: str = "uploads") -> Path:
+        """Resolve path and verify against path-traversal attacks while preserving namespace isolation."""
+        # Sanitize for legacy path traversal tests without namespace (e.g. '../../evil_outside.csv')
+        if ".." in key or key.startswith("/") or key.startswith("\\"):
+            clean_name = Path(key).name
+            target = (self.base_dir / clean_name).resolve()
+            if not target.is_relative_to(self.base_dir):
+                raise ValueError(f"Path traversal detected: {key}")
+            return target
+
+        k = key.replace("\\", "/").strip().lstrip("/")
+        if k.startswith("surveys/"):
+            ns = "surveys"
+            fname = k[len("surveys/"):].strip()
+        elif k.startswith("uploads/"):
+            ns = "uploads"
+            fname = k[len("uploads/"):].strip()
+        elif "/" in k:
+            invalid_ns = k.split("/")[0]
+            raise ValueError(f"Invalid storage namespace '{invalid_ns}'. Allowed: 'uploads', 'surveys'.")
+        else:
+            ns = default_namespace
+            fname = k
+
+        clean_name = Path(fname).name
+        if not clean_name:
+            raise ValueError(f"Invalid filename in storage key: '{key}'")
+
+        if ns == "surveys":
+            if self.base_dir == settings.UPLOADS_DIR.resolve():
+                target_dir = settings.SURVEYS_DIR.resolve()
+            else:
+                target_dir = (self.base_dir / "surveys").resolve()
+        else:
+            target_dir = self.base_dir
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = (target_dir / clean_name).resolve()
+        if not target.is_relative_to(target_dir):
             raise ValueError(f"Path traversal detected: {key}")
         return target
 
@@ -71,6 +111,8 @@ class LocalStorageBackend(StorageBackend):
         with open(target, "wb") as f:
             f.write(content)
         logger.debug(f"[LocalStorage] Saved {len(content)} bytes to {target}")
+        if key.startswith("surveys/"):
+            return f"surveys/{target.name}"
         return target.name
 
     def get(self, key: str) -> bytes:
@@ -100,15 +142,23 @@ class LocalStorageBackend(StorageBackend):
             return False
 
     def list_keys(self, prefix: str = "") -> list[str]:
-        if not self.base_dir.exists():
-            return []
-        keys = []
-        for item in self.base_dir.iterdir():
-            if item.is_file() and item.name.startswith(prefix):
-                keys.append(item.name)
-        return keys
+        if prefix.startswith("surveys"):
+            surveys_dir = settings.SURVEYS_DIR.resolve() if self.base_dir == settings.UPLOADS_DIR.resolve() else (self.base_dir / "surveys").resolve()
+            if not surveys_dir.exists():
+                return []
+            return [f"surveys/{item.name}" for item in surveys_dir.iterdir() if item.is_file()]
+        elif prefix.startswith("uploads"):
+            if not self.base_dir.exists():
+                return []
+            return [f"uploads/{item.name}" for item in self.base_dir.iterdir() if item.is_file()]
+        else:
+            # Default prefix == "" (legacy ETL listing)
+            if not self.base_dir.exists():
+                return []
+            return [item.name for item in self.base_dir.iterdir() if item.is_file()]
 
     def clear_all(self) -> int:
+        """Clear only ETL upload files in base_dir. Never removes surveys."""
         removed = 0
         if not self.base_dir.exists():
             return 0
@@ -125,7 +175,7 @@ class LocalStorageBackend(StorageBackend):
 class NeonObjectStorageBackend(StorageBackend):
     """
     S3-compatible persistent object storage for Neon Object Storage,
-    Cloudflare R2, or AWS S3.
+    Cloudflare R2, or AWS S3 with strict namespace isolation for uploads/ and surveys/.
     """
 
     def __init__(
@@ -174,14 +224,49 @@ class NeonObjectStorageBackend(StorageBackend):
             f"[NeonObjectStorage] Initialized for bucket '{self.bucket_name}' at {self.endpoint_url} (region: {self.region_name})"
         )
 
-    def _sanitize_key(self, key: str) -> str:
-        """Strip directory traversals and normalize object key."""
-        clean = Path(key).name
-        # Store uploads under 'uploads/' namespace in S3/Neon bucket
-        return f"uploads/{clean}"
+    def _normalize_key(self, key: str, default_namespace: str = "uploads") -> str:
+        """
+        Validate and normalize a storage key into canonical S3 format (namespace/filename).
+        Strictly rejects path traversals ('..'), absolute paths, null bytes, and invalid namespaces.
+        Preserves 'surveys/' and 'uploads/' namespaces; never flattens them into a shared namespace.
+        Assigns default_namespace ('uploads') to un-prefixed keys for backward compatibility.
+        """
+        if not key or not isinstance(key, str):
+            raise ValueError("Storage key must be a non-empty string.")
+
+        if ".." in key or key.startswith("/") or key.startswith("\\"):
+            raise ValueError(f"Path traversal or absolute path detected in storage key: '{key}'")
+
+        k = key.replace("\\", "/").strip().lstrip("/")
+
+        if k.startswith("surveys/"):
+            ns = "surveys"
+            remainder = k[len("surveys/"):].strip()
+        elif k.startswith("uploads/"):
+            ns = "uploads"
+            remainder = k[len("uploads/"):].strip()
+        elif "/" in k:
+            invalid_ns = k.split("/")[0]
+            raise ValueError(
+                f"Invalid storage namespace '{invalid_ns}'. Allowed namespaces are 'uploads' and 'surveys'."
+            )
+        else:
+            ns = default_namespace
+            remainder = k
+
+        if not remainder:
+            raise ValueError(f"Storage key '{key}' has an empty filename.")
+        if "/" in remainder or "\\" in remainder or ".." in remainder:
+            raise ValueError(f"Invalid nested subpath or traversal in storage key: '{key}'")
+
+        clean_filename = Path(remainder).name
+        if clean_filename != remainder or not clean_filename:
+            raise ValueError(f"Invalid filename in storage key: '{key}'")
+
+        return f"{ns}/{clean_filename}"
 
     def save(self, key: str, content: bytes, content_type: str = "text/csv") -> str:
-        obj_key = self._sanitize_key(key)
+        obj_key = self._normalize_key(key)
         try:
             self.s3_client.put_object(
                 Bucket=self.bucket_name,
@@ -190,21 +275,35 @@ class NeonObjectStorageBackend(StorageBackend):
                 ContentType=content_type,
             )
             logger.info(f"[NeonObjectStorage] Uploaded {len(content)} bytes to s3://{self.bucket_name}/{obj_key}")
-            # Also keep a local cache in UPLOADS_DIR if writable for fast local access
+            # Keep isolated local cache in appropriate directory
             try:
-                local_cache = settings.UPLOADS_DIR / Path(key).name
+                if obj_key.startswith("surveys/"):
+                    fname = obj_key[len("surveys/"):]
+                    local_cache = settings.SURVEYS_DIR / fname
+                else:
+                    fname = obj_key[len("uploads/"):]
+                    local_cache = settings.UPLOADS_DIR / fname
+                local_cache.parent.mkdir(parents=True, exist_ok=True)
                 with open(local_cache, "wb") as f:
                     f.write(content)
             except Exception:
                 pass
+
+            if key.startswith("surveys/"):
+                return obj_key
             return Path(key).name
         except Exception as e:
             logger.error(f"[NeonObjectStorage] Failed to upload {obj_key}: {e}")
             raise RuntimeError(f"Neon Object Storage write failure: {e}")
 
     def get(self, key: str) -> bytes:
+        obj_key = self._normalize_key(key)
         # Check local cache first
-        local_cache = settings.UPLOADS_DIR / Path(key).name
+        if obj_key.startswith("surveys/"):
+            local_cache = settings.SURVEYS_DIR / obj_key[len("surveys/"):]
+        else:
+            local_cache = settings.UPLOADS_DIR / obj_key[len("uploads/"):]
+
         if local_cache.exists() and local_cache.is_file():
             try:
                 with open(local_cache, "rb") as f:
@@ -212,28 +311,31 @@ class NeonObjectStorageBackend(StorageBackend):
             except Exception:
                 pass
 
-        obj_key = self._sanitize_key(key)
         try:
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=obj_key)
             data = response["Body"].read()
-            # Cache locally
             try:
+                local_cache.parent.mkdir(parents=True, exist_ok=True)
                 with open(local_cache, "wb") as f:
                     f.write(data)
             except Exception:
                 pass
             return data
-        except getattr(self.s3_client.exceptions, "NoSuchKey", Exception):
-            raise FileNotFoundError(f"Object '{obj_key}' not found in bucket '{self.bucket_name}'.")
-        except Exception as e:
+        except getattr(self.s3_client.exceptions, "NoSuchKey", Exception) as e:
+            if "NoSuchKey" in type(e).__name__ or "NoSuchKey" in str(e):
+                raise FileNotFoundError(f"Object '{obj_key}' not found in bucket '{self.bucket_name}'.")
+            if hasattr(e, "response") and e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+                raise FileNotFoundError(f"Object '{obj_key}' not found in bucket '{self.bucket_name}'.")
             logger.error(f"[NeonObjectStorage] Failed to read {obj_key}: {e}")
             raise FileNotFoundError(f"Error reading '{obj_key}' from object storage: {e}")
 
     def delete(self, key: str) -> bool:
-        obj_key = self._sanitize_key(key)
-        # Also clean local cache
+        obj_key = self._normalize_key(key)
         try:
-            local_cache = settings.UPLOADS_DIR / Path(key).name
+            if obj_key.startswith("surveys/"):
+                local_cache = settings.SURVEYS_DIR / obj_key[len("surveys/"):]
+            else:
+                local_cache = settings.UPLOADS_DIR / obj_key[len("uploads/"):]
             if local_cache.exists():
                 local_cache.unlink()
         except Exception:
@@ -248,7 +350,7 @@ class NeonObjectStorageBackend(StorageBackend):
             return False
 
     def exists(self, key: str) -> bool:
-        obj_key = self._sanitize_key(key)
+        obj_key = self._normalize_key(key)
         try:
             self.s3_client.head_object(Bucket=self.bucket_name, Key=obj_key)
             return True
@@ -256,33 +358,58 @@ class NeonObjectStorageBackend(StorageBackend):
             return False
 
     def list_keys(self, prefix: str = "") -> list[str]:
-        full_prefix = f"uploads/{prefix}" if prefix else "uploads/"
+        if prefix in ("uploads", "uploads/"):
+            full_prefix = "uploads/"
+            mode = "uploads_explicit"
+        elif prefix in ("surveys", "surveys/"):
+            full_prefix = "surveys/"
+            mode = "surveys_explicit"
+        elif prefix.startswith("uploads/"):
+            full_prefix = prefix
+            mode = "uploads_explicit"
+        elif prefix.startswith("surveys/"):
+            full_prefix = prefix
+            mode = "surveys_explicit"
+        elif prefix == "":
+            full_prefix = "uploads/"
+            mode = "uploads_default"
+        else:
+            raise ValueError(f"Invalid namespace prefix '{prefix}'. Allowed prefixes: 'uploads/', 'surveys/'.")
+
         try:
             paginator = self.s3_client.get_paginator("list_objects_v2")
             keys = []
             for page in paginator.paginate(Bucket=self.bucket_name, Prefix=full_prefix):
                 for obj in page.get("Contents", []):
-                    # Strip 'uploads/' prefix for consistency
                     k = obj["Key"]
-                    if k.startswith("uploads/"):
-                        keys.append(k[len("uploads/"):])
-                    else:
-                        keys.append(k)
+                    if mode == "uploads_default":
+                        # Legacy un-prefixed listing: strip uploads/ for backward compatibility
+                        if k.startswith("uploads/"):
+                            keys.append(k[len("uploads/"):])
+                        else:
+                            keys.append(k)
+                    elif mode == "uploads_explicit":
+                        if k.startswith("uploads/"):
+                            keys.append(k)
+                    elif mode == "surveys_explicit":
+                        if k.startswith("surveys/"):
+                            keys.append(k)
             return keys
         except Exception as e:
-            logger.error(f"[NeonObjectStorage] Error listing keys: {e}")
-            return []
+            logger.error(f"[NeonObjectStorage] Error listing keys with prefix '{full_prefix}': {e}")
+            raise
 
     def clear_all(self) -> int:
+        """Clear all stored ETL upload artifacts. Never clears survey artifacts."""
         removed = 0
         try:
-            keys = self.list_keys()
+            keys = self.list_keys(prefix="uploads/")
             for k in keys:
                 if self.delete(k):
                     removed += 1
             return removed
         except Exception as e:
-            logger.error(f"[NeonObjectStorage] Error clearing all objects: {e}")
+            logger.error(f"[NeonObjectStorage] Error clearing upload objects: {e}")
             return removed
 
 
@@ -321,42 +448,6 @@ def get_storage() -> StorageBackend:
 
     _storage_instance = LocalStorageBackend()
     return _storage_instance
-
-
-def reset_storage_instance() -> None:
-    """Reset cached storage singleton for testing purposes."""
-    global _storage_instance
-    _storage_instance = None
-
-
-def generate_artifact_key(job_id: int, file_hash: str) -> str:
-    """Generate canonical secure artifact key for an upload run."""
-    return f"job_{job_id}_{file_hash[:12]}.csv"
-
-
-def save_upload_artifact(job_id: int, file_hash: str, content: bytes) -> str:
-    """Save upload content using the active storage backend."""
-    storage = get_storage()
-    key = generate_artifact_key(job_id, file_hash)
-    return storage.save(key, content, content_type="text/csv")
-
-
-def get_upload_artifact(artifact_name: str) -> bytes:
-    """Retrieve raw upload content using the active storage backend."""
-    storage = get_storage()
-    return storage.get(artifact_name)
-
-
-def delete_upload_artifact(artifact_name: str) -> bool:
-    """Delete upload artifact using active storage backend."""
-    storage = get_storage()
-    return storage.delete(artifact_name)
-
-
-def clear_all_upload_artifacts() -> int:
-    """Clear all upload artifacts from active storage backend."""
-    storage = get_storage()
-    return storage.clear_all()
 
 
 def reset_storage_instance() -> None:

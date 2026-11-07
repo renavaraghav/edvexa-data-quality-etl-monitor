@@ -47,6 +47,7 @@ htmlcov/
 *.sqlite3
 data/*.db
 uploads_storage/
+surveys_storage/
 demo/*.mp4
 .browser_profile/
 render_state.png

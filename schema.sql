@@ -120,3 +120,124 @@ CREATE TABLE IF NOT EXISTS inventory (
 );
 
 CREATE INDEX IF NOT EXISTS ix_inventory_product_id ON inventory (product_id);
+
+
+-- ============================================================================
+-- 7. SURVEY AUDIT RUNS (Survey Data Scrubbing Module)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS survey_audit_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_name VARCHAR(255) NOT NULL DEFAULT 'Survey Quality Audit',
+    qq_filename VARCHAR(255),
+    qq_file_hash VARCHAR(64),
+    raw_filename VARCHAR(255) NOT NULL,
+    raw_file_hash VARCHAR(64) NOT NULL,
+    selected_sheet VARCHAR(100),
+    header_row_index INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(30) NOT NULL DEFAULT 'pending',
+    total_respondents INTEGER NOT NULL DEFAULT 0,
+    accepted_count INTEGER NOT NULL DEFAULT 0,
+    rejected_count INTEGER NOT NULL DEFAULT 0,
+    review_required_count INTEGER NOT NULL DEFAULT 0,
+    speeding_count INTEGER NOT NULL DEFAULT 0,
+    straightlining_count INTEGER NOT NULL DEFAULT 0,
+    suspicious_text_count INTEGER NOT NULL DEFAULT 0,
+    confirmed_duplicates_count INTEGER NOT NULL DEFAULT 0,
+    potential_duplicates_count INTEGER NOT NULL DEFAULT 0,
+    routing_violations_count INTEGER NOT NULL DEFAULT 0,
+    screener_violations_count INTEGER NOT NULL DEFAULT 0,
+    contradiction_count INTEGER NOT NULL DEFAULT 0,
+    incomplete_count INTEGER NOT NULL DEFAULT 0,
+    timestamp_mismatch_count INTEGER NOT NULL DEFAULT 0,
+    checks_summary_json TEXT,
+    timing_rules_json TEXT,
+    error_message TEXT,
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    duration_seconds FLOAT
+);
+
+CREATE INDEX IF NOT EXISTS ix_survey_audit_runs_raw_hash ON survey_audit_runs (raw_file_hash);
+CREATE INDEX IF NOT EXISTS ix_survey_audit_runs_started_at ON survey_audit_runs (started_at);
+
+-- ----------------------------------------------------------------------------
+-- 8. SURVEY RESPONDENTS
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS survey_respondents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_id INTEGER NOT NULL,
+    respondent_key VARCHAR(150) NOT NULL,
+    row_number INTEGER NOT NULL,
+    disposition VARCHAR(30) NOT NULL,
+    rejection_reasons_json TEXT,
+    review_flags_json TEXT,
+    calculated_duration_seconds FLOAT,
+    exported_duration_seconds FLOAT,
+    duration_delta_seconds FLOAT,
+    local_completion_hour INTEGER,
+    is_overnight INTEGER NOT NULL DEFAULT 0,
+    raw_data_json TEXT NOT NULL,
+    manual_decision VARCHAR(30),
+    reviewer_notes TEXT,
+    reviewed_by VARCHAR(100),
+    reviewed_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_survey_respondents_audit_id
+        FOREIGN KEY (audit_id) REFERENCES survey_audit_runs (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ix_survey_resp_audit_id ON survey_respondents (audit_id);
+CREATE INDEX IF NOT EXISTS ix_survey_resp_key ON survey_respondents (respondent_key);
+CREATE INDEX IF NOT EXISTS ix_survey_resp_disposition ON survey_respondents (disposition);
+CREATE INDEX IF NOT EXISTS ix_survey_resp_audit_row ON survey_respondents (audit_id, row_number);
+CREATE INDEX IF NOT EXISTS ix_survey_resp_audit_disp ON survey_respondents (audit_id, disposition);
+
+-- ----------------------------------------------------------------------------
+-- 9. SURVEY QC FINDINGS
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS survey_qc_findings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_id INTEGER NOT NULL,
+    respondent_id INTEGER NOT NULL,
+    respondent_key VARCHAR(150) NOT NULL,
+    issue_type VARCHAR(100) NOT NULL,
+    question_number VARCHAR(100),
+    raw_column VARCHAR(100),
+    original_answer TEXT,
+    observed_value TEXT,
+    expected_rule TEXT,
+    evidence TEXT NOT NULL,
+    severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+    review_recommendation VARCHAR(30) NOT NULL DEFAULT 'REVIEW_REQUIRED',
+    final_decision VARCHAR(30),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_survey_findings_audit_id
+        FOREIGN KEY (audit_id) REFERENCES survey_audit_runs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_survey_findings_respondent_id
+        FOREIGN KEY (respondent_id) REFERENCES survey_respondents (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ix_survey_findings_audit_id ON survey_qc_findings (audit_id);
+CREATE INDEX IF NOT EXISTS ix_survey_findings_resp_id ON survey_qc_findings (respondent_id);
+CREATE INDEX IF NOT EXISTS ix_survey_findings_issue_type ON survey_qc_findings (issue_type);
+CREATE INDEX IF NOT EXISTS ix_survey_findings_audit_key ON survey_qc_findings (audit_id, respondent_key);
+
+-- ----------------------------------------------------------------------------
+-- 10. SURVEY QUESTION MAPPINGS
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS survey_question_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_id INTEGER NOT NULL,
+    question_number VARCHAR(100) NOT NULL,
+    question_text TEXT,
+    question_type VARCHAR(50),
+    mapped_columns_json TEXT,
+    confidence VARCHAR(20) NOT NULL DEFAULT 'UNMAPPED',
+    mapping_evidence TEXT,
+    is_verified INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_survey_mappings_audit_id
+        FOREIGN KEY (audit_id) REFERENCES survey_audit_runs (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ix_survey_mappings_audit_id ON survey_question_mappings (audit_id);

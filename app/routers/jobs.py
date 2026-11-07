@@ -60,7 +60,7 @@ def list_jobs(
             query = query.where(ProcessingJob.started_at >= start_dt)
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Invalid start_date '{start_date}'. Expected YYYY-MM-DD."
             ) from exc
 
@@ -71,13 +71,13 @@ def list_jobs(
             query = query.where(ProcessingJob.started_at <= end_dt)
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Invalid end_date '{end_date}'. Expected YYYY-MM-DD."
             ) from exc
 
     if start_dt and end_dt and start_dt > end_dt:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="start_date must be on or before end_date."
         )
 

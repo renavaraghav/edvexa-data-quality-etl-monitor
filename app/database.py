@@ -14,6 +14,10 @@ engine_kwargs = {
 connect_args = {}
 
 if settings.DATABASE_URL.startswith("sqlite"):
+    import sqlite3
+    import datetime
+    sqlite3.register_adapter(datetime.date, lambda val: val.isoformat())
+    sqlite3.register_adapter(datetime.datetime, lambda val: val.isoformat())
     connect_args["check_same_thread"] = False
     engine_kwargs["connect_args"] = connect_args
 elif settings.DATABASE_URL.startswith("postgresql"):
