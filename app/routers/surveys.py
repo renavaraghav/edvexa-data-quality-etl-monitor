@@ -175,12 +175,12 @@ def _validate_uploaded_survey_content(content: bytes, filename: str, is_qq: bool
     # 1. Reject legacy binary formats with clear, actionable guidance
     if lower.endswith(".doc"):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Legacy Word (.doc) binary format is not supported. Please save or export your questionnaire as modern Word (.docx) or plain text (.txt)."
         )
     if lower.endswith(".xls"):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Legacy Excel (.xls) binary format is not supported. Please save or export your file as modern Excel (.xlsx) or standard (.csv)."
         )
 
@@ -195,13 +195,13 @@ def _validate_uploaded_survey_content(content: bytes, filename: str, is_qq: bool
     if lower.endswith(".pdf"):
         if not content.startswith(b"%PDF-"):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Invalid PDF format: missing PDF file signature (%PDF-)."
             )
     elif lower.endswith(".docx"):
         if not zipfile.is_zipfile(io.BytesIO(content)):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Invalid DOCX format: file is not a valid OpenXML document package."
             )
         try:
@@ -209,18 +209,18 @@ def _validate_uploaded_survey_content(content: bytes, filename: str, is_qq: bool
                 names = z.namelist()
                 if not any(n.startswith("word/") or n == "[Content_Types].xml" for n in names):
                     raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Invalid DOCX format: missing OpenXML document structure."
                     )
         except zipfile.BadZipFile:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Corrupt DOCX package: unable to read zip structure."
             )
     elif lower.endswith(".xlsx"):
         if not zipfile.is_zipfile(io.BytesIO(content)):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Invalid XLSX format: file is not a valid OpenXML spreadsheet package."
             )
         try:
@@ -228,12 +228,12 @@ def _validate_uploaded_survey_content(content: bytes, filename: str, is_qq: bool
                 names = z.namelist()
                 if not any(n.startswith("xl/") or n == "[Content_Types].xml" for n in names):
                     raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Invalid XLSX format: missing OpenXML workbook structure."
                     )
         except zipfile.BadZipFile:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Corrupt XLSX package: unable to read zip structure."
             )
     elif lower.endswith((".csv", ".txt", ".md")):
@@ -242,7 +242,7 @@ def _validate_uploaded_survey_content(content: bytes, filename: str, is_qq: bool
         if b"\x00" in header_sample:
             file_type = "CSV" if lower.endswith(".csv") else "text"
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Invalid {file_type} file: binary data or null bytes detected."
             )
 
@@ -372,12 +372,12 @@ async def upload_questionnaire(
     # Reject legacy .doc upfront with 422
     if lower.endswith(".doc"):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Legacy Word (.doc) binary format is not supported. Please save or export your questionnaire as modern Word (.docx) or plain text (.txt)."
         )
     if lower.endswith(".xls"):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Legacy Excel (.xls) binary format is not supported. Please save or export your file as modern Excel (.xlsx) or standard (.csv)."
         )
 
@@ -408,6 +408,7 @@ async def upload_questionnaire(
     res = {
         "status": "success",
         "filename": filename,
+        "original_name": filename,
         "file_hash": file_hash,
         "artifact_name": artifact_name,
         "storage_tier": save_result["storage_tier"],
@@ -415,13 +416,27 @@ async def upload_questionnaire(
         "cloud_replicated": save_result["cloud_replicated"],
         "document_format": extraction.document_format,
         "unreadable_or_scanned": extraction.unreadable_or_scanned,
+        "is_scanned": extraction.unreadable_or_scanned,
         "raw_text_length": extraction.raw_text_length,
         "expected_duration_min_minutes": extraction.expected_duration_min_minutes,
         "expected_duration_max_minutes": extraction.expected_duration_max_minutes,
+        "detected_duration_min": extraction.expected_duration_min_minutes,
+        "detected_duration_max": extraction.expected_duration_max_minutes,
+        "duration_source": extraction.duration_source,
         "page_timer_threshold_seconds": extraction.page_timer_threshold_seconds,
+        "page_timer_rules": extraction.page_timer_rules,
+        "detected_page_timers": (
+            list(extraction.page_timer_rules.keys())
+            if extraction.page_timer_rules
+            else ([] if extraction.page_timer_threshold_seconds is None else [f"Global ({extraction.page_timer_threshold_seconds:.0f}s)"])
+        ),
         "questions_count": len(extraction.questions),
         "total_questions_detected": len(extraction.questions),
         "file_size_bytes": len(content),
+        "screening_criteria": extraction.screener_rules,
+        "screener_rules": extraction.screener_rules,
+        "routing_logic": extraction.skip_logic_rules,
+        "skip_logic_rules": extraction.skip_logic_rules,
         "questions": [
             {
                 "question_number": q.question_number,
@@ -431,11 +446,15 @@ async def upload_questionnaire(
                 "matrix_items": q.matrix_items,
                 "qc_instructions": q.qc_instructions,
                 "routing_logic": q.routing_logic,
-                "screening_criteria": q.screening_criteria
+                "screening_criteria": q.screening_criteria,
+                "min_age": q.min_age,
+                "max_age": q.max_age,
+                "page_timer_min_seconds": q.page_timer_min_seconds
             }
             for q in extraction.questions
         ],
-        "notes": extraction.extraction_notes
+        "notes": extraction.extraction_notes,
+        "extraction_notes": "\n".join(extraction.extraction_notes)
     }
 
     if save_result["durability_status"] == "REPLICATION_FAILED":
@@ -460,7 +479,7 @@ async def upload_raw_respondent_data(
 
     if lower.endswith(".xls"):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Legacy Excel (.xls) binary format is not supported. Please save or export your file as modern Excel (.xlsx) or standard (.csv)."
         )
 
@@ -665,22 +684,41 @@ async def execute_survey_scrubbing_audit(
             timing_rules = {}
 
     final_timing_rules = {**qq_parsed_rules, **timing_rules}
-    if "min_expected_duration_min" in body:
+    if "duration_source" in body and body["duration_source"]:
+        final_timing_rules["duration_source"] = str(body["duration_source"])
+    elif "min_expected_duration_min" in body:
+        qq_min = qq_parsed_rules.get("expected_duration_min_minutes")
+        if qq_min is not None and float(body["min_expected_duration_min"]) == float(qq_min):
+            final_timing_rules["duration_source"] = "Questionnaire Specification"
+        else:
+            final_timing_rules["duration_source"] = "Project Custom Configuration"
+
+    if "min_expected_duration_min" in body and body["min_expected_duration_min"] is not None:
         final_timing_rules["expected_duration_min_minutes"] = float(body["min_expected_duration_min"])
-        final_timing_rules["duration_source"] = "Project Custom Configuration"
-    if "max_expected_duration_min" in body:
+    if "max_expected_duration_min" in body and body["max_expected_duration_min"] is not None:
         final_timing_rules["expected_duration_max_minutes"] = float(body["max_expected_duration_min"])
-        final_timing_rules["duration_source"] = "Project Custom Configuration"
-    if "speeding_concern_threshold_min" in body:
+    if "speeding_concern_threshold_min" in body and body["speeding_concern_threshold_min"] is not None:
         final_timing_rules["speeding_threshold_seconds"] = float(body["speeding_concern_threshold_min"]) * 60.0
+    if "extreme_speeding_cutoff_min" in body and body["extreme_speeding_cutoff_min"] is not None:
+        final_timing_rules["extreme_speeding_threshold_seconds"] = float(body["extreme_speeding_cutoff_min"]) * 60.0
+
     if "page_timer_threshold_sec" in body:
-        final_timing_rules["page_timer_threshold_seconds"] = float(body["page_timer_threshold_sec"])
+        val = body.get("page_timer_threshold_sec")
+        if val is not None and str(val).strip() != "" and str(val).lower() != "null":
+            final_timing_rules["page_timer_threshold_seconds"] = float(val)
+        else:
+            final_timing_rules["page_timer_threshold_seconds"] = None
+    if "page_timer_source" in body and body["page_timer_source"]:
+        final_timing_rules["page_timer_source"] = str(body["page_timer_source"])
+
     if "straightline_min_statements" in body:
         final_timing_rules["straightlining_min_grid_size"] = int(body["straightline_min_statements"])
     if "reject_speeding_under_2min" in body:
         final_timing_rules["reject_speeding_under_2min"] = bool(body["reject_speeding_under_2min"])
     if "reject_straightlining" in body:
         final_timing_rules["reject_straightlining"] = bool(body["reject_straightlining"])
+    if "reject_page_timers" in body:
+        final_timing_rules["reject_page_timers"] = bool(body["reject_page_timers"])
 
     headers, records, resp_id_col = parse_respondent_records(
         raw_content, raw_filename, sheet_name=sheet_name, header_row_index=header_row_index
@@ -985,7 +1023,7 @@ def record_manual_review_decision(
     old_disp = resp.disposition
     new_disp = review_req.decision.upper().strip()
     if new_disp not in ("ACCEPTED", "REJECTED", "REVIEW_REQUIRED"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid decision.")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid decision.")
 
     # Adjust counts on Audit Run if disposition changed
     if old_disp != new_disp:

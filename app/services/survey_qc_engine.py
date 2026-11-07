@@ -134,7 +134,10 @@ def run_survey_qc_audit(
     extreme_speeding_threshold = float(rules.get("extreme_speeding_threshold_seconds", 120.0))  # 2 min (120s)
     reject_speeding_under_2min = bool(rules.get("reject_speeding_under_2min", False))
     reject_straightlining = bool(rules.get("reject_straightlining", False))
+    reject_page_timers = bool(rules.get("reject_page_timers", False))
     page_timer_rules = dict(rules.get("page_timer_rules") or {})
+    global_page_timer = rules.get("page_timer_threshold_seconds")
+    page_timer_source = rules.get("page_timer_source", "Configured Page Timing Rule")
     straightlining_min_items = int(rules.get("straightlining_min_grid_size", 4))
     timestamp_tolerance = float(rules.get("timestamp_tolerance_seconds", 2.0))
 
@@ -293,18 +296,33 @@ def run_survey_qc_audit(
                                 thresh_src = f"QQ Specification ({m.get('question_number')})"
                                 break
 
+                    if thresh is None and global_page_timer is not None and float(global_page_timer) > 0:
+                        thresh = float(global_page_timer)
+                        thresh_src = page_timer_source
+
                     if thresh is not None:
                         if tm_val < thresh:
                             summary.speeding_count += 1
-                            result.findings.append(FindingDetail(
-                                issue_type="PAGE_TIMER_SPEEDING",
-                                evidence=f"Page timer '{tm_col}' submitted in {tm_val:.1f}s (questionnaire specified threshold: {thresh:.0f}s). Threshold Source: {thresh_src}.",
-                                severity="MEDIUM",
-                                recommendation="REVIEW_REQUIRED",
-                                raw_column=tm_col,
-                                observed_value=f"{tm_val:.1f}s",
-                                expected_rule=f"Timer ≥ {thresh:.0f}s ({thresh_src})"
-                            ))
+                            if reject_page_timers:
+                                result.findings.append(FindingDetail(
+                                    issue_type="PAGE_TIMER_SPEEDING",
+                                    evidence=f"Page timer '{tm_col}' submitted in {tm_val:.1f}s (specified threshold: {thresh:.0f}s). Violates strict page timer rejection rule. Threshold Source: {thresh_src}.",
+                                    severity="HIGH",
+                                    recommendation="REJECT",
+                                    raw_column=tm_col,
+                                    observed_value=f"{tm_val:.1f}s",
+                                    expected_rule=f"Timer ≥ {thresh:.0f}s ({thresh_src})"
+                                ))
+                            else:
+                                result.findings.append(FindingDetail(
+                                    issue_type="PAGE_TIMER_SPEEDING",
+                                    evidence=f"Page timer '{tm_col}' submitted in {tm_val:.1f}s (specified threshold: {thresh:.0f}s). Flagged as review signal. Threshold Source: {thresh_src}.",
+                                    severity="MEDIUM",
+                                    recommendation="REVIEW_REQUIRED",
+                                    raw_column=tm_col,
+                                    observed_value=f"{tm_val:.1f}s",
+                                    expected_rule=f"Timer ≥ {thresh:.0f}s ({thresh_src})"
+                                ))
                     else:
                         result.findings.append(FindingDetail(
                             issue_type="PAGE_TIMER_RECORDED",
@@ -490,7 +508,10 @@ def run_survey_qc_audit(
 
                 # Check for explicit termination options
                 term_options: list[str] = []
-                for opt in sm.get("options", []):
+                all_opts = list(sm.get("options", []))
+                if sm.get("screening_criteria"):
+                    all_opts.append(sm.get("screening_criteria"))
+                for opt in all_opts:
                     opt_lower = str(opt).lower()
                     if any(k in opt_lower for k in ["terminate", "ineligible", "screen out", "disqualify"]):
                         clean_opt = re.sub(r"\[.*?\]|\(.*?\)", "", opt_lower).strip()

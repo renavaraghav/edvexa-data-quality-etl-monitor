@@ -42,7 +42,7 @@ def parse_date_boundaries(start_date: str | None, end_date: str | None):
             start_dt = datetime.combine(d, time.min)
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Invalid start_date '{start_date}'. Expected YYYY-MM-DD."
             ) from exc
     if end_date:
@@ -51,12 +51,12 @@ def parse_date_boundaries(start_date: str | None, end_date: str | None):
             end_dt = datetime.combine(d, time.max)
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Invalid end_date '{end_date}'. Expected YYYY-MM-DD."
             ) from exc
     if start_dt and end_dt and start_dt > end_dt:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="start_date must be on or before end_date."
         )
     return start_dt, end_dt

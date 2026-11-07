@@ -38,17 +38,22 @@ const Surveys = {
     options.credentials = options.credentials || 'same-origin';
     options.headers = options.headers || {};
     options.headers['X-Requested-With'] = 'XMLHttpRequest';
-    const resp = await fetch(url, options);
+    const targetUrl = url.startsWith('http') ? url : `${window.API_BASE || ''}${url}`;
+    const resp = await fetch(targetUrl, options);
     if (resp.status === 401) {
       this.isAdminAuthenticated = false;
       const authCard = document.getElementById('surveyAuthRequiredCard');
       if (authCard) authCard.classList.remove('d-none');
       this.showToast('Admin authentication required for Survey Data Scrubbing.', 'warning');
     }
-    return resp;
-  },
-
-  async checkAdminAuth() {
+    return resp;
+
+  },
+
+
+
+  async checkAdminAuth() {
+
     try {
       const resp = await fetch('/api/auth/session', { credentials: 'same-origin' });
       const data = await resp.json();
@@ -360,6 +365,40 @@ const Surveys = {
     const executeBtn = document.getElementById('surveyExecuteAuditBtn');
     if (step4PrevBtn) step4PrevBtn.addEventListener('click', () => this.setStep(3));
     if (executeBtn) executeBtn.addEventListener('click', () => this.executeAudit());
+
+    // Step 4 threshold manual override listeners
+    const minDurInp = document.getElementById('ruleMinExpectedDuration');
+    const maxDurInp = document.getElementById('ruleMaxExpectedDuration');
+    const durBadge = document.getElementById('ruleDurationSourceBadge');
+    [minDurInp, maxDurInp].forEach(inp => {
+      if (inp) {
+        inp.addEventListener('input', () => {
+          if (durBadge) {
+            durBadge.textContent = 'Source: Manual Override';
+            durBadge.className = 'badge-warning text-xs';
+          }
+        });
+      }
+    });
+
+    const pageTimerEnabled = document.getElementById('rulePageTimerEnabled');
+    const pageTimerInp = document.getElementById('rulePageTimer');
+    const pageTimerBadge = document.getElementById('rulePageTimerSourceBadge');
+    if (pageTimerEnabled && pageTimerInp) {
+      pageTimerEnabled.addEventListener('change', () => {
+        pageTimerInp.disabled = !pageTimerEnabled.checked;
+        if (pageTimerBadge) {
+          pageTimerBadge.textContent = pageTimerEnabled.checked ? 'Source: Manual Override' : 'Source: Not in QQ (Telemetry Only)';
+          pageTimerBadge.className = pageTimerEnabled.checked ? 'badge-warning text-xs' : 'badge-neutral text-xs';
+        }
+      });
+      pageTimerInp.addEventListener('input', () => {
+        if (pageTimerBadge) {
+          pageTimerBadge.textContent = 'Source: Manual Override';
+          pageTimerBadge.className = 'badge-warning text-xs';
+        }
+      });
+    }
   },
 
   setStep(stepNum) {
@@ -411,23 +450,85 @@ const Surveys = {
       }
 
       if (pillsEl) {
+        const totalQ = data.total_questions_detected || data.questions_count || (data.questions ? data.questions.length : 0);
+        let durPill = 'Not specified in QQ (Default: 7–15 min)';
+        if (data.detected_duration_min && data.detected_duration_max) {
+          durPill = `${data.detected_duration_min}–${data.detected_duration_max} min (from QQ)`;
+        } else if (data.detected_duration_min) {
+          durPill = `${data.detected_duration_min} min (from QQ)`;
+        }
+
+        let timerPill = '0 (No timer rule in QQ)';
+        if (data.page_timer_threshold_seconds) {
+          timerPill = `${data.page_timer_threshold_seconds}s threshold (from QQ)`;
+        } else if (data.detected_page_timers && data.detected_page_timers.length > 0) {
+          timerPill = `${data.detected_page_timers.length} rules (from QQ)`;
+        }
+
+        const screenerCount = data.screening_criteria ? data.screening_criteria.length : (data.screener_rules ? data.screener_rules.length : 0);
+        const routingCount = data.routing_logic ? data.routing_logic.length : (data.skip_logic_rules ? data.skip_logic_rules.length : 0);
+
         pillsEl.innerHTML = `
-          <span class="badge-neutral">&bull; Questions: <strong>${data.total_questions_detected}</strong></span>
-          <span class="badge-neutral">&bull; Expected Duration: <strong>${data.detected_duration_min || 7}-${data.detected_duration_max || 15} min</strong></span>
-          <span class="badge-neutral">&bull; Page Timers: <strong>${data.detected_page_timers ? data.detected_page_timers.length : 0} pages</strong></span>
-          <span class="badge-neutral">&bull; Screeners: <strong>${data.screening_criteria ? data.screening_criteria.length : 0}</strong></span>
-          <span class="badge-neutral">&bull; Skip Logic: <strong>${data.routing_logic ? data.routing_logic.length : 0} rules</strong></span>
+          <span class="badge-neutral">&bull; Questions: <strong>${totalQ}</strong></span>
+          <span class="badge-neutral">&bull; Expected Duration: <strong>${durPill}</strong></span>
+          <span class="badge-neutral">&bull; Page Timers: <strong>${timerPill}</strong></span>
+          <span class="badge-neutral">&bull; Screeners: <strong>${screenerCount}</strong></span>
+          <span class="badge-neutral">&bull; Skip Logic: <strong>${routingCount} rules</strong></span>
         `;
       }
 
-      // Auto populate threshold inputs if extracted
+      // Populate Step 4 rules based on extraction
+      const minInp = document.getElementById('ruleMinExpectedDuration');
+      const maxInp = document.getElementById('ruleMaxExpectedDuration');
+      const speedInp = document.getElementById('ruleSpeedingThreshold');
+      const durBadgeEl = document.getElementById('ruleDurationSourceBadge');
+      const speedHelpEl = document.getElementById('ruleSpeedingHelp');
+
       if (data.detected_duration_min) {
-        const minInp = document.getElementById('ruleMinExpectedDuration');
         if (minInp) minInp.value = data.detected_duration_min;
+        if (maxInp) maxInp.value = data.detected_duration_max || Math.round(data.detected_duration_min * 1.5);
+        if (durBadgeEl) {
+          durBadgeEl.textContent = 'Source: Questionnaire Specification';
+          durBadgeEl.className = 'badge-success text-xs';
+        }
+        const calculatedConcern = Math.max(2, Math.round(data.detected_duration_min * 0.5 * 10) / 10);
+        if (speedInp) speedInp.value = calculatedConcern;
+        if (speedHelpEl) speedHelpEl.textContent = `Completions faster than ${calculatedConcern}m trigger speeding concern (derived as 1/2 QQ min).`;
+      } else {
+        if (minInp) minInp.value = 7;
+        if (maxInp) maxInp.value = 15;
+        if (speedInp) speedInp.value = 5;
+        if (durBadgeEl) {
+          durBadgeEl.textContent = 'Source: Platform Default (7–15m)';
+          durBadgeEl.className = 'badge-neutral text-xs';
+        }
       }
-      if (data.detected_duration_max) {
-        const maxInp = document.getElementById('ruleMaxExpectedDuration');
-        if (maxInp) maxInp.value = data.detected_duration_max;
+
+      // Page timer rule configuration
+      const pageTimerInpEl = document.getElementById('rulePageTimer');
+      const pageTimerEnabledEl = document.getElementById('rulePageTimerEnabled');
+      const pageTimerBadgeEl = document.getElementById('rulePageTimerSourceBadge');
+      const pageTimerHelpEl = document.getElementById('rulePageTimerHelp');
+
+      if (data.page_timer_threshold_seconds) {
+        if (pageTimerInpEl) {
+          pageTimerInpEl.value = data.page_timer_threshold_seconds;
+          pageTimerInpEl.disabled = false;
+        }
+        if (pageTimerEnabledEl) pageTimerEnabledEl.checked = true;
+        if (pageTimerBadgeEl) {
+          pageTimerBadgeEl.textContent = 'Source: Questionnaire Specification';
+          pageTimerBadgeEl.className = 'badge-success text-xs';
+        }
+        if (pageTimerHelpEl) pageTimerHelpEl.textContent = `Pages submitted faster than ${data.page_timer_threshold_seconds}s flagged per QQ specification.`;
+      } else {
+        if (pageTimerEnabledEl) pageTimerEnabledEl.checked = false;
+        if (pageTimerInpEl) pageTimerInpEl.disabled = true;
+        if (pageTimerBadgeEl) {
+          pageTimerBadgeEl.textContent = 'Source: Not in QQ (Telemetry Only)';
+          pageTimerBadgeEl.className = 'badge-neutral text-xs';
+        }
+        if (pageTimerHelpEl) pageTimerHelpEl.textContent = 'No page timer rule in QQ. Timers recorded as contextual telemetry (no rejections applied).';
       }
 
       if (nextBtn) nextBtn.disabled = false;
@@ -658,6 +759,12 @@ const Surveys = {
       }));
 
       // Collect rule overrides
+      const pageTimerEnabled = document.getElementById('rulePageTimerEnabled')?.checked;
+      const pageTimerVal = pageTimerEnabled ? parseFloat(document.getElementById('rulePageTimer')?.value || 20) : null;
+      const rejectExtremeSpeeding = document.getElementById('ruleRejectExtremeSpeeding')?.checked || false;
+      const durBadgeText = document.getElementById('ruleDurationSourceBadge')?.textContent || '';
+      const timerBadgeText = document.getElementById('rulePageTimerSourceBadge')?.textContent || '';
+
       const payload = {
         raw_filename: this.rawData.filename,
         sheet_name: this.rawData.sheet_name || null,
@@ -667,7 +774,10 @@ const Surveys = {
         max_expected_duration_min: parseFloat(document.getElementById('ruleMaxExpectedDuration')?.value || 15),
         speeding_concern_threshold_min: parseFloat(document.getElementById('ruleSpeedingThreshold')?.value || 5),
         extreme_speeding_cutoff_min: parseFloat(document.getElementById('ruleExtremeSpeeding')?.value || 2),
-        page_timer_threshold_sec: parseFloat(document.getElementById('rulePageTimer')?.value || 20),
+        page_timer_threshold_sec: pageTimerVal,
+        duration_source: durBadgeText.replace('Source: ', '').trim(),
+        page_timer_source: timerBadgeText.replace('Source: ', '').trim(),
+        reject_speeding_under_2min: rejectExtremeSpeeding,
         straightline_min_statements: parseInt(document.getElementById('ruleStraightlineMinStatements')?.value || 4, 10),
         straightline_threshold_pct: parseFloat(document.getElementById('ruleStraightlineThreshold')?.value || 80)
       };
