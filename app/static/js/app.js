@@ -4,7 +4,7 @@
  */
 
 window.API_BASE = (window.location.protocol === 'file:')
-  ? 'http://127.0.0.1:8010'
+  ? 'http://127.0.0.1:8000'
   : '';
 
 const App = {
@@ -1171,11 +1171,18 @@ const App = {
           }
         }
       } else {
-        badge.className = 'status-indicator offline';
         const statusText = badge.querySelector('.status-text');
-        if (statusText) statusText.textContent = 'API Error';
+        console.warn('[Health Check] Non-OK status from health API: HTTP ' + res.status + ' ' + res.statusText);
+        if (res.status === 502 || res.status === 503) {
+          badge.className = 'status-indicator degraded';
+          if (statusText) statusText.textContent = 'Warming Up (' + res.status + ')';
+        } else {
+          badge.className = 'status-indicator offline';
+          if (statusText) statusText.textContent = 'API Error (' + res.status + ')';
+        }
       }
-    } catch {
+    } catch (err) {
+      console.warn('[Health Check] Network failure reaching health API:', err);
       badge.className = 'status-indicator offline';
       const statusText = badge.querySelector('.status-text');
       if (statusText) statusText.textContent = 'API Offline';

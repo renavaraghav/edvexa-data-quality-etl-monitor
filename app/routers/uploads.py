@@ -29,7 +29,7 @@ async def upload_csv_file(
     if clean_dataset not in settings.SUPPORTED_DATASETS:
         supported = ", ".join(settings.SUPPORTED_DATASETS)
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid dataset_type '{dataset_type}'. Supported datasets are: {supported}."
         )
 

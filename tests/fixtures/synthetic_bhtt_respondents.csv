@@ -1,0 +1,6 @@
+ResponseId,StartDate,EndDate,Duration (in seconds),IPAddress,Q.Country,Q.LanguagePreference,Q.Gender,Age,PS1,PS2,Q.PastTreatment_1,Q.PastTreatment_2,Q.PastTreatment_3,13_Q.NPS,14_Q.NPS,Q.SatImportance_1,Q.SatImportance_2,Q.WhyINVvsBraces,Q.Residency
+SYNTH_BHTT_001,2026-10-29 09:00:00,2026-10-29 09:08:30,510,198.51.100.10,United States,English,Female,34,1,1,1,0,0,9,10,5,4,Clear aligners fit seamlessly into professional client meetings without visible wires.,Own
+SYNTH_BHTT_002,2026-10-29 09:15:00,2026-10-29 09:23:45,525,198.51.100.11,United States,English,Male,28,0,1,0,1,0,8,9,4,5,Faster appointment cycles and digital scanning made Invisalign the obvious option.,Rent
+SYNTH_BHTT_003,2026-10-29 09:30:00,2026-10-29 09:39:10,550,198.51.100.12,Canada,English,Female,42,2,1,1,1,0,10,10,5,5,Comfortable aligner trays with no bracket cuts or emergency orthodontic visits.,Own
+SYNTH_BHTT_004,2026-10-29 09:45:00,2026-10-29 09:54:00,540,198.51.100.13,United States,English,Male,31,1,1,0,0,1,7,8,4,4,Clear aesthetic appearance and easy removal during meals.,Rent
+SYNTH_BHTT_005,2026-10-29 10:00:00,2026-10-29 10:09:20,560,198.51.100.14,United States,English,Female,26,0,1,1,0,0,9,9,5,5,My dentist recommended clear aligner treatment for mild crowding.,Own

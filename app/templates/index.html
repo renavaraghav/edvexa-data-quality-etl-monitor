@@ -1155,30 +1155,50 @@
                 <div class="grid-2-cols gap-3 mb-3">
                   <!-- Timing & Speeding Rules -->
                   <div class="survey-rule-card">
-                    <h5 class="text-sm font-bold mb-2">1. Survey Duration &amp; Speeding Thresholds</h5>
+                    <div class="flex-between mb-2">
+                      <h5 class="text-sm font-bold">1. Survey Duration &amp; Speeding Thresholds</h5>
+                      <span class="badge-neutral text-xs" id="ruleDurationSourceBadge">Source: Platform Default</span>
+                    </div>
                     <div class="form-group mb-2">
-                      <label class="form-label text-xs">Target Duration Range (minutes):</label>
+                      <label class="form-label text-xs">Target Expected Duration Range (minutes):</label>
                       <div class="flex-center gap-2">
                         <input type="number" id="ruleMinExpectedDuration" class="form-control text-xs" value="7" min="1" max="60" style="width: 80px;">
                         <span class="text-xs">to</span>
                         <input type="number" id="ruleMaxExpectedDuration" class="form-control text-xs" value="15" min="1" max="180" style="width: 80px;">
                         <span class="text-xs text-muted">mins</span>
                       </div>
+                      <span class="text-xs text-muted" id="ruleDurationHelp">Normal target completion range for valid responses.</span>
                     </div>
                     <div class="form-group mb-2">
-                      <label class="form-label text-xs">Concern Threshold (&lt; minutes):</label>
+                      <label class="form-label text-xs">Speeding Concern Threshold (&lt; minutes):</label>
                       <input type="number" id="ruleSpeedingThreshold" class="form-control text-xs" value="5" min="1" max="30" style="width: 80px;">
-                      <span class="text-xs text-muted">Completions faster than this trigger speeding concern</span>
+                      <span class="text-xs text-muted" id="ruleSpeedingHelp">Completions faster than this trigger speeding concern (Review Required).</span>
                     </div>
                     <div class="form-group mb-2">
                       <label class="form-label text-xs">Extreme Speeding Cutoff (&lt; minutes):</label>
                       <input type="number" id="ruleExtremeSpeeding" class="form-control text-xs" value="2" min="1" max="10" style="width: 80px;">
-                      <span class="text-xs text-muted">Physically impossible completions trigger critical flag</span>
+                      <span class="text-xs text-muted">Physically impossible completions trigger critical flag.</span>
+                      <div class="mt-1">
+                        <label class="text-xs flex-center gap-1" style="font-weight: normal; cursor: pointer;">
+                          <input type="checkbox" id="ruleRejectExtremeSpeeding">
+                          <span>Reject completions under cutoff (Default is Review Required)</span>
+                        </label>
+                      </div>
                     </div>
                     <div class="form-group mb-0">
-                      <label class="form-label text-xs">Page Submit Timer Minimum (seconds):</label>
-                      <input type="number" id="rulePageTimer" class="form-control text-xs" value="20" min="5" max="60" style="width: 80px;">
-                      <span class="text-xs text-muted">Pages submitted faster than 20s are flagged</span>
+                      <div class="flex-between mb-1">
+                        <label class="form-label text-xs mb-0">Page Submit Timer Minimum (seconds):</label>
+                        <span class="badge-neutral text-xs" id="rulePageTimerSourceBadge">Source: Not in QQ</span>
+                      </div>
+                      <div class="flex-center gap-2 mb-1">
+                        <label class="text-xs flex-center gap-1 mb-0" style="cursor: pointer;">
+                          <input type="checkbox" id="rulePageTimerEnabled">
+                          <span>Apply page timer threshold</span>
+                        </label>
+                        <input type="number" id="rulePageTimer" class="form-control text-xs" value="20" min="5" max="60" style="width: 80px;" disabled>
+                        <span class="text-xs text-muted">secs</span>
+                      </div>
+                      <span class="text-xs text-muted" id="rulePageTimerHelp">When disabled, question timers are recorded as contextual telemetry without rejection.</span>
                     </div>
                   </div>
 
