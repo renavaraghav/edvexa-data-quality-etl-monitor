@@ -1195,10 +1195,15 @@ const App = {
 
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = `
-      <span>${message}</span>
-      <button class="btn btn-text text-white" style="font-size: 1.2rem; line-height: 1; padding: 0 4px; color: #FAF4EB;" onclick="this.parentElement.remove()">&times;</button>
-    `;
+    const text = document.createElement('span');
+    text.textContent = String(message);
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn btn-text text-white';
+    close.setAttribute('aria-label', 'Dismiss notification');
+    close.textContent = '×';
+    close.addEventListener('click', () => toast.remove());
+    toast.append(text, close);
 
     container.appendChild(toast);
 

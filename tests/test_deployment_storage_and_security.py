@@ -338,13 +338,12 @@ def test_reset_data_allowed_in_development_by_default(client: TestClient):
             assert data["status"] == "success"
 
 
-def test_reset_data_allowed_in_production(client: TestClient):
-    """In production, reset is permitted for public users without tokens."""
+def test_reset_data_fails_closed_in_production(client: TestClient):
     with patch.object(settings, "ENVIRONMENT", "production"):
         with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", True):
             res = client.post("/api/dashboard/reset-data")
-            assert res.status_code == 200
-            assert res.json()["status"] == "success"
+            assert res.status_code == 403
+            assert client.get("/api/dashboard/reset-status").json()["destructive_reset_allowed"] is False
 
 
 def test_reset_data_forbidden_when_explicitly_disabled(client: TestClient):

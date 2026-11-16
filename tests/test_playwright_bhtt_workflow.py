@@ -1,12 +1,12 @@
 """
 End-to-End Browser Workflow Verification for BHTT Questionnaire Intake,
-Column Mapping, and QC Rules Interface on Local Server (Port 8000).
+Column Mapping, and QC Rules Interface on the isolated loopback server.
 
 Tests:
 1. HTTP 503 health check reproduction and UI badge reaction.
 2. Authenticated access to Survey Data Scrubbing module.
 3. Upload of actual BHTT Word questionnaire (2026.10.29_INV BHTT_W3B(1).docx).
-4. Verification of 62 extracted questions (0 forbidden tokens).
+4. Verification of the current 59-candidate inventory (0 forbidden tokens).
 5. Verification of Step 1 summary pills (filename, duration 7-10m, 0 page timers, screeners, routing).
 6. Synthetic dataset intake and preview (Step 2).
 7. Question-to-column mapping table verification (Step 3).
@@ -15,57 +15,29 @@ Tests:
 """
 
 import os
-import time
-import threading
+from hashlib import sha256
 from pathlib import Path
 import pytest
-import uvicorn
-from playwright.sync_api import sync_playwright
+sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
 
-from app.main import app
 from app.services.auth import create_admin_session_token, SESSION_COOKIE_NAME
+from tests.test_survey_bhtt_regression import BHTT_CHARACTERIZATION_SHA256
 
-ARTIFACT_DIR = Path(os.getenv("ARTIFACT_DIR", r"C:\Users\rjha1\.gemini\antigravity\brain\e10dc557-49d6-48d4-a0cb-fe1231e7a287"))
-BHTT_DOCX = Path(r"C:\Users\rjha1\Downloads\2026.10.29_INV BHTT_W3B(1).docx")
-if not BHTT_DOCX.exists():
-    BHTT_DOCX = Path(r"C:\Users\rjha1\Downloads\2026.10.29_INV%20BHTT_W3B%281%29.docx")
+BHTT_DOCX = Path(os.environ["BHTT_QQ_PATH"]) if os.environ.get("BHTT_QQ_PATH") else None
 SYNTHETIC_CSV = Path(__file__).resolve().parent / "fixtures" / "synthetic_bhtt_respondents.csv"
 
 
-class LocalAppServer:
-    def __init__(self, host="127.0.0.1", port=8000):
-        self.host = host
-        self.port = port
-        self.server = None
-        self.thread = None
-
-    def start(self):
-        config = uvicorn.Config(app=app, host=self.host, port=self.port, log_level="warning")
-        self.server = uvicorn.Server(config)
-        self.thread = threading.Thread(target=self.server.run, daemon=True)
-        self.thread.start()
-        time.sleep(1.5)
-
-    def stop(self):
-        if self.server:
-            self.server.should_exit = True
-            if self.thread:
-                self.thread.join(timeout=3)
+@pytest.fixture
+def local_app_server(live_test_server):
+    return live_test_server
 
 
-@pytest.fixture(scope="module")
-def local_app_server():
-    server = LocalAppServer(host="127.0.0.1", port=8000)
-    server.start()
-    yield f"http://{server.host}:{server.port}"
-    server.stop()
-
-
-def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server):
-    if not BHTT_DOCX.exists():
+def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server, tmp_path):
+    if BHTT_DOCX is None or not BHTT_DOCX.exists():
         pytest.skip(f"BHTT questionnaire missing at {BHTT_DOCX}")
+    assert sha256(BHTT_DOCX.read_bytes()).hexdigest() == BHTT_CHARACTERIZATION_SHA256
     assert SYNTHETIC_CSV.exists(), f"Synthetic raw CSV missing at {SYNTHETIC_CSV}"
-    ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
+    ARTIFACT_DIR = tmp_path
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -136,7 +108,7 @@ def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server):
         qq_data = qq_resp.json()
 
         # Verify parsed payload
-        assert qq_data["total_questions_detected"] == 62
+        assert qq_data["total_questions_detected"] == 59
         assert qq_data["detected_duration_min"] == 7.0
         assert qq_data["detected_duration_max"] == 10.0
         assert qq_data["page_timer_threshold_seconds"] is None
@@ -154,7 +126,7 @@ def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server):
         assert BHTT_DOCX.name in file_name_text or "2026.10.29_INV BHTT_W3B(1).docx" in file_name_text
 
         pills_text = page.locator("#surveyQqPills").inner_text()
-        assert "Questions: 62" in pills_text
+        assert "Questions: 59" in pills_text
         assert "Page Timers: 0 (No timer rule in QQ)" in pills_text
         assert f"Screeners: {len(qq_data['screening_criteria'])}" in pills_text
         assert f"Skip Logic: {len(qq_data['routing_logic'])} rules" in pills_text
@@ -190,7 +162,7 @@ def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server):
         # Wait for mapping suggestions to load into the table
         page.wait_for_selector("#surveyMappingTableBody tr:nth-child(5)", timeout=10000)
         mapping_rows = page.locator("#surveyMappingTableBody tr")
-        assert mapping_rows.count() == 62
+        assert mapping_rows.count() == 59
 
         # Verify confidence counters
         high_badge = page.locator("#surveyMapHighCount").inner_text()
@@ -204,7 +176,8 @@ def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server):
 
         # Verify metadata exclusion in mapping table (instruction / metadata blocks)
         metadata_unmapped_rows = page.locator("#surveyMappingTableBody tr:has-text('Non-question content')")
-        assert metadata_unmapped_rows.count() >= 1
+        assert metadata_unmapped_rows.count() == 0
+        assert len(qq_data["excluded_blocks"]) == 7
 
         # Capture Step 3 Screenshot
         page.screenshot(path=str(ARTIFACT_DIR / "bhtt_step3_mapping_table.png"))
@@ -225,7 +198,7 @@ def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server):
 
         # 6b. Verify Extreme Speeding Cutoff & Checkbox default
         extreme_val = page.locator("#ruleExtremeSpeeding").input_value()
-        assert extreme_val == "2"
+        assert extreme_val == ""
         reject_extreme_cb = page.locator("#ruleRejectExtremeSpeeding")
         assert reject_extreme_cb.is_checked() is False
 
@@ -264,3 +237,94 @@ def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server):
         page.screenshot(path=str(ARTIFACT_DIR / "bhtt_step4_manual_override.png"))
 
         print("\nAll Playwright UI validations and screenshots completed successfully!")
+
+
+def test_browser_qc_review_reload_and_export(live_test_server):
+    from base64 import b64encode
+    from io import BytesIO
+    from openpyxl import Workbook, load_workbook
+    from tests.test_survey_workflow_contract import QQ, CSV
+    from app.config import settings
+
+    dataset = Workbook()
+    dataset.active.title = "Unselected"
+    sheet = dataset.create_sheet("Respondents")
+    sheet.append(["Test preamble"])
+    import csv
+    respondent_payload = '<img src=x onerror=window.edvexaToastPayload=1>'
+    filename = '<img src=x onerror=window.edvexaToastPayload=1>.xlsx'
+    for row in csv.reader(CSV.replace('DUP', respondent_payload).splitlines()):
+        sheet.append(row)
+    data = BytesIO()
+    dataset.save(data)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+        page.goto(live_test_server)
+        page.evaluate("App.navigateTo('surveys')")
+        page.locator('#surveyAdminPasswordInput').fill(settings.ADMIN_LOGIN_PASSWORD)
+        with page.expect_response('**/api/auth/login') as login:
+            page.locator('#surveyAdminPasswordInput').press('Enter')
+        assert login.value.ok
+        page.set_input_files("#surveyQqFileInput", {"name": "qq.txt", "mimeType": "text/plain", "buffer": QQ.encode()})
+        page.click("#surveyStep1NextBtn")
+        # Construct a browser File directly so the host OS cannot sanitize the payload filename.
+        with page.expect_response("**/api/surveys/upload-raw") as upload:
+            page.evaluate("""({name, data}) => {
+                const input = document.getElementById('surveyRawFileInput');
+                const files = new DataTransfer();
+                const bytes = Uint8Array.from(atob(data), ch => ch.charCodeAt(0));
+                files.items.add(new File([bytes], name));
+                input.files = files.files;
+                input.dispatchEvent(new Event('change', {bubbles: true}));
+            }""", {"name": filename, "data": b64encode(data.getvalue()).decode()})
+        assert upload.value.ok and upload.value.json()["filename"] == filename
+        page.locator('#toastContainer').get_by_text(f'Uploading respondent data: {filename}...', exact=True).wait_for(timeout=3000)
+        assert page.locator('#toastContainer img').count() == 0
+        with page.expect_response("**/api/surveys/preview") as selected:
+            page.select_option("#surveySheetSelect", "Respondents")
+        assert selected.value.ok
+        with page.expect_response("**/api/surveys/preview") as header:
+            assert page.locator("#surveyHeaderRow").input_value() == "2"
+            page.get_by_role("button", name="Use this header row").click()
+        assert header.value.ok
+        page.click("#surveyStep2NextBtn")
+        page.wait_for_selector("#surveyMappingTableBody select[multiple]")
+        page.locator("#surveyMappingTableBody select[multiple]").select_option(["Q2_1", "Q2_2", "Q2_3", "Q2_4"])
+        assert page.locator("[data-confirm-index]:checked").count() == 0
+        page.get_by_role("button", name="Confirm all mapped questions").click()
+        assert page.locator("[data-confirm-index]:checked").count() == 3
+        page.click("#surveyStep3NextBtn")
+        page.locator("#ruleStraightlineThreshold").fill("80")
+        with page.expect_response("**/api/surveys/run-audit") as run:
+            page.click("#surveyExecuteAuditBtn")
+        result = run.value.json()
+        assert run.value.ok, result
+        assert (result["accepted_count"], result["rejected_count"], result["review_required_count"]) == (1, 1, 1)
+        for tab, source_row in (("Accepted", "Row 5"), ("Review", "Row 3"), ("Rejected", "Row 4")):
+            page.locator(f"#surveyTab{tab}").click()
+            page.locator("#surveyRespondentsTableBody tr").get_by_text(source_row, exact=True).wait_for()
+        rejected = page.locator("#surveyRespondentsTableBody tr").filter(has_text="Row 4")
+        rejected.get_by_role("button", name="Review").click()
+        page.locator("#surveyReviewFindingsList").get_by_text("SCREENER_AGE_VIOLATION", exact=False).wait_for()
+        page.select_option("#surveyReviewDecisionSelect", "ACCEPTED")
+        page.fill("#surveyReviewNotes", "Verified the respondent's eligibility offline.")
+        with page.expect_response("**/review-by-id/*") as review:
+            page.click("#saveSurveyReviewBtn")
+        assert review.value.ok
+        page.get_by_text(f'Updated respondent {respondent_payload} to ACCEPTED. Invariant reconciled.', exact=True).wait_for()
+        assert page.locator('#toastContainer img').count() == 0
+        assert page.evaluate('Boolean(window.edvexaToastPayload)') is False
+        page.reload()
+        page.evaluate("App.navigateTo('surveys')")
+        page.evaluate("(id) => Surveys.loadAuditDetails(id)", result["id"])
+        with page.expect_download() as report:
+            page.click("#surveyExportCurrentBtn")
+        workbook = load_workbook(BytesIO(report.value.path().read_bytes()))
+        assert workbook["Accepted Data"].max_row == 3
+        assert workbook["Review Required"].max_row == 2
+        assert workbook["Review History"].max_row == 2
+        assert list(workbook["Intake"].values)[1:] == [(1, "preamble"), (2, "header")]
+        browser.close()

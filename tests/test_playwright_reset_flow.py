@@ -21,7 +21,7 @@ import time
 import threading
 import uvicorn
 import pytest
-from playwright.sync_api import sync_playwright
+sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
 
 from app.main import app
 from app.config import settings
@@ -29,34 +29,9 @@ from app.database import engine, Base, SessionLocal
 from app.models import Customer, ProcessingJob, JobCleanRecord
 
 
-class LocalTestServer:
-    def __init__(self, host="127.0.0.1", port=8877):
-        self.host = host
-        self.port = port
-        self.server = None
-        self.thread = None
-
-    def start(self):
-        config = uvicorn.Config(app=app, host=self.host, port=self.port, log_level="warning")
-        self.server = uvicorn.Server(config)
-        self.thread = threading.Thread(target=self.server.run, daemon=True)
-        self.thread.start()
-        # Wait until server is listening
-        time.sleep(1.2)
-
-    def stop(self):
-        if self.server:
-            self.server.should_exit = True
-            if self.thread:
-                self.thread.join(timeout=3)
-
-
-@pytest.fixture(scope="module")
-def local_server():
-    server = LocalTestServer(port=8877)
-    server.start()
-    yield f"http://{server.host}:{server.port}"
-    server.stop()
+@pytest.fixture
+def local_server(live_test_server):
+    return live_test_server
 
 
 def seed_local_db():

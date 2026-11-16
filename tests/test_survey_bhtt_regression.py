@@ -19,11 +19,11 @@ from app.services.survey_qq_parser import parse_questionnaire
 from app.services.survey_mapping_service import suggest_mappings
 from app.services.survey_qc_engine import run_survey_qc_audit
 from app.services.auth import create_admin_session_token, SESSION_COOKIE_NAME
+from hashlib import sha256
 
 
-BHTT_DOCX_PATH = Path(r"C:\Users\rjha1\Downloads\2026.10.29_INV%20BHTT_W3B%281%29.docx")
-if not BHTT_DOCX_PATH.exists():
-    BHTT_DOCX_PATH = Path(r"C:\Users\rjha1\Downloads\2026.10.29_INV BHTT_W3B(1).docx")
+BHTT_DOCX_PATH = Path(os.environ["BHTT_QQ_PATH"]) if os.environ.get("BHTT_QQ_PATH") else None
+BHTT_CHARACTERIZATION_SHA256 = "73d513c37ceee7bd9be432f56994ba387b00b6fe14d3e352f4cddef4ca0ae60e"
 
 
 @pytest.fixture
@@ -33,18 +33,22 @@ def auth_client(client: TestClient) -> TestClient:
     return client
 
 
-def test_bhtt_docx_strict_question_extraction():
-    """Verify BHTT docx extracts genuine questions and rejects non-question boilerplate."""
-    if not BHTT_DOCX_PATH.exists():
+def test_bhtt_docx_59_candidate_extraction_characterization():
+    """Characterize the known fixture. This test has no release approval authority."""
+    if BHTT_DOCX_PATH is None or not BHTT_DOCX_PATH.exists():
         pytest.skip(f"BHTT test file not found at {BHTT_DOCX_PATH}")
 
     with open(BHTT_DOCX_PATH, "rb") as f:
         content = f.read()
+    assert sha256(content).hexdigest() == BHTT_CHARACTERIZATION_SHA256, "Use the known BHTT characterization fixture"
 
     res = parse_questionnaire(content, "2026.10.29_INV BHTT_W3B(1).docx")
     assert res.document_format == "docx"
     assert res.unreadable_or_scanned is False
-    assert len(res.questions) >= 50
+    assert len(res.questions) == 59  # Current source-backed candidate inventory, not the release target.
+    assert len(res.excluded_blocks) == 7
+    assert any(q.question_number == "Q_Postal Code" for q in res.questions)
+    assert len([q for q in res.questions if q.parent_question == "PS2"]) == 3
 
     q_codes = [q.question_number for q in res.questions]
 
@@ -202,7 +206,8 @@ def test_synthetic_12_domain_qc_audit_engine():
     ]
 
     mock_mappings = [
-        {"question_number": "Q.Age", "question_text": "Age", "question_type": "screener", "min_age": 18.0, "mapped_columns": ["Age"]},
+        {"question_number": "Q.Age", "question_text": "Age", "question_type": "screener", "min_age": 18.0,
+         "mapped_columns": ["Age"], "mapping_status": "CONFIRMED", "eligibility_source": "Questionnaire Specification"},
         {"question_number": "Q.PastTreatment", "question_text": "Treatment", "question_type": "single_choice", "mapped_columns": ["Q1"]},
         {"question_number": "Q.MatrixRatings", "question_text": "Ratings", "question_type": "matrix_grid", "mapped_columns": ["Q2_1", "Q2_2", "Q2_3", "Q2_4"]},
         {"question_number": "Q.OEBrand", "question_text": "Brands", "question_type": "open_ended", "mapped_columns": ["OE_Text"]},
@@ -252,7 +257,9 @@ def test_synthetic_12_domain_qc_audit_engine():
     assert synth_08.disposition == "REJECTED"
 
     synth_09 = next(r for r in summary.results if r.respondent_key == "SYNTH_09")
-    assert synth_09.disposition == "REJECTED"
+    # A timestamp mismatch still requires review; missing optional answers cannot reject.
+    assert synth_09.disposition == "REVIEW_REQUIRED"
+    assert not any(f.issue_type == "INCOMPLETE_RESPONSE" for f in synth_09.findings)
 
     # 4. Valid completes are ACCEPTED
     synth_06 = next(r for r in summary.results if r.respondent_key == "SYNTH_06")

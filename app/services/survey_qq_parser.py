@@ -7,6 +7,12 @@ Handles scanned or unreadable documents honestly and transparently.
 """
 
 import io
+import os
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
 import logging
 import re
 import zipfile
@@ -14,6 +20,11 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Any
 import openpyxl
+from app.services.survey_upload_limits import (
+    MAX_EXCEL_SECONDS, SurveyUploadLimit, check_excel_time, check_openxml_size, validate_xlsx,
+)
+
+_pdf_workers = threading.BoundedSemaphore(2)
 
 logger = logging.getLogger("edvexa.surveys.qq_parser")
 
@@ -34,16 +45,28 @@ class ParsedQuestion:
     suggested_columns: list[str] = field(default_factory=list)
     confidence: str = "MEDIUM"
     mapping_evidence: str | None = None
+    source_line: int | None = None
+    source_text: str = ""
+    exclusion_reason: str | None = None
+    parent_question: str | None = None
+    external_reference: str | None = None
+    option_codes: dict[str, str] = field(default_factory=dict)
+    follow_up_fields: list[dict[str, str]] = field(default_factory=list)
+    matrix_columns: list[str] = field(default_factory=list)
+    age_countries: list[str] = field(default_factory=list)
+
 
 
 @dataclass
 class QuestionnaireExtractionResult:
     questions: list[ParsedQuestion] = field(default_factory=list)
+    excluded_blocks: list[ParsedQuestion] = field(default_factory=list)
     expected_duration_min_minutes: float | None = None
     expected_duration_max_minutes: float | None = None
     page_timer_threshold_seconds: float | None = None
     page_timer_rules: dict[str, float] = field(default_factory=dict)
-    duration_source: str = "Platform Standard Baseline"
+    expected_duration_target_minutes: float | None = None
+    duration_source: str = "Not configured"
     screener_rules: list[dict[str, Any]] = field(default_factory=list)
     skip_logic_rules: list[dict[str, Any]] = field(default_factory=list)
     unreadable_or_scanned: bool = False
@@ -123,21 +146,26 @@ FORBIDDEN_QUESTION_CODES = {
 
 
 def extract_text_from_pdf(content: bytes) -> tuple[str, bool]:
-    """Extract raw text from PDF content using pypdf."""
+    """Use a bounded worker so a PDF timeout stops parsing, even off the event loop."""
+    if not _pdf_workers.acquire(blocking=False):
+        raise SurveyUploadLimit("PDF processing is busy. Retry the upload shortly.")
     try:
-        from pypdf import PdfReader
-        stream = io.BytesIO(content)
-        reader = PdfReader(stream)
-        text_parts = []
-        for page_idx, page in enumerate(reader.pages):
-            page_text = page.extract_text() or ""
-            text_parts.append(page_text)
-        full_text = "\n\n".join(text_parts).strip()
-        is_scanned = len(reader.pages) > 0 and len(full_text) < 50
-        return full_text, is_scanned
-    except Exception as e:
-        logger.warning(f"PDF extraction error: {e}")
+        response = subprocess.run(
+            [sys.executable, "-I", "-B", str(Path(__file__).with_name("survey_pdf_worker.py"))],
+            input=content, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10,
+            env={key: os.environ[key] for key in ("SystemRoot", "WINDIR", "TMP", "TEMP") if key in os.environ},
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise SurveyUploadLimit("PDF processing exceeded the time limit.") from exc
+    finally:
+        _pdf_workers.release()
+    if response.returncode == 2:
+        raise SurveyUploadLimit("PDF exceeds the page, expanded stream, or text limit.")
+    if response.returncode != 0:
         return "", True
+    text = response.stdout.decode("utf-8")
+    return text, len(text) < 50
 
 
 def extract_text_from_docx(content: bytes) -> tuple[str, bool]:
@@ -148,6 +176,7 @@ def extract_text_from_docx(content: bytes) -> tuple[str, bool]:
     try:
         stream = io.BytesIO(content)
         with zipfile.ZipFile(stream, "r") as docx_zip:
+            check_openxml_size(docx_zip)
             if "word/document.xml" not in docx_zip.namelist():
                 return "", True
             xml_content = docx_zip.read("word/document.xml")
@@ -163,6 +192,8 @@ def extract_text_from_docx(content: bytes) -> tuple[str, bool]:
             full_text = "\n".join(paragraphs).strip()
             is_empty = len(full_text) < 20
             return full_text, is_empty
+    except SurveyUploadLimit:
+        raise
     except Exception as e:
         logger.warning(f"DOCX extraction error: {e}")
         return "", True
@@ -170,13 +201,18 @@ def extract_text_from_docx(content: bytes) -> tuple[str, bool]:
 
 def extract_text_from_xlsx(content: bytes) -> tuple[str, bool]:
     """Extract questions or text from XLSX questionnaire / codebook."""
+    deadline = time.monotonic() + MAX_EXCEL_SECONDS
+    validate_xlsx(content, deadline)
+    wb = None
     try:
         stream = io.BytesIO(content)
         wb = openpyxl.load_workbook(stream, read_only=True, data_only=True)
         lines = []
         for sheet in wb.worksheets:
+            sheet.reset_dimensions()
             lines.append(f"--- Sheet: {sheet.title} ---")
             for row in sheet.iter_rows(values_only=True):
+                check_excel_time(deadline)
                 non_empty = [str(c).strip() for c in row if c is not None and str(c).strip()]
                 if non_empty:
                     if len(non_empty) >= 2 and re.match(r"^[\[\(]?[QSD0-9a-zA-Z_]+", non_empty[0], re.IGNORECASE):
@@ -185,9 +221,14 @@ def extract_text_from_xlsx(content: bytes) -> tuple[str, bool]:
                         lines.append(" | ".join(non_empty))
         full_text = "\n".join(lines).strip()
         return full_text, len(full_text) < 30
+    except SurveyUploadLimit:
+        raise
     except Exception as e:
         logger.warning(f"XLSX questionnaire extraction error: {e}")
         return "", True
+    finally:
+        if wb:
+            wb.close()
 
 
 def extract_questionnaire_text(content: bytes, filename: str) -> tuple[str, str, bool]:
@@ -263,24 +304,14 @@ def parse_questionnaire(content: bytes, filename: str) -> QuestionnaireExtractio
                 break
             elif len(m.groups()) >= 1 and m.group(1):
                 mid = float(m.group(1))
-                result.expected_duration_min_minutes = max(1.0, mid * 0.7)
-                result.expected_duration_max_minutes = mid * 1.5
-                result.duration_source = "Questionnaire Specification"
+                result.expected_duration_target_minutes = mid
+                result.duration_source = "Questionnaire target (not a cutoff)"
                 result.extraction_notes.append(
                     f"Identified expected survey duration: ~{mid:.0f} minutes (from QQ text)."
                 )
                 break
 
-    # 2. Detect Page / Question Timer Thresholds (Only if explicitly stated in QQ)
-    timer_pattern = r"(?:page|screen|question|factor)?\s*(?:submit\s+)?timer\s*(?:threshold|minimum|cutoff|rule)?\s*(?:is|of|:)?\s*(\d+)\s*(?:sec|secs|second|seconds)"
-    tm = re.search(timer_pattern, raw_text, re.IGNORECASE)
-    if tm:
-        result.page_timer_threshold_seconds = float(tm.group(1))
-        result.extraction_notes.append(
-            f"Identified individual page timer threshold: {result.page_timer_threshold_seconds:.0f} seconds (from QQ text)."
-        )
-
-    # 3. Parse Individual Questions and Sections
+    # 2. Parse individual questions, keeping timing instructions in their source scope.
     lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
     q_candidates: list[tuple[str, int, str]] = []
 
@@ -296,7 +327,7 @@ def parse_questionnaire(content: bytes, filename: str) -> QuestionnaireExtractio
         q_id: str | None = None
 
         # Pattern 1: Q.<Identifier> (e.g. Q.Country, Q.Age, Q.PastTreatment, Q.Order Purchase)
-        m1 = re.match(r"^(Q\.[A-Za-z0-9_][A-Za-z0-9_\s/-]*?)(?:[\.:\-\)]|\s*$)", line)
+        m1 = re.match(r"^(Q[._][A-Za-z0-9_][A-Za-z0-9_\s/-]*?)(?:[\.:\-\)]|\s*$)", line)
         if m1:
             cand = m1.group(1).strip()
             # Exclude intro banner text like Q.IntroThanks
@@ -336,12 +367,42 @@ def parse_questionnaire(content: bytes, filename: str) -> QuestionnaireExtractio
             seen_indices.add(s_idx)
             unique_candidates.append((qid, s_idx, l_str))
 
+    # An unqualified timer declaration in the survey header can apply to every page.
+    # A declaration inside a question block is never promoted to a survey-wide rule.
+    header_end = unique_candidates[0][1] if unique_candidates else 0
+    header_timers = {value for line in lines[:header_end] if (value := _timer_threshold(line)) is not None}
+    if len(header_timers) == 1:
+        result.page_timer_threshold_seconds = header_timers.pop()
+        result.extraction_notes.append(
+            f"Identified survey-wide page timer threshold: {result.page_timer_threshold_seconds:g} seconds (from QQ header)."
+        )
+
     # Process each question block
     for i, (qid, start_idx, line_str) in enumerate(unique_candidates):
         end_idx = unique_candidates[i + 1][1] if i + 1 < len(unique_candidates) else len(lines)
         block_lines = lines[start_idx:end_idx]
 
         parsed = _interpret_question_block(qid, line_str, block_lines)
+        parsed.source_line = start_idx + 1
+        parsed.source_text = "\n".join(block_lines)
+        if parsed.question_type in {"metadata", "instruction", "display_text"}:
+            parsed.exclusion_reason = "Derived or embedded field" if parsed.question_type == "metadata" else "Respondent instructions or display text"
+            result.excluded_blocks.append(parsed)
+            continue
+        # A handover block can embed multiple vendor-specific respondent prompts.
+        if re.search(r"(?i)handover|hand over", parsed.source_text):
+            prompts = [(n, line) for n, line in enumerate(block_lines) if line.endswith("?")]
+            if prompts:
+                parsed.question_type = "instruction"
+                parsed.exclusion_reason = "Handover wrapper; actual prompts are recorded separately"
+                result.excluded_blocks.append(parsed)
+                for ordinal, (n, line) in enumerate(prompts, 1):
+                    limit = prompts[ordinal][0] if ordinal < len(prompts) else len(block_lines)
+                    choices = [value for value in block_lines[n + 1:limit] if len(value) < 30 and not value.startswith("[")]
+                    result.questions.append(ParsedQuestion(
+                        f"{qid}.{ordinal}", line, "screener", options=choices,
+                        source_line=start_idx+n+1, source_text="\n".join(block_lines[n:limit]), parent_question=qid))
+                continue
         result.questions.append(parsed)
 
         if parsed.screening_criteria:
@@ -363,6 +424,38 @@ def parse_questionnaire(content: bytes, filename: str) -> QuestionnaireExtractio
     return result
 
 
+def _timer_threshold(text, question=None):
+    pattern = r"(?:global\s+)?(?:page|screen|question)\s+(?:submit\s+)?timer(?:\s+(?:threshold|minimum|cutoff|rule))?\s*(?:is|of|:)?\s*(\d{1,5})\s*(?:seconds?|secs?|s)"
+    if question:
+        pattern += rf"(?:\s+for\s+(?:page\s+)?{re.escape(question)}(?:\s+only)?)?"
+    match = re.fullmatch(pattern + r"\.?", text.strip(), re.I)
+    return float(match[1]) if match and int(match[1]) > 0 else None
+
+
+def _age_rule(lines):
+    limits = set()
+    pattern = (
+        r"terminate if (?:age is )?(under|below|over|above)\s+(\d{1,3})"
+        r"(?:\s+or\s+(?:age is )?(over|above)\s+(\d{1,3}))?"
+        r"(?:\s+(?:in\s+(?:the\s+)?|for\s+(?:the\s+)?)(u\.?s\.?a?\.?|united states(?: of america)?)(?:\s+respondents)?(?:\s+only)?)?\.?"
+    )
+    instructions = [*lines, *(line.rsplit("?", 1)[1] for line in lines if "?" in line)]
+    instructions.extend(s for line in lines for s in re.findall(r"\[([^\]]+)\]", line))
+    for text in instructions:
+        match = re.fullmatch(pattern, text.strip(), re.I)
+        if not match:
+            continue
+        lower = match[1].lower() in {"under", "below"}
+        minimum = int(match[2]) if lower else None
+        maximum = (int(match[4]) if match[4] else None) if lower else int(match[2])
+        if any(value > 130 for value in (minimum, maximum) if value is not None):
+            continue
+        if minimum is not None and maximum is not None and maximum < minimum:
+            continue
+        limits.add((minimum, maximum, "US" if match[5] else None))
+    return limits.pop() if len(limits) == 1 else (None, None, None)
+
+
 def _interpret_question_block(qid: str, header_line: str, block_lines: list[str]) -> ParsedQuestion:
     """Interpret question wording, type, options, screening, and routing from a block."""
     wording = ""
@@ -382,7 +475,9 @@ def _interpret_question_block(qid: str, header_line: str, block_lines: list[str]
         q_type = "metadata"
     elif any(k in q_lower for k in ["starttext", "blocktext", "profilingintro"]) or "congratulations, you have qualified" in full_block_lower:
         q_type = "instruction"
-    elif "past_current_usage_net" in q_lower:
+    elif ("past_current_usage_net" in q_lower or
+          (len(block_lines) > 1 and all(re.match(r"(?:recent past|current) user \(q[.]",
+                line, re.I) for line in block_lines[1:]))):
         q_type = "metadata"
     elif qid.upper().startswith("S") or qid.upper().startswith("PS"):
         q_type = "screener"
@@ -399,8 +494,37 @@ def _interpret_question_block(qid: str, header_line: str, block_lines: list[str]
     else:
         q_type = "single_choice"
 
+    type_labels = (
+        ("multi_choice_grid", r"multi(?:ple)? choice grid"),
+        ("matrix_grid", r"single choice grid|matrix(?: / grid)?|grid"),
+        ("multiple_choice", r"multiple choice|multi-select|multi select"),
+        ("numeric", r"oe numeric|numeric oe"),
+        ("open_ended", r"open[ -]end(?:ed)?(?: text)?"),
+        ("single_choice", r"single choice(?: drop down)?|single select"),
+    )
+    for explicit_type, pattern in type_labels:
+        if q_type not in {"metadata", "instruction", "screener", "rating_scale"} and any(
+            re.match(r"^(?:" + pattern + r")(?:$|\s|(?=[A-Z][a-z]))", line, re.I)
+            for line in block_lines[1:4]
+        ):
+            q_type = explicit_type
+            break
+    if q_type not in {"metadata", "instruction"} and re.search(r"how important are the following factors", full_block_lower):
+        q_type = "matrix_grid"
+    prompt = next((line for line in block_lines[1:] if line.endswith("?") and
+                   not line.lower().startswith(NON_QUESTION_STARTS)), None)
+    if not wording and prompt:
+        wording = prompt
+
+    if q_type == "single_choice" and not any(re.match(r"single (?:choice|select)", line, re.I) for line in block_lines[1:4]) and re.match(r"what brand\b", wording, re.I):
+        q_type = "open_ended"
+    if q_type == "single_choice" and sum(bool(re.match(r"^(?:Statement|Row|Item)\s+\w+\s*[:.)-]", line, re.I)) for line in block_lines) >= 2:
+        q_type = "matrix_grid"
+
     options: list[str] = []
     matrix_items: list[str] = []
+    option_codes: dict[str, str] = {}
+    external_ref = next((l for l in block_lines if re.search(r"global .*excel|global excel", l, re.I)), None)
     screening_criteria: str | None = None
     routing_logic: str | None = None
     min_age: float | None = None
@@ -421,6 +545,14 @@ def _interpret_question_block(qid: str, header_line: str, block_lines: list[str]
             if not any(bl_low.startswith(p) for p in NON_QUESTION_STARTS) and not bl.isupper() and len(bl) > 10:
                 wording = bl
 
+        typed_prompt = re.match(r"^(?:MULTIPLE CHOICE|SINGLE CHOICE)([A-Z].{10,})$", bl)
+        if typed_prompt and not after_id:
+            wording = typed_prompt[1]
+        item = re.match(r"^(?:Statement|Row|Item)\s+(?:\d+|[A-Z])\s*[:.)-]\s*(.+)$", bl, re.I)
+        if item and q_type in {"matrix_grid", "multi_choice_grid"}:
+            matrix_items.append(item[1])
+            continue
+
         # Options collection
         if bl != wording and not any(bl_low.startswith(p) for p in NON_QUESTION_STARTS):
             # Numbered / bulleted options
@@ -428,7 +560,10 @@ def _interpret_question_block(qid: str, header_line: str, block_lines: list[str]
             if opt_m:
                 opt_str = opt_m.group(1).strip()
                 if opt_str and len(opt_str) < 120 and not any(k in opt_str.lower() for k in ["skip to:", "quota:"]):
-                    options.append(opt_str)
+                    code = re.match(r"^(\d+|[A-Za-z])[.)]", bl)
+                    options.append(f"{code[1]}. {opt_str}" if code else opt_str)
+                    if code:
+                        option_codes[code[1]] = opt_str
             elif q_type == "single_choice" and len(bl) < 60 and not bl.isupper():
                 if not any(k in bl_low for k in ["skip to:", "quota:"]):
                     options.append(bl)
@@ -437,33 +572,64 @@ def _interpret_question_block(qid: str, header_line: str, block_lines: list[str]
     if wording:
         wording = re.sub(r"\[(?:Select|Single|Multi|Matrix|Grid|Open|Numeric|Rating)[^\]]*\]", "", wording, flags=re.IGNORECASE).strip()
 
-    # Age criteria parser
-    if "under 18" in full_block_lower or "terminate if under 18" in full_block_lower or "at least 18" in full_block_lower:
-        min_age = 18.0
-    elif "between 12 to 17" in full_block_lower or "ages 12 to 17" in full_block_lower or "12-17" in full_block_lower:
-        min_age = 12.0
-        max_age = 17.0
-    else:
-        age_range_m = re.search(r"(?:ages?|must\s+be|target)\s*(?:between\s+)?(\d+)\s*(?:to|–|-|and)\s*(\d+)", full_block_lower)
-        if age_range_m:
-            min_age = float(age_range_m.group(1))
-            max_age = float(age_range_m.group(2))
+    age_question = bool(re.search(r"\bage\b|how old", wording or qid, re.I))
+    age_country = None
+    if age_question:
+        min_age, max_age, age_country = _age_rule(block_lines)
+
+    follow_ups = []
+    for line in block_lines[1:]:
+        match = re.match(r"^(.+?)\s*\((please specify|if so, [^)]+)\)(?:\s*_+)?(?:\s*\[anchor\])?$", line, re.I)
+        if match:
+            follow_ups.append({"option": match[1].strip(), "prompt": match[2], "type": "open_ended"})
+    matrix_columns = []
+    qc_notes = [line for line in block_lines if re.search(r"\bQC CHECK\b", line, re.I)]
+    if q_type in {"matrix_grid", "multi_choice_grid"}:
+        first = block_lines.index(wording) + 1 if wording in block_lines else 1
+        before_items = True
+        for line in block_lines[first:]:
+            low = line.lower()
+            if re.match(r"^(?:show (?:n|net|mean)|page break|manual qc|qc check|create embedded|ask if)", low):
+                break
+            if low.startswith("[show responses"):
+                matrix_items.append(line)
+                break
+            if re.match(r"^(?:PART\s+\d+|STATEMENTS|ROWS|ATTRIBUTES)\b", line, re.I):
+                before_items = False
+                continue
+            if low.startswith(("randomize", "split into", "you may select", "show attributes")):
+                continue
+            if before_items and re.match(r"^(?:extremely|somewhat|neither|not at all|very |moderately |slightly |dislike|like |had this|currently undergoing|never had|[0-9]+[.)])", low):
+                matrix_columns.append(line)
+                continue
+            if matrix_columns and line != wording and not low.startswith(NON_QUESTION_STARTS):
+                before_items = False
+                if line not in matrix_items:
+                    matrix_items.append(line)
+    if external_ref and (wording == "[Survey end]" or wording.lower().startswith("skip to")):
+        wording = ""
 
     # Page timer for this specific question/page
-    pt_m = re.search(r"(?:page\s+timer|submit\s+timer|timer\s+threshold|minimum\s+time)\s*(?:is|:)?\s*(\d+)\s*(?:s|sec|seconds)", full_block_lower)
-    if pt_m:
-        page_timer_min_seconds = float(pt_m.group(1))
+    timer_instructions = [*block_lines, *(s for line in block_lines for s in re.findall(r"\[([^\]]+)\]", line))]
+    timer_values = {value for text in timer_instructions if (value := _timer_threshold(text, qid)) is not None}
+    if len(timer_values) == 1:
+        page_timer_min_seconds = timer_values.pop()
 
     return ParsedQuestion(
         question_number=qid,
         question_text=wording or qid,
         question_type=q_type,
         options=options,
+        option_codes=option_codes,
+        external_reference=external_ref,
         matrix_items=matrix_items,
-        qc_instructions=None,
+        qc_instructions="\n".join(qc_notes) or None,
+        follow_up_fields=follow_ups,
+        matrix_columns=matrix_columns,
         routing_logic=routing_logic,
         screening_criteria=screening_criteria,
         min_age=min_age,
+        age_countries=[age_country] if age_country else [],
         max_age=max_age,
         page_timer_min_seconds=page_timer_min_seconds
     )

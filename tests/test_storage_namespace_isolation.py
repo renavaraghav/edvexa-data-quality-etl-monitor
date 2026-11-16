@@ -247,7 +247,7 @@ def test_storage_key_path_traversal_and_invalid_namespace_rejected():
 # 2. ETL RESET VS SURVEY RESET ISOLATION TESTS
 # =============================================================================
 
-def test_etl_reset_deletes_etl_objects_and_preserves_surveys(client: TestClient, db_session: Session):
+def test_etl_reset_deletes_etl_objects_and_preserves_surveys(client: TestClient, db_session: Session, monkeypatch):
     """
     Verify that executing ETL reset (POST /api/reset-data):
     1. Calls clear_all() which targets ONLY uploads/.
@@ -292,7 +292,12 @@ def test_etl_reset_deletes_etl_objects_and_preserves_surveys(client: TestClient,
         backend.s3_client = mock_s3
         mock_get_storage.return_value = backend
 
-        # Execute ETL reset
+        # The actual public guard denies cloud settings. Verify the cleanup core only
+        # against the in-memory database and explicit mocked cloud backend.
+        assert client.post("/api/dashboard/reset-data").status_code == 403
+        from app.main import app
+        from app.routers.dashboard import verify_reset_authorization
+        monkeypatch.setitem(app.dependency_overrides, verify_reset_authorization, lambda: True)
         reset_resp = client.post("/api/dashboard/reset-data")
         assert reset_resp.status_code == 200
         res_json = reset_resp.json()
@@ -467,7 +472,7 @@ def test_admin_login_removes_session_token_from_json(client: TestClient):
     - JSON response contains authenticated: true.
     - JSON response does NOT contain session_token, access_token, or equivalent secret.
     """
-    secret = settings.ADMIN_RESET_TOKEN or "test-secret-token-for-pytest"
+    secret = settings.ADMIN_LOGIN_PASSWORD
     resp = client.post(
         "/api/auth/login",
         json={"password": secret},
@@ -507,7 +512,7 @@ def test_cookie_auth_workflow_and_logout(client: TestClient):
     assert session_check.json()["authenticated"] is False
 
     # 2. Login
-    secret = settings.ADMIN_RESET_TOKEN or "test-secret-token-for-pytest"
+    secret = settings.ADMIN_LOGIN_PASSWORD
     login_resp = client.post(
         "/api/auth/login",
         json={"password": secret},

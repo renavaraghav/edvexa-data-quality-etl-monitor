@@ -56,6 +56,9 @@ def suggest_mappings(
     timer_columns: list[str] = []
     for col in raw_columns:
         low = col.lower()
+        if re.search(r"first[ _-]*click|last[ _-]*click|click[ _-]*count", low):
+            used_columns.add(col)
+            continue
         if "timer" in low or "page submit" in low or "seconds_spent" in low:
             timer_columns.append(col)
             used_columns.add(col)
@@ -116,10 +119,6 @@ def suggest_mappings(
             })
             continue
 
-        # Extract numeric core only if question code is pure Q/S/D followed by digits (e.g. Q1 -> 1, S2 -> 2)
-        num_m = re.match(r"^[\[\(\s]*(?:question|q|s|d)[\s\._\-]*(\d+[a-zA-Z]?(?:_\d+)?)$", q_num, flags=re.IGNORECASE)
-        clean_qnum = num_m.group(1) if num_m else ""
-
         matched_cols: list[str] = []
         confidence = "LOW"
         evidence_parts: list[str] = []
@@ -129,7 +128,6 @@ def suggest_mappings(
         exact_matches = [
             col for col in raw_columns
             if col.lower() == q_lower
-            or (clean_qnum and (col.lower() == f"q{clean_qnum}".lower() or col.lower() == f"s{clean_qnum}".lower() or col.lower() == clean_qnum.lower()))
         ]
         if exact_matches:
             matched_cols.extend(exact_matches)
@@ -143,7 +141,7 @@ def suggest_mappings(
             col for col in raw_columns
             if (re.match(rf"^{re.escape(q_num)}[_\-\.\s][0-9a-zA-Z_]+$", col, re.IGNORECASE)
                 or (q_nospace != q_num and re.match(rf"^{re.escape(q_nospace)}[_\-\.\s][0-9a-zA-Z_]+$", col, re.IGNORECASE))
-                or (clean_qnum and re.match(rf"^q?{re.escape(clean_qnum)}[_\-\.][0-9a-zA-Z_]+$", col, re.IGNORECASE)))
+                )
             and not col.lower().endswith(("_timer_first click", "_timer_last click", "_timer_page submit", "_timer_click count"))
         ]
         if grid_cols:
@@ -211,6 +209,7 @@ def suggest_mappings(
                 confidence = "LOW"
                 evidence_parts.append(f"Fuzzy token overlap ({best_score} tokens) with '{best_cand}' (Auditor verification required)")
 
+        matched_cols = [column for column in matched_cols if column not in used_columns]
         if not matched_cols:
             confidence = "UNMAPPED"
             mapping_status = "UNMAPPED"
@@ -221,18 +220,13 @@ def suggest_mappings(
             for mc in matched_cols:
                 used_columns.add(mc)
 
-        effective_type = q_type
-        if len(matched_cols) > 1:
-            effective_type = "matrix_grid"
-        elif any(k in q_text.lower() for k in ["brand", "which brand", "what brand", "specify", "comments", "feedback"]):
-            effective_type = "open_ended"
-
         primary_matched_column = matched_cols[0] if matched_cols else None
 
         mappings.append({
             "question_number": q_num,
             "question_text": q_text,
-            "question_type": effective_type,
+            "question_type": q_type,
+            "grouped_columns": bool(grid_cols or (len(matched_cols) > 1 and q_num.startswith("Q."))),
             "matched_column": primary_matched_column,
             "mapped_columns": matched_cols,
             "confidence": confidence,
@@ -244,9 +238,17 @@ def suggest_mappings(
             "routing_logic": routing_logic,
             "min_age": min_age,
             "max_age": max_age,
+            "age_countries": getattr(q, "age_countries", []),
+            "eligibility_source": "Questionnaire Specification" if isinstance(q, ParsedQuestion) else None,
             "page_timer_min_seconds": page_timer_min_sec,
             "options": options,
-            "matrix_items": matrix_items
+            "matrix_items": matrix_items,
+            "parent_question": getattr(q, "parent_question", None),
+            "external_reference": getattr(q, "external_reference", None),
+            "option_codes": getattr(q, "option_codes", {}),
+            "source_line": getattr(q, "source_line", None),
+            "matrix_columns": getattr(q, "matrix_columns", []),
+            "follow_up_fields": getattr(q, "follow_up_fields", []),
         })
 
     # Unmapped Raw Columns

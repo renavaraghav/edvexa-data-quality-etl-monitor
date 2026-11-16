@@ -1011,7 +1011,7 @@
                 <p class="text-xs text-muted mb-0">Survey Data Scrubbing endpoints, respondent PII, and destructive resets are access-protected. Enter your Admin Key to unlock this module.</p>
               </div>
               <div class="flex-center gap-2">
-                <input type="password" id="surveyAdminPasswordInput" class="form-control form-control-sm" placeholder="Admin Secret Key" style="width: 200px;">
+                <input type="password" id="surveyAdminPasswordInput" class="form-control form-control-sm" placeholder="Admin password" style="width: 200px;">
                 <button type="button" id="surveyAdminLoginBtn" class="btn btn-primary btn-sm">Unlock Module</button>
               </div>
             </div>
@@ -1079,6 +1079,8 @@
                   <input type="file" id="surveyRawFileInput" accept=".csv,.xlsx" style="display:none;">
                 </div>
                 <!-- Excel Sheet Selector and Metadata Info -->
+                <label class="text-xs">Header row <input type="number" id="surveyHeaderRow" min="1" step="1" value="1"></label>
+                <button type="button" class="btn btn-outline btn-xs" id="surveyConfirmHeader">Use this header row</button>
                 <div id="surveySheetSelectContainer" class="mt-3 d-none">
                   <div class="form-group mb-2">
                     <label class="form-label text-xs font-bold">Workbook Sheet Selection:</label>
@@ -1124,6 +1126,8 @@
                   <span class="font-bold">System Telemetry Detected:</span>
                   <span id="surveyTelemetryList" class="text-muted">None detected</span>
                 </div>
+                <p class="text-xs text-muted">Review the assigned columns. Questionnaire eligibility and strict rating checks use confirmed mappings.</p>
+                <button type="button" class="btn btn-outline btn-xs mb-2" id="surveyConfirmAllMappings">Confirm all mapped questions</button>
                 <!-- Mapping Table -->
                 <div class="table-responsive" style="max-height: 340px; overflow-y: auto;">
                   <table class="data-table-warm text-xs" id="surveyMappingTable">
@@ -1157,26 +1161,37 @@
                   <div class="survey-rule-card">
                     <div class="flex-between mb-2">
                       <h5 class="text-sm font-bold">1. Survey Duration &amp; Speeding Thresholds</h5>
-                      <span class="badge-neutral text-xs" id="ruleDurationSourceBadge">Source: Platform Default</span>
+                      <span class="badge-neutral text-xs" id="ruleDurationSourceBadge">Source: Not configured</span>
                     </div>
                     <div class="form-group mb-2">
                       <label class="form-label text-xs">Target Expected Duration Range (minutes):</label>
-                      <div class="flex-center gap-2">
-                        <input type="number" id="ruleMinExpectedDuration" class="form-control text-xs" value="7" min="1" max="60" style="width: 80px;">
+                      <fieldset class="text-xs">
+  <legend>Checks to run</legend>
+  <label>Required-question completion (%)
+    <input type="number" id="ruleCompletenessThreshold" value="100" min="1" max="100">
+  </label>
+  <label><input type="checkbox" id="ruleDuplicatesEnabled" checked> Duplicates</label>
+  <label><input type="checkbox" id="ruleOpenTextEnabled" checked> Open text</label>
+  <label><input type="checkbox" id="ruleStraightliningEnabled" checked> Straightlining</label>
+  <label><input type="checkbox" id="ruleScreenerEnabled" checked> Explicit eligibility rules</label>
+  <label><input type="checkbox" id="ruleRejectStraightlining"> Reject confirmed straightlining</label>
+</fieldset>
+<div class="flex-center gap-2">
+                        <input type="number" id="ruleMinExpectedDuration" class="form-control text-xs" placeholder="7" min="1" max="60" style="width: 80px;">
                         <span class="text-xs">to</span>
-                        <input type="number" id="ruleMaxExpectedDuration" class="form-control text-xs" value="15" min="1" max="180" style="width: 80px;">
+                        <input type="number" id="ruleMaxExpectedDuration" class="form-control text-xs" placeholder="15" min="1" max="180" style="width: 80px;">
                         <span class="text-xs text-muted">mins</span>
                       </div>
                       <span class="text-xs text-muted" id="ruleDurationHelp">Normal target completion range for valid responses.</span>
                     </div>
                     <div class="form-group mb-2">
                       <label class="form-label text-xs">Speeding Concern Threshold (&lt; minutes):</label>
-                      <input type="number" id="ruleSpeedingThreshold" class="form-control text-xs" value="5" min="1" max="30" style="width: 80px;">
+                      <input type="number" id="ruleSpeedingThreshold" class="form-control text-xs" placeholder="5" min="1" max="30" style="width: 80px;">
                       <span class="text-xs text-muted" id="ruleSpeedingHelp">Completions faster than this trigger speeding concern (Review Required).</span>
                     </div>
                     <div class="form-group mb-2">
                       <label class="form-label text-xs">Extreme Speeding Cutoff (&lt; minutes):</label>
-                      <input type="number" id="ruleExtremeSpeeding" class="form-control text-xs" value="2" min="1" max="10" style="width: 80px;">
+                      <input type="number" id="ruleExtremeSpeeding" class="form-control text-xs" placeholder="2" min="1" max="10" style="width: 80px;">
                       <span class="text-xs text-muted">Physically impossible completions trigger critical flag.</span>
                       <div class="mt-1">
                         <label class="text-xs flex-center gap-1" style="font-weight: normal; cursor: pointer;">
@@ -1198,6 +1213,7 @@
                         <input type="number" id="rulePageTimer" class="form-control text-xs" value="20" min="5" max="60" style="width: 80px;" disabled>
                         <span class="text-xs text-muted">secs</span>
                       </div>
+                      <label><input type="checkbox" id="ruleRejectPageTimers"> Reject below a configured page threshold</label>
                       <span class="text-xs text-muted" id="rulePageTimerHelp">When disabled, question timers are recorded as contextual telemetry without rejection.</span>
                     </div>
                   </div>
@@ -1411,6 +1427,7 @@
                       <tr><td colspan="10" class="text-center py-3 text-muted">No audit executed yet.</td></tr>
                     </tbody>
                   </table>
+                  <div id="survey-respondents-pages" class="text-xs mt-2"></div>
                 </div>
               </div>
             </div>
@@ -1425,8 +1442,8 @@
                 <div class="flex-center gap-2">
                   <select id="surveyFindingSeverityFilter" class="form-control text-xs" style="width: 140px;">
                     <option value="ALL">All Severities</option>
-                    <option value="CRITICAL">Critical Only</option>
-                    <option value="WARNING">Warning Only</option>
+                    <option value="HIGH">Critical Only</option>
+                    <option value="MEDIUM">Warning Only</option>
                     <option value="INFO">Info Only</option>
                   </select>
                 </div>
@@ -1449,6 +1466,7 @@
                       <tr><td colspan="7" class="text-center py-3 text-muted">No findings recorded.</td></tr>
                     </tbody>
                   </table>
+                  <div id="survey-findings-pages" class="text-xs mt-2"></div>
                 </div>
               </div>
             </div>

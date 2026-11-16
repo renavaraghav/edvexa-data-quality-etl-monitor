@@ -245,6 +245,8 @@ def test_teen_survey_age_eligibility_and_non_universal_age_18():
             "question_text": "How old are you? [Target ages 12 to 17]",
             "question_type": "screener",
             "mapped_columns": ["Age"],
+            "mapping_status": "CONFIRMED",
+            "eligibility_source": "Questionnaire Specification",
             "min_age": 12.0,
             "max_age": 17.0
         }
@@ -260,7 +262,7 @@ def test_teen_survey_age_eligibility_and_non_universal_age_18():
     assert teen_resps["TEEN_14"].disposition == "ACCEPTED"
     assert teen_resps["CHILD_10"].disposition == "REJECTED"
     assert teen_resps["ADULT_25"].disposition == "REJECTED"
-    assert any("violates questionnaire screening threshold" in f.evidence for f in teen_resps["CHILD_10"].findings)
+    assert any(f.issue_type == "SCREENER_AGE_VIOLATION" for f in teen_resps["CHILD_10"].findings)
 
     # Scenario B: Survey with NO age rule
     no_age_mappings = [
@@ -307,14 +309,14 @@ def test_under_2_minutes_extreme_speeding_treated_as_review_signal():
         system_columns={"duration": "Duration"},
         timer_columns=[],
         resp_id_col="RespID",
-        timing_rules={"reject_speeding_under_2min": False, "duration_source": "Questionnaire Spec"}
+        timing_rules={"extreme_speeding_threshold_seconds": 120, "reject_speeding_under_2min": False}
     )
     resps_def = {r.respondent_key: r for r in summary_default.results}
     assert resps_def["R_FAST_80S"].disposition == "REVIEW_REQUIRED"
     assert resps_def["R_NORMAL_600S"].disposition == "ACCEPTED"
     finding = next(f for f in resps_def["R_FAST_80S"].findings if f.issue_type == "EXTREME_SPEEDING")
     assert finding.recommendation == "REVIEW_REQUIRED"
-    assert "Threshold Source: Questionnaire Spec" in finding.evidence
+    assert "Threshold Source: Explicit cutoff" in finding.evidence
 
     # With explicit exclusion rule: routes to REJECTED
     summary_strict = run_survey_qc_audit(
@@ -323,7 +325,7 @@ def test_under_2_minutes_extreme_speeding_treated_as_review_signal():
         system_columns={"duration": "Duration"},
         timer_columns=[],
         resp_id_col="RespID",
-        timing_rules={"reject_speeding_under_2min": True, "duration_source": "Explicit Exclusion Rule"}
+        timing_rules={"reject_speeding_under_2min": True, "extreme_speeding_threshold_seconds": 120}
     )
     resps_strict = {r.respondent_key: r for r in summary_strict.results}
     assert resps_strict["R_FAST_80S"].disposition == "REJECTED"
@@ -535,11 +537,18 @@ def test_survey_qc_audit_via_api_full_suite(auth_client: TestClient, db_session:
     raw_filename = raw_data["filename"]
 
     # Run audit
-    audit_resp = auth_client.post("/api/surveys/run-audit", json={
+    selection = {
         "raw_filename": raw_filename,
         "qq_filename": qq_filename,
-        "reject_speeding_under_2min": False
-    })
+        "reject_speeding_under_2min": False,
+    }
+    suggested = auth_client.post("/api/surveys/suggest-mapping", json=selection)
+    assert suggested.status_code == 200
+    selection["confirmed_mappings"] = [
+        {"question_number": m["question_number"], "mapped_columns": m["mapped_columns"]}
+        for m in suggested.json()["mappings"]
+    ]
+    audit_resp = auth_client.post("/api/surveys/run-audit", json=selection)
     assert audit_resp.status_code == 200
     audit = audit_resp.json()
     audit_id = audit["audit_id"]
@@ -586,10 +595,8 @@ def test_survey_qc_audit_via_api_full_suite(auth_client: TestClient, db_session:
     # Verify that when reject_straightlining is explicitly enabled as a project rule,
     # straightlining is promoted to REJECTED
     audit_strict_resp = auth_client.post("/api/surveys/run-audit", json={
-        "raw_filename": raw_filename,
-        "qq_filename": qq_filename,
-        "reject_speeding_under_2min": False,
-        "reject_straightlining": True
+        **selection, "reject_straightlining": True,
+        "straightline_threshold_pct": 100, "straightline_min_statements": 4,
     })
     assert audit_strict_resp.status_code == 200
     strict_id = audit_strict_resp.json()["audit_id"]
@@ -852,6 +859,7 @@ def test_survey_cookie_auth_csrf_protection(auth_client: TestClient, client: Tes
     assert "origin" in res_bad_origin.json()["detail"].lower()
 
     # 3. Cookie-authenticated POST with external Referer is blocked
+    auth_client.headers.pop("Origin", None)
     res_bad_referer = auth_client.post(
         "/api/surveys/upload-qq",
         files={"file": ("qq.txt", io.BytesIO(qq_content), "text/plain")},
@@ -864,7 +872,7 @@ def test_survey_cookie_auth_csrf_protection(auth_client: TestClient, client: Tes
     res_same_origin = auth_client.post(
         "/api/surveys/upload-qq",
         files={"file": ("qq.txt", io.BytesIO(qq_content), "text/plain")},
-        headers={"Origin": "http://testserver"}
+        headers={"Origin": "http://localhost"}
     )
     assert res_same_origin.status_code == 200
 
@@ -933,7 +941,7 @@ def test_admin_auth_rate_limiting_cookie_security_and_fail_closed(client: TestCl
     _login_attempts.clear()
 
     # 1. Fail closed when unconfigured
-    with patch.object(settings, "ADMIN_RESET_TOKEN", None):
+    with patch.object(settings, "ADMIN_LOGIN_PASSWORD", None):
         res_fail_closed = client.post(
             "/api/auth/login",
             json={"password": "any-password"},
@@ -944,7 +952,7 @@ def test_admin_auth_rate_limiting_cookie_security_and_fail_closed(client: TestCl
 
     # Configure valid token for subsequent tests
     test_secret = "survey-qc-admin-secure-key-2026"
-    with patch.object(settings, "ADMIN_RESET_TOKEN", test_secret):
+    with patch.object(settings, "ADMIN_LOGIN_PASSWORD", test_secret):
         # 2. Test 5 failed attempts (returns 401 Unauthorized)
         for attempt in range(5):
             res_bad = client.post(
@@ -964,20 +972,20 @@ def test_admin_auth_rate_limiting_cookie_security_and_fail_closed(client: TestCl
         assert "too many failed login attempts" in res_rate_limited.json()["detail"].lower()
         assert "retry-after" in res_rate_limited.headers
 
-        # Different IP is not blocked
-        other_ip = "192.0.2.101"
+        # Changing an untrusted forwarded address does not bypass the limit.
         res_other = client.post(
             "/api/auth/login",
             json={"password": "wrong-password"},
-            headers={"x-forwarded-for": other_ip}
+            headers={"x-forwarded-for": "192.0.2.101"}
         )
-        assert res_other.status_code == 401
+        assert res_other.status_code == 429
 
         # 4. Successful login sets HttpOnly, SameSite=lax cookie
-        res_success = client.post(
+        from app.main import app
+        other_client = TestClient(app, client=("192.0.2.101", 50000))
+        res_success = other_client.post(
             "/api/auth/login",
-            json={"password": test_secret},
-            headers={"x-forwarded-for": other_ip}
+            json={"password": test_secret}
         )
         assert res_success.status_code == 200
         set_cookie = res_success.headers.get("set-cookie", "")
@@ -1069,7 +1077,10 @@ def test_survey_storage_recovery_and_excel_reconstruction(auth_client: TestClien
         assert len(list(local_dir.glob("*"))) == 0
 
         # 4. Execute QC audit: verifies automatic retrieval from cloud storage and local cache self-healing
-        audit_resp = auth_client.post("/api/surveys/run-audit", json={"raw_filename": raw_fname, "qq_filename": qq_fname})
+        audit_resp = auth_client.post("/api/surveys/run-audit", json={
+            "raw_filename": raw_fname, "qq_filename": qq_fname,
+            "confirmed_mappings": [{"question_number": "Q1", "matched_column": "Age"}],
+        })
         assert audit_resp.status_code == 200
         audit_id = audit_resp.json()["audit_id"]
 

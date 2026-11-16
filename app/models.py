@@ -15,6 +15,12 @@ from app.database import Base
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
+
+def survey_utc_now() -> datetime:
+    # The survey schema uses timestamp without time zone. Bind UTC explicitly so
+    # PostgreSQL does not cast a timezone-aware value using the server's local zone.
+    return utc_now().replace(tzinfo=None)
+
 class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
 
@@ -171,7 +177,7 @@ class SurveyAuditRun(Base):
     timing_rules_json = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
 
-    started_at = Column(DateTime, default=utc_now, nullable=False)
+    started_at = Column(DateTime, default=survey_utc_now, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     duration_seconds = Column(Float, nullable=True)
 
@@ -232,7 +238,7 @@ class SurveyRespondent(Base):
     reviewer_notes = Column(Text, nullable=True)
     reviewed_by = Column(String(100), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=utc_now, nullable=False)
+    created_at = Column(DateTime, default=survey_utc_now, nullable=False)
 
     audit_run = relationship("SurveyAuditRun", back_populates="respondents")
     findings = relationship(
@@ -269,7 +275,7 @@ class SurveyQcFinding(Base):
     severity = Column(String(30), nullable=False, default="MEDIUM")  # HIGH, MEDIUM, LOW, INFO
     review_recommendation = Column(String(50), nullable=False, default="REVIEW_REQUIRED")  # REJECT, REVIEW_REQUIRED, NOTE
     final_decision = Column(String(50), nullable=True)
-    created_at = Column(DateTime, default=utc_now, nullable=False)
+    created_at = Column(DateTime, default=survey_utc_now, nullable=False)
 
     audit_run = relationship("SurveyAuditRun", back_populates="findings")
     respondent = relationship("SurveyRespondent", back_populates="findings")
@@ -296,7 +302,7 @@ class SurveyQuestionMapping(Base):
     confidence = Column(String(20), nullable=False, default="MEDIUM")  # HIGH, MEDIUM, LOW, UNMAPPED
     mapping_evidence = Column(Text, nullable=True)
     qc_instructions = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=utc_now, nullable=False)
+    created_at = Column(DateTime, default=survey_utc_now, nullable=False)
 
     audit_run = relationship("SurveyAuditRun", back_populates="mappings")
 
@@ -304,3 +310,15 @@ class SurveyQuestionMapping(Base):
         Index("ix_sqm_audit_qnum", "audit_id", "question_number"),
     )
 
+
+
+class SurveyReviewEvent(Base):
+    __tablename__ = "survey_review_events"
+    id = Column(Integer, primary_key=True)
+    audit_id = Column(Integer, ForeignKey("survey_audit_runs.id", ondelete="CASCADE"), index=True, nullable=False)
+    respondent_id = Column(Integer, ForeignKey("survey_respondents.id", ondelete="CASCADE"), index=True, nullable=False)
+    previous_disposition = Column(String(30), nullable=False)
+    new_disposition = Column(String(30), nullable=False)
+    reviewer = Column(String(100), nullable=False)
+    reason = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=survey_utc_now, nullable=False)

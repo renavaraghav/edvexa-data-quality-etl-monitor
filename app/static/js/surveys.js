@@ -80,7 +80,7 @@ const Surveys = {
     const handleLogin = async () => {
       const key = pwdInput ? pwdInput.value.trim() : '';
       if (!key) {
-        this.showToast('Please enter an Admin Secret Key.', 'warning');
+        this.showToast('Please enter the admin password.', 'warning');
         return;
       }
       try {
@@ -204,8 +204,9 @@ const Surveys = {
           confirmResetBtn.textContent = 'Resetting...';
           const resp = await this.apiFetch('/api/surveys/reset-survey-data', { method: 'POST' });
           const data = await resp.json();
+          if (!resp.ok) throw new Error(data.detail || 'Reset request rejected.');
           closeReset();
-          this.showToast('Survey audit runs and respondent records permanently reset.', 'success');
+          this.showToast(data.message, data.status === 'partial_success' ? 'warning' : 'success');
           this.currentAuditId = null;
           this.currentAudit = null;
           this.respondents = [];
@@ -224,7 +225,11 @@ const Surveys = {
     // Respondent Search & Tab Filters
     const searchInput = document.getElementById('surveyRespondentSearch');
     if (searchInput) {
-      searchInput.addEventListener('input', () => this.renderRespondentsTable());
+      let searchTimeout;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => this.loadResultsPage('respondents', 1), 250);
+      });
     }
 
     ['ALL', 'ACCEPTED', 'REVIEW_REQUIRED', 'REJECTED'].forEach(tab => {
@@ -234,7 +239,7 @@ const Surveys = {
           document.querySelectorAll('#view-surveys .tab-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           this.currentTab = tab;
-          this.renderRespondentsTable();
+          this.loadResultsPage("respondents", 1);
         });
       }
     });
@@ -244,7 +249,7 @@ const Surveys = {
     if (severitySelect) {
       severitySelect.addEventListener('change', (e) => {
         this.findingFilter = e.target.value;
-        this.renderFindingsTable();
+        this.loadResultsPage("findings", 1);
       });
     }
 
@@ -438,6 +443,7 @@ const Surveys = {
       }
       const data = await resp.json();
       this.qqData = data;
+      this.mappingData = [];
 
       if (summaryBox) summaryBox.classList.remove('d-none');
       if (fileNameEl) fileNameEl.textContent = `${data.original_name} (${(data.file_size_bytes / 1024).toFixed(1)} KB)`;
@@ -451,11 +457,13 @@ const Surveys = {
 
       if (pillsEl) {
         const totalQ = data.total_questions_detected || data.questions_count || (data.questions ? data.questions.length : 0);
-        let durPill = 'Not specified in QQ (Default: 7–15 min)';
+        let durPill = 'No duration threshold configured';
         if (data.detected_duration_min && data.detected_duration_max) {
           durPill = `${data.detected_duration_min}–${data.detected_duration_max} min (from QQ)`;
         } else if (data.detected_duration_min) {
           durPill = `${data.detected_duration_min} min (from QQ)`;
+        } else if (data.expected_duration_target_minutes) {
+          durPill = `${data.expected_duration_target_minutes} min target (no cutoff)`;
         }
 
         let timerPill = '0 (No timer rule in QQ)';
@@ -486,20 +494,19 @@ const Surveys = {
 
       if (data.detected_duration_min) {
         if (minInp) minInp.value = data.detected_duration_min;
-        if (maxInp) maxInp.value = data.detected_duration_max || Math.round(data.detected_duration_min * 1.5);
+        if (maxInp) maxInp.value = data.detected_duration_max ?? "";
         if (durBadgeEl) {
           durBadgeEl.textContent = 'Source: Questionnaire Specification';
           durBadgeEl.className = 'badge-success text-xs';
         }
-        const calculatedConcern = Math.max(2, Math.round(data.detected_duration_min * 0.5 * 10) / 10);
-        if (speedInp) speedInp.value = calculatedConcern;
-        if (speedHelpEl) speedHelpEl.textContent = `Completions faster than ${calculatedConcern}m trigger speeding concern (derived as 1/2 QQ min).`;
+        if (speedInp) speedInp.value = '';
+        if (speedHelpEl) speedHelpEl.textContent = 'Optional manual cutoff in minutes.';
       } else {
-        if (minInp) minInp.value = 7;
-        if (maxInp) maxInp.value = 15;
-        if (speedInp) speedInp.value = 5;
+        if (minInp) minInp.value = '';
+        if (maxInp) maxInp.value = '';
+        if (speedInp) speedInp.value = '';
         if (durBadgeEl) {
-          durBadgeEl.textContent = 'Source: Platform Default (7–15m)';
+          durBadgeEl.textContent = 'Source: Not configured';
           durBadgeEl.className = 'badge-neutral text-xs';
         }
       }
@@ -510,9 +517,9 @@ const Surveys = {
       const pageTimerBadgeEl = document.getElementById('rulePageTimerSourceBadge');
       const pageTimerHelpEl = document.getElementById('rulePageTimerHelp');
 
-      if (data.page_timer_threshold_seconds) {
+      if (data.page_timer_threshold_seconds || Object.keys(data.page_timer_rules || {}).length) {
         if (pageTimerInpEl) {
-          pageTimerInpEl.value = data.page_timer_threshold_seconds;
+          pageTimerInpEl.value = data.page_timer_threshold_seconds ?? '';
           pageTimerInpEl.disabled = false;
         }
         if (pageTimerEnabledEl) pageTimerEnabledEl.checked = true;
@@ -531,7 +538,7 @@ const Surveys = {
         if (pageTimerHelpEl) pageTimerHelpEl.textContent = 'No page timer rule in QQ. Timers recorded as contextual telemetry (no rejections applied).';
       }
 
-      if (nextBtn) nextBtn.disabled = false;
+      if (nextBtn) nextBtn.disabled = !data.questions_count;
       const wizardBtn1 = document.getElementById('wizardBtn1');
       if (wizardBtn1) wizardBtn1.classList.add('completed');
 
@@ -547,10 +554,6 @@ const Surveys = {
 
     const sheetContainer = document.getElementById('surveySheetSelectContainer');
     const sheetSelect = document.getElementById('surveySheetSelect');
-    const metaAlert = document.getElementById('surveyMetadataAlert');
-    const previewContainer = document.getElementById('surveyDataPreviewContainer');
-    const nextBtn = document.getElementById('surveyStep2NextBtn');
-
     try {
       this.showToast(`Uploading respondent data: ${file.name}...`, 'info');
       const resp = await this.apiFetch('/api/surveys/upload-raw', {
@@ -563,28 +566,22 @@ const Surveys = {
       }
       const data = await resp.json();
       this.rawData = data;
-      this.columns = data.columns || [];
+      const header = document.getElementById('surveyHeaderRow');
+      const useHeader = () => {
+        if (header.reportValidity()) this.loadSheetPreview(this.rawData.selected_sheet, Number(header.value) - 1);
+      };
+      header.onchange = useHeader;
+      document.getElementById('surveyConfirmHeader').onclick = useHeader;
 
       // Sheet selection if multi-sheet excel
       if (data.is_excel && data.sheets && data.sheets.length > 1 && sheetContainer && sheetSelect) {
         sheetContainer.classList.remove('d-none');
-        sheetSelect.innerHTML = data.sheets.map(s => `<option value="${s}" ${s === data.sheet_name ? 'selected' : ''}>${s}</option>`).join('');
+        sheetSelect.innerHTML = data.sheets.map(s => `<option value="${this.escapeHtml(s)}" ${s === data.selected_sheet ? 'selected' : ''}>${this.escapeHtml(s)}</option>`).join('');
       } else if (sheetContainer) {
         sheetContainer.classList.add('d-none');
       }
 
-      // Metadata alert (e.g. Qualtrics 3-row headers)
-      if (data.metadata_rows_detected > 0 && metaAlert) {
-        metaAlert.textContent = `Intelligent Header Detection: Row ${data.header_row_index + 1} recognized as question codes, with ${data.metadata_rows_detected} metadata/wording rows preceding respondent records.`;
-        metaAlert.classList.remove('d-none');
-      } else if (metaAlert) {
-        metaAlert.classList.add('d-none');
-      }
-
-      // Render preview
-      this.renderPreviewTable(data.columns, data.preview_rows, data.total_rows_detected);
-
-      if (nextBtn) nextBtn.disabled = false;
+      this.applyRawPreview(data);
       const wizardBtn2 = document.getElementById('wizardBtn2');
       if (wizardBtn2) wizardBtn2.classList.add('completed');
 
@@ -594,26 +591,47 @@ const Surveys = {
     }
   },
 
-  async loadSheetPreview(sheetName) {
+  async loadSheetPreview(sheetName, headerRow) {
     if (!this.rawData) return;
+    const artifact = this.rawData.artifact_name;
+    const requestId = this.previewRequest = (this.previewRequest || 0) + 1;
+    document.getElementById('surveyStep2NextBtn').disabled = true;
     try {
       const resp = await this.apiFetch('/api/surveys/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           raw_filename: this.rawData.filename,
+          raw_artifact_name: this.rawData.artifact_name,
           sheet_name: sheetName,
-          header_row_index: 0
+          header_row_index: headerRow
         })
       });
-      if (!resp.ok) return;
+      if (!resp.ok) throw new Error((await resp.json()).detail || 'Preview unavailable.');
       const data = await resp.json();
-      this.rawData.sheet_name = sheetName;
-      this.columns = data.columns || [];
-      this.renderPreviewTable(data.columns, data.preview_rows, data.total_rows);
+      if (this.rawData.artifact_name === artifact && this.previewRequest === requestId) {
+        this.applyRawPreview(data);
+      }
     } catch (err) {
-      console.error('Failed to preview sheet:', err);
+      if (this.previewRequest === requestId) this.showToast('Failed to preview sheet: ' + err.message, 'error');
     }
+  },
+
+  applyRawPreview(data) {
+    document.getElementById('surveyHeaderRow').value = data.header_row_index + 1;
+    this.rawData = {...this.rawData, ...data};
+    this.mappingData = [];
+    this.columns = data.columns || [];
+    this.renderPreviewTable(this.columns, data.preview_rows, data.total_rows);
+
+    const notice = document.getElementById('surveyMetadataAlert');
+    const excluded = data.excluded_rows?.filter(r => r.reason !== 'header') || [];
+    const details = excluded.slice(0, 6).map(r => `row ${r.source_row} (${r.reason.replaceAll('_', ' ')})`);
+    const message = [data.header_confirmation_required ? 'Confirm which row contains the column names.' : '',
+      data.intake_error || '', ...details, excluded.length > details.length ? `${excluded.length - details.length} more excluded rows` : ''];
+    notice.textContent = message.filter(Boolean).join(' · ');
+    notice.classList.toggle('d-none', !notice.textContent);
+    document.getElementById('surveyStep2NextBtn').disabled = Boolean(data.header_confirmation_required || data.intake_error || !data.total_rows);
   },
 
   renderPreviewTable(cols, rows, totalRows) {
@@ -643,6 +661,8 @@ const Surveys = {
 
   async fetchMappingSuggestions() {
     if (!this.qqData || !this.rawData) return;
+    const questionnaire = this.qqData;
+    const dataset = this.rawData;
     try {
       this.showToast('Auto-correlating questionnaire questions to dataset columns...', 'info');
       const resp = await this.apiFetch('/api/surveys/suggest-mapping', {
@@ -650,12 +670,16 @@ const Surveys = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           qq_filename: this.qqData.filename,
+          qq_artifact_name: this.qqData.artifact_name,
           raw_filename: this.rawData.filename,
-          sheet_name: this.rawData.sheet_name
+          raw_artifact_name: this.rawData.artifact_name,
+          header_row_index: this.rawData.header_row_index || 0,
+          sheet_name: this.rawData.selected_sheet
         })
       });
-      if (!resp.ok) throw new Error('Failed to retrieve mapping suggestions.');
+      if (!resp.ok) throw new Error((await resp.json()).detail || "Failed to retrieve mapping suggestions.");
       const data = await resp.json();
+      if (this.qqData !== questionnaire || this.rawData !== dataset) return;
       this.mappingData = data.mappings || [];
       this.renderMappingTable(data);
       const wizardBtn3 = document.getElementById('wizardBtn3');
@@ -679,13 +703,12 @@ const Surveys = {
     if (unmappedBadge) unmappedBadge.textContent = `Unmapped: ${data.unmapped_count || 0}`;
 
     if (teleList) {
-      const detected = [];
-      if (data.start_time_column) detected.push(`Start: ${data.start_time_column}`);
-      if (data.end_time_column) detected.push(`End: ${data.end_time_column}`);
-      if (data.duration_column) detected.push(`Duration: ${data.duration_column}`);
-      if (data.ip_address_column) detected.push(`IP: ${data.ip_address_column}`);
-      if (data.response_id_column) detected.push(`ID: ${data.response_id_column}`);
-      teleList.textContent = detected.length > 0 ? detected.join(' | ') : 'Standard telemetry detected automatically during QC.';
+      const selectOptions = columns => this.columns.map(c => `<option value="${this.escapeHtml(c)}" ${columns.includes(c) ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('');
+      const roles = [['respondent_id', 'Respondent ID'], ['duration', 'Duration (seconds)'], ['start_time', 'Start'], ['end_time', 'End'], ['ip_address', 'IP']];
+      teleList.innerHTML = roles.map(([role, title]) =>
+        `<label>${title} <select data-survey-telemetry="${role}"><option value="">Unmapped</option>${selectOptions([data.system_columns?.[role]])}</select></label>`
+      ).join(' ') + ` <label>Page timers (seconds) <select id="surveyTimerColumns" multiple>${selectOptions(data.timer_columns || [])}</select></label>`;
+
     }
 
     if (!tbody) return;
@@ -694,19 +717,17 @@ const Surveys = {
       return;
     }
 
-    const colOptions = ['<option value="">-- Unmapped / Skip --</option>'].concat(
-      this.columns.map(c => `<option value="${this.escapeHtml(c)}">${this.escapeHtml(c)}</option>`)
-    ).join('');
-
     tbody.innerHTML = this.mappingData.map((m, idx) => {
       const confClass = m.confidence === 'HIGH' ? 'badge-confidence-high' :
                         m.confidence === 'MEDIUM' ? 'badge-confidence-medium' :
                         m.confidence === 'LOW' ? 'badge-confidence-low' : 'badge-confidence-unmapped';
 
+      const skipped = ['metadata', 'instruction', 'display_text'].includes(m.question_type);
+      const multiple = m.mapped_columns?.length > 1 || m.grouped_columns || ['matrix_grid', 'multiple_choice', 'multi_choice_grid'].includes(m.question_type);
       const selectHtml = `
-        <select class="form-control text-xs survey-map-select" data-index="${idx}">
+        <select class="form-control text-xs survey-map-select" data-index="${idx}" ${multiple ? 'multiple' : ''} ${skipped ? 'disabled' : ''}>
           <option value="">-- Unmapped / Skip --</option>
-          ${this.columns.map(c => `<option value="${this.escapeHtml(c)}" ${c === m.matched_column ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('')}
+          ${this.columns.map(c => `<option value="${this.escapeHtml(c)}" ${(m.mapped_columns || []).includes(c) ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('')}
         </select>
       `;
 
@@ -716,7 +737,10 @@ const Surveys = {
           <td><div class="text-xs" style="max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(m.question_text || '')}">${this.escapeHtml(m.question_text || '')}</div></td>
           <td>${selectHtml}</td>
           <td><span class="${confClass}">${m.confidence}</span></td>
-          <td><span class="text-xs text-muted">${this.escapeHtml(m.evidence || '')}</span></td>
+          <td><span class="text-xs text-muted">${this.escapeHtml(m.evidence || '')}</span>
+            <label><input type="checkbox" data-confirm-index="${idx}" ${m.mapping_status === 'CONFIRMED' ? 'checked' : ''} ${m.mapped_columns?.length ? '' : 'disabled'}> Confirm mapping</label>
+            <label><input type="checkbox" data-required-index="${idx}" ${m.mapped_columns?.length ? '' : 'disabled'}> Required when applicable</label>
+          </td>
         </tr>
       `;
     }).join('');
@@ -726,17 +750,39 @@ const Surveys = {
       sel.addEventListener('change', (e) => {
         const idx = parseInt(e.target.getAttribute('data-index'), 10);
         if (this.mappingData[idx]) {
-          this.mappingData[idx].matched_column = e.target.value || null;
+          const selected = Array.from(e.target.selectedOptions, option => option.value).filter(Boolean);
+          this.mappingData[idx].mapped_columns = selected;
+          this.mappingData[idx].matched_column = selected[0] || null;
+          this.mappingData[idx].mapping_status = selected.length ? 'SUGGESTED' : 'SKIPPED';
           this.mappingData[idx].confidence = e.target.value ? 'HIGH' : 'UNMAPPED';
-          this.mappingData[idx].evidence = e.target.value ? 'Manually verified by auditor' : 'Unmapped';
+          const confirmation = tbody.querySelector(`[data-confirm-index="${idx}"]`);
+          confirmation.disabled = !selected.length;
+          confirmation.checked = false;
+          const required = document.querySelector(`[data-required-index="${idx}"]`);
+          if (required) {
+            required.disabled = !selected.length;
+            if (!selected.length) required.checked = false;
+          }
+          this.mappingData[idx].evidence = selected.length ? 'Edited, awaiting confirmation' : 'Unmapped';
         }
       });
     });
+    tbody.querySelectorAll('[data-confirm-index]').forEach(input => {
+      input.onchange = () => {
+        this.mappingData[Number(input.dataset.confirmIndex)].mapping_status = input.checked ? 'CONFIRMED' : 'SUGGESTED';
+      };
+    });
+    document.getElementById('surveyConfirmAllMappings').onclick = () => {
+      tbody.querySelectorAll('[data-confirm-index]:not(:disabled)').forEach(input => {
+        input.checked = true;
+        input.onchange();
+      });
+    };
   },
 
   async executeAudit() {
-    if (!this.rawData) {
-      this.showToast('Please upload raw respondent data first.', 'warning');
+    if (!this.rawData || !this.mappingData.length) {
+      this.showToast('Upload respondent data and confirm mapping before running QC.', 'warning');
       return;
     }
 
@@ -749,37 +795,50 @@ const Surveys = {
       if (spinner) spinner.classList.remove('d-none');
       if (btnText) btnText.textContent = 'Executing Audit Suite...';
 
-      // Collect confirmed mappings
+      // Only an explicit check marks a mapping as confirmed.
       const confirmedMappings = this.mappingData.map(m => ({
         question_number: m.question_number,
-        question_text: m.question_text,
-        matched_column: m.matched_column,
-        confidence: m.confidence,
-        evidence: m.evidence
+        mapping_status: m.mapped_columns?.length ? m.mapping_status : 'SKIPPED',
+        mapped_columns: m.mapped_columns || [],
       }));
 
       // Collect rule overrides
       const pageTimerEnabled = document.getElementById('rulePageTimerEnabled')?.checked;
-      const pageTimerVal = pageTimerEnabled ? parseFloat(document.getElementById('rulePageTimer')?.value || 20) : null;
+      const pageTimerVal = pageTimerEnabled ? document.getElementById('rulePageTimer')?.valueAsNumber : null;
       const rejectExtremeSpeeding = document.getElementById('ruleRejectExtremeSpeeding')?.checked || false;
-      const durBadgeText = document.getElementById('ruleDurationSourceBadge')?.textContent || '';
-      const timerBadgeText = document.getElementById('rulePageTimerSourceBadge')?.textContent || '';
+      const override = (value, original) => value === original || (!Number.isFinite(value) && original == null) ? undefined : Number.isFinite(value) ? value : null;
 
       const payload = {
         raw_filename: this.rawData.filename,
-        sheet_name: this.rawData.sheet_name || null,
-        qq_filename: this.qqData ? this.qqData.filename : null,
+          raw_artifact_name: this.rawData.artifact_name,
+        header_row_index: this.rawData.header_row_index || 0,
+          sheet_name: this.rawData.selected_sheet || null,
+        qq_filename: this.qqData?.filename || null,
+        qq_artifact_name: this.qqData?.artifact_name || null,
+        raw_file_hash: this.rawData.file_hash,
+        qq_file_hash: this.qqData?.file_hash,
         confirmed_mappings: confirmedMappings,
-        min_expected_duration_min: parseFloat(document.getElementById('ruleMinExpectedDuration')?.value || 7),
-        max_expected_duration_min: parseFloat(document.getElementById('ruleMaxExpectedDuration')?.value || 15),
-        speeding_concern_threshold_min: parseFloat(document.getElementById('ruleSpeedingThreshold')?.value || 5),
-        extreme_speeding_cutoff_min: parseFloat(document.getElementById('ruleExtremeSpeeding')?.value || 2),
-        page_timer_threshold_sec: pageTimerVal,
-        duration_source: durBadgeText.replace('Source: ', '').trim(),
-        page_timer_source: timerBadgeText.replace('Source: ', '').trim(),
+        min_expected_duration_min: override(document.getElementById('ruleMinExpectedDuration')?.valueAsNumber, this.qqData?.detected_duration_min),
+        max_expected_duration_min: override(document.getElementById('ruleMaxExpectedDuration')?.valueAsNumber, this.qqData?.detected_duration_max),
+        speeding_concern_threshold_min: document.getElementById('ruleSpeedingThreshold')?.valueAsNumber,
+        extreme_speeding_cutoff_min: document.getElementById('ruleExtremeSpeeding')?.valueAsNumber,
+        page_timer_threshold_sec: override(pageTimerVal, this.qqData?.page_timer_threshold_seconds),
+        page_timers_enabled: Boolean(pageTimerEnabled),
+        duplicate_enabled: document.getElementById('ruleDuplicatesEnabled').checked,
+        open_text_enabled: document.getElementById('ruleOpenTextEnabled').checked,
+        straightlining_enabled: document.getElementById('ruleStraightliningEnabled').checked,
+        screener_enabled: document.getElementById('ruleScreenerEnabled').checked,
+        reject_straightlining: document.getElementById('ruleRejectStraightlining').checked,
+        reject_page_timers: document.getElementById('ruleRejectPageTimers').checked,
         reject_speeding_under_2min: rejectExtremeSpeeding,
         straightline_min_statements: parseInt(document.getElementById('ruleStraightlineMinStatements')?.value || 4, 10),
-        straightline_threshold_pct: parseFloat(document.getElementById('ruleStraightlineThreshold')?.value || 80)
+        straightline_threshold_pct: parseFloat(document.getElementById('ruleStraightlineThreshold')?.value || 80),
+        system_columns: Object.fromEntries(Array.from(document.querySelectorAll('[data-survey-telemetry]'), el => [el.dataset.surveyTelemetry, el.value || null])),
+        timer_columns: Array.from(document.getElementById('surveyTimerColumns')?.selectedOptions || [], el => el.value),
+        timing_rules: {
+          required_questions: Array.from(document.querySelectorAll('[data-required-index]:checked'), el => this.mappingData[Number(el.dataset.requiredIndex)].question_number),
+          completeness_threshold_pct: document.getElementById('ruleCompletenessThreshold').valueAsNumber
+        }
       };
 
       this.showToast('Executing comprehensive QC audit on respondent records...', 'info');
@@ -807,7 +866,7 @@ const Surveys = {
 
       // Enable export button
       const exportBtn = document.getElementById('surveyExportCurrentBtn');
-      if (exportBtn) exportBtn.disabled = false;
+      if (exportBtn) exportBtn.disabled = auditResp.status !== 'completed';
 
       // Load full audit telemetry and render dashboard
       await this.loadAuditDetails(result.audit_id);
@@ -826,24 +885,65 @@ const Surveys = {
     }
   },
 
+  async getAuditJson(url) {
+    const response = await this.apiFetch(url);
+    if (!response.ok) throw new Error(`Request failed (HTTP ${response.status}).`);
+    return response.json();
+  },
+
+  async getAuditPages(url, query) {
+    const items = [];
+    for (let page = 1; ; page++) {
+      const result = await this.getAuditJson(`${url}?paginated=true&${query}&page=${page}`);
+      items.push(...result.items);
+      if (items.length >= result.total || !result.items.length) return items;
+    }
+  },
+
+  async loadResultsPage(kind, page) {
+    const auditId = this.currentAuditId;
+    if (!auditId) return;
+    this.pageRequests ??= {};
+    const requestId = this.pageRequests[kind] = (this.pageRequests[kind] || 0) + 1;
+    const q = new URLSearchParams({paginated: 'true', page, [kind === 'respondents' ? 'page_size' : 'limit']: 25});
+    if (kind === 'respondents') {
+      if (this.currentTab !== 'ALL') q.set('disposition', this.currentTab);
+      const term = document.getElementById('surveyRespondentSearch')?.value.trim();
+      if (term) q.set('search', term);
+    } else if (this.findingFilter !== 'ALL') {
+      q.set('severity', this.findingFilter);
+    }
+    try {
+      const result = await this.getAuditJson(`/api/surveys/audits/${auditId}/${kind}?${q}`);
+      if (auditId !== this.currentAuditId || requestId !== this.pageRequests[kind]) return;
+      this[kind] = result.items;
+      if (kind === 'respondents') this.renderRespondentsTable();
+      else this.renderFindingsTable();
+      const bar = document.getElementById(`survey-${kind}-pages`);
+      if (!bar) return;
+      const pages = Math.max(1, Math.ceil(result.total / result.page_size));
+      bar.innerHTML = `<button type="button" ${page <= 1 ? 'disabled' : ''}>Previous</button>
+        Page ${page} of ${pages} (${result.total} results)
+        <button type="button" ${page >= pages ? 'disabled' : ''}>Next</button>`;
+      const [prev, next] = bar.querySelectorAll('button');
+      prev.onclick = () => this.loadResultsPage(kind, page - 1);
+      next.onclick = () => this.loadResultsPage(kind, page + 1);
+    } catch (error) {
+      this.showToast(error.message, 'error');
+    }
+  },
+
   async loadAuditDetails(auditId) {
     try {
       this.currentAuditId = auditId;
-      const [auditResp, respResp, findResp] = await Promise.all([
-        this.apiFetch(`/api/surveys/audits/${auditId}`).then(r => r.json()),
-        this.apiFetch(`/api/surveys/audits/${auditId}/respondents`).then(r => r.json()),
-        this.apiFetch(`/api/surveys/audits/${auditId}/findings`).then(r => r.json())
-      ]);
-
+      const auditResp = await this.getAuditJson(`/api/surveys/audits/${auditId}`);
+      if (this.currentAuditId !== auditId) return;
       this.currentAudit = auditResp;
-      this.respondents = respResp;
-      this.findings = findResp;
 
       this.populateKpis(auditResp);
       this.renderCharts(auditResp);
       this.renderCoverageTable(auditResp.qc_coverage || []);
-      this.renderRespondentsTable();
-      this.renderFindingsTable();
+      await Promise.all([this.loadResultsPage("respondents", 1), this.loadResultsPage("findings", 1)]);
 
       const exportBtn = document.getElementById('surveyExportCurrentBtn');
       if (exportBtn) exportBtn.disabled = false;
@@ -908,13 +1008,17 @@ const Surveys = {
     this.setText('surveyKpiRouting', data.routing_violations_count || 0);
 
     // Invariant check
-    const isReconciled = total === (accepted + rejected + review);
+    const complete = !data.status || data.status === 'completed';
+    const isReconciled = complete && total === (accepted + rejected + review);
     const badge = document.getElementById('surveyInvariantBadge');
     const formula = document.getElementById('surveyAccountingFormula');
     const timeEl = document.getElementById('surveyAuditTimestamp');
 
     if (badge) {
-      if (isReconciled) {
+      if (!complete) {
+        badge.className = 'badge-neutral text-xs font-bold';
+        badge.textContent = data.status === 'failed' ? 'Audit failed' : 'Audit in progress';
+      } else if (isReconciled) {
         badge.className = 'badge-success text-xs font-bold';
         badge.innerHTML = '&check; Strict Accounting Verified';
       } else {
@@ -924,7 +1028,8 @@ const Surveys = {
     }
 
     if (formula) {
-      formula.textContent = `Total (${total}) = Accepted (${accepted}) + Rejected (${rejected}) + Review Required (${review}) \u2022 100% Accounted`;
+      formula.textContent = complete ? `Total (${total}) = Accepted (${accepted}) + Rejected (${rejected}) + Review Required (${review})` :
+        data.error_message || 'Results will appear when QC completes.';
     }
 
     if (timeEl && data.executed_at) {
@@ -1032,8 +1137,8 @@ const Surveys = {
           <td><strong>${this.escapeHtml(c.category || '')}</strong></td>
           <td><span class="${statusClass} text-xs font-bold">${c.status}</span></td>
           <td>${c.flagged_count > 0 ? `<strong class="text-danger">${c.flagged_count}</strong>` : '0'}</td>
-          <td><div class="text-xs">${this.escapeHtml(c.description || '')}</div></td>
-          <td><div class="text-xs text-muted">${this.escapeHtml(c.limitations || 'No limitations noted.')}</div></td>
+          <td><div class="text-xs">${this.escapeHtml(c.rule_description || '')}</div></td>
+          <td><div class="text-xs text-muted">${this.escapeHtml(c.notes || 'No limitations noted.')}</div></td>
         </tr>
       `;
     }).join('');
@@ -1041,32 +1146,13 @@ const Surveys = {
 
   renderRespondentsTable() {
     const tbody = document.getElementById('surveyRespondentsTableBody');
-    const searchVal = (document.getElementById('surveyRespondentSearch')?.value || '').toLowerCase().trim();
-
-    const allCount = this.respondents.length;
-    const accCount = this.respondents.filter(r => r.disposition === 'ACCEPTED').length;
-    const revCount = this.respondents.filter(r => r.disposition === 'REVIEW_REQUIRED').length;
-    const rejCount = this.respondents.filter(r => r.disposition === 'REJECTED').length;
-
-    this.setText('surveyTabCountAll', allCount);
-    this.setText('surveyTabCountAccepted', accCount);
-    this.setText('surveyTabCountReview', revCount);
-    this.setText('surveyTabCountRejected', rejCount);
-
+    const audit = this.currentAudit || {};
+    this.setText('surveyTabCountAll', audit.total_respondents || 0);
+    this.setText('surveyTabCountAccepted', audit.accepted_count || 0);
+    this.setText('surveyTabCountReview', audit.review_required_count || 0);
+    this.setText('surveyTabCountRejected', audit.rejected_count || 0);
     if (!tbody) return;
-
-    let filtered = this.respondents;
-    if (this.currentTab !== 'ALL') {
-      filtered = filtered.filter(r => r.disposition === this.currentTab);
-    }
-
-    if (searchVal) {
-      filtered = filtered.filter(r =>
-        (r.respondent_key && r.respondent_key.toLowerCase().includes(searchVal)) ||
-        (r.ip_address && r.ip_address.toLowerCase().includes(searchVal)) ||
-        (r.disposition && r.disposition.toLowerCase().includes(searchVal))
-      );
-    }
+    const filtered = this.respondents;
 
     if (filtered.length === 0) {
       tbody.innerHTML = '<tr><td colspan="10" class="text-center py-3 text-muted">No respondents matching filter.</td></tr>';
@@ -1089,7 +1175,7 @@ const Surveys = {
 
       return `
         <tr>
-          <td><strong>${this.escapeHtml(r.respondent_key)}</strong></td>
+          <td><strong>${this.escapeHtml(r.respondent_key)}</strong><br><small>Row ${Number(r.row_number)}</small></td>
           <td><span class="${dispClass}">${r.disposition}</span></td>
           <td>${durText}</td>
           <td>${overnightBadge}</td>
@@ -1099,7 +1185,7 @@ const Surveys = {
           <td>${dupBadge}</td>
           <td><strong>${r.findings_count || 0}</strong></td>
           <td>
-            <button class="btn btn-outline btn-xs" onclick="Surveys.openReviewModal('${this.escapeHtml(r.respondent_key)}')">
+            <button class="btn btn-outline btn-xs" onclick="Surveys.openReviewModal(${Number(r.id)})">
               Review
             </button>
           </td>
@@ -1112,10 +1198,7 @@ const Surveys = {
     const tbody = document.getElementById('surveyFindingsTableBody');
     if (!tbody) return;
 
-    let filtered = this.findings;
-    if (this.findingFilter !== 'ALL') {
-      filtered = filtered.filter(f => f.severity === this.findingFilter);
-    }
+    const filtered = this.findings;
 
     if (filtered.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">No findings matching severity filter.</td></tr>';
@@ -1123,18 +1206,18 @@ const Surveys = {
     }
 
     tbody.innerHTML = filtered.map(f => {
-      const sevClass = f.severity === 'CRITICAL' ? 'badge-danger' :
-                       f.severity === 'WARNING' ? 'badge-warning' : 'badge-neutral';
+      const sevClass = f.severity === 'HIGH' ? 'badge-danger' :
+                       f.severity === 'MEDIUM' ? 'badge-warning' : 'badge-neutral';
 
       return `
         <tr>
           <td>#${f.id || ''}</td>
           <td><strong>${this.escapeHtml(f.respondent_key || '')}</strong></td>
-          <td>${this.escapeHtml(f.check_type || '')}</td>
+          <td>${this.escapeHtml(f.issue_type || '')}</td>
           <td><span class="${sevClass} text-xs font-bold">${f.severity}</span></td>
-          <td><div class="text-xs" style="max-width: 300px;">${this.escapeHtml(f.description || '')}</div></td>
+          <td><div class="text-xs" style="max-width: 300px;">${this.escapeHtml(f.evidence || '')}</div></td>
           <td><div class="text-xs text-muted" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis;">${this.escapeHtml(f.observed_value || 'N/A')}</div></td>
-          <td><div class="text-xs text-muted">${this.escapeHtml(f.threshold_reference || 'N/A')}</div></td>
+          <td><div class="text-xs text-muted">${this.escapeHtml(f.expected_rule || 'N/A')}</div></td>
         </tr>
       `;
     }).join('');
@@ -1157,7 +1240,7 @@ const Surveys = {
       tbody.innerHTML = runs.map(run => `
         <tr>
           <td><strong>#${run.id}</strong></td>
-          <td>${new Date(run.executed_at).toLocaleString()}</td>
+          <td>${new Date(run.started_at).toLocaleString()}</td>
           <td>${this.escapeHtml(run.raw_filename || '')}</td>
           <td>${this.escapeHtml(run.qq_filename || 'None')}</td>
           <td><strong>${run.total_respondents}</strong></td>
@@ -1167,7 +1250,7 @@ const Surveys = {
           <td>
             <div class="flex-center gap-1">
               <button class="btn btn-outline btn-xs" onclick="Surveys.loadAuditDetails(${run.id})">View</button>
-              <a href="/api/surveys/audits/${run.id}/export/excel" class="btn btn-solid-brown btn-xs">XLSX</a>
+              ${run.status === 'completed' ? `<a href="/api/surveys/audits/${run.id}/export/excel" class="btn btn-solid-brown btn-xs">XLSX</a>` : `<span>${this.escapeHtml(run.status)}</span>`}
             </div>
           </td>
         </tr>
@@ -1177,7 +1260,7 @@ const Surveys = {
     }
   },
 
-  openReviewModal(respondentKey) {
+  async openReviewModal(respondentId) {
     const modal = document.getElementById('surveyReviewModal');
     const respKeyEl = document.getElementById('surveyReviewRespKey');
     const findingsList = document.getElementById('surveyReviewFindingsList');
@@ -1185,23 +1268,31 @@ const Surveys = {
     const reviewerNameInp = document.getElementById('surveyReviewerName');
     const notesInp = document.getElementById('surveyReviewNotes');
 
-    const respondent = this.respondents.find(r => r.respondent_key === respondentKey);
+    const respondent = this.respondents.find(r => r.id === respondentId);
     if (!respondent || !modal) return;
 
-    this.activeReviewKey = respondentKey;
-    if (respKeyEl) respKeyEl.textContent = respondentKey;
+    this.activeReviewKey = respondent.respondent_key;
+    this.activeReviewId = respondent.id;
+    if (respKeyEl) respKeyEl.textContent = respondent.respondent_key;
     if (decisionSel) decisionSel.value = respondent.disposition;
     if (reviewerNameInp) reviewerNameInp.value = respondent.reviewed_by || 'QC Auditor';
-    if (notesInp) notesInp.value = respondent.review_notes || '';
+    if (notesInp) notesInp.value = respondent.reviewer_notes || '';
 
     // Show findings for this respondent
-    const respFindings = this.findings.filter(f => f.respondent_key === respondentKey);
+    let respFindings;
+    try {
+      respFindings = await this.getAuditPages(`/api/surveys/audits/${this.currentAuditId}/findings`, `limit=200&respondent_id=${respondentId}`);
+    } catch (error) {
+      this.showToast(error.message, 'error');
+      return;
+    }
+    if (this.activeReviewId !== respondentId) return;
     if (findingsList) {
       if (respFindings.length > 0) {
         findingsList.innerHTML = `
           <strong>Flagged Checks (${respFindings.length}):</strong>
           <ul class="mt-1 pl-3">
-            ${respFindings.map(f => `<li><strong>[${f.severity}] ${f.check_type}:</strong> ${this.escapeHtml(f.description)}</li>`).join('')}
+            ${respFindings.map(f => `<li><strong>[${f.severity}] ${f.issue_type}:</strong> ${this.escapeHtml(f.evidence)}</li>`).join('')}
           </ul>
         `;
       } else {
@@ -1234,7 +1325,7 @@ const Surveys = {
     }
 
     try {
-      const resp = await this.apiFetch(`/api/surveys/audits/${this.currentAuditId}/review/${encodeURIComponent(this.activeReviewKey)}`, {
+      const resp = await this.apiFetch(`/api/surveys/audits/${this.currentAuditId}/review-by-id/${this.activeReviewId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1276,8 +1367,8 @@ const Surveys = {
   },
 
   showToast(message, type = 'info') {
-    if (window.App && typeof window.App.showToast === 'function') {
-      window.App.showToast(message, type);
+    if (typeof App !== 'undefined' && typeof App.showToast === 'function') {
+      App.showToast(message, type);
     } else {
       console.log(`[Toast ${type}] ${message}`);
     }

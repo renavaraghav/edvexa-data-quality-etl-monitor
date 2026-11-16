@@ -128,13 +128,14 @@ class Settings:
         """Backwards compatibility alias for is_s3_configured."""
         return self.is_s3_configured
 
-    # Security & Destructive Action Safeguards: Public reset is enabled by default in all environments
-    # ADMIN_RESET_TOKEN has no fallback: application fails closed when not configured in production
-    # Cryptographic Session Signing Key: completely independent from ADMIN_RESET_TOKEN
-    # Never falls back to machine reset credentials. Fails closed in production if unset.
+    # Human login, scoped reset credentials, and session signing are independent.
     SECRET_KEY: str | None = os.getenv("SECRET_KEY")
-
     ADMIN_RESET_TOKEN: str | None = os.getenv("ADMIN_RESET_TOKEN")
+    ADMIN_LOGIN_PASSWORD: str | None = os.getenv("ADMIN_LOGIN_PASSWORD")
+    ADMIN_ALLOWED_ORIGINS: list[str] = [
+        value.strip() for value in (os.getenv("ADMIN_ALLOWED_ORIGINS") or os.getenv("RENDER_EXTERNAL_URL") or "").split(",")
+        if value.strip()
+    ]
     ALLOW_DESTRUCTIVE_RESET: bool = (
         os.getenv("FORCE_DISABLE_DESTRUCTIVE_RESET", "false").lower() not in ("true", "1", "yes")
     )

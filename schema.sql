@@ -3,6 +3,7 @@
 -- Target Dialect: SQLite 3.35+ (uses SQLite-specific AUTOINCREMENT syntax)
 -- File: schema.sql
 -- ============================================================================
+PRAGMA foreign_keys = ON;
 -- Architecture:
 -- 1. Ingestion & Job Audit:
 --    - `processing_jobs`: Tracks each file processing execution, hash, row counts, and status.
@@ -101,7 +102,7 @@ CREATE TABLE IF NOT EXISTS sales (
     customer_id VARCHAR(100) NOT NULL,
     amount FLOAT NOT NULL,
     sale_date VARCHAR(20) NOT NULL, -- ISO Date: YYYY-MM-DD
-    currency VARCHAR(10) NOT NULL
+    currency VARCHAR(3) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS ix_sales_sale_id ON sales (sale_id);
@@ -159,6 +160,8 @@ CREATE TABLE IF NOT EXISTS survey_audit_runs (
 
 CREATE INDEX IF NOT EXISTS ix_survey_audit_runs_raw_hash ON survey_audit_runs (raw_file_hash);
 CREATE INDEX IF NOT EXISTS ix_survey_audit_runs_started_at ON survey_audit_runs (started_at);
+CREATE INDEX IF NOT EXISTS ix_survey_audit_runs_status ON survey_audit_runs (status);
+CREATE INDEX IF NOT EXISTS ix_survey_audit_runs_qq_file_hash ON survey_audit_runs (qq_file_hash);
 
 -- ----------------------------------------------------------------------------
 -- 8. SURVEY RESPONDENTS
@@ -207,9 +210,9 @@ CREATE TABLE IF NOT EXISTS survey_qc_findings (
     observed_value TEXT,
     expected_rule TEXT,
     evidence TEXT NOT NULL,
-    severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
-    review_recommendation VARCHAR(30) NOT NULL DEFAULT 'REVIEW_REQUIRED',
-    final_decision VARCHAR(30),
+    severity VARCHAR(30) NOT NULL DEFAULT 'MEDIUM',
+    review_recommendation VARCHAR(50) NOT NULL DEFAULT 'REVIEW_REQUIRED',
+    final_decision VARCHAR(50),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_survey_findings_audit_id
         FOREIGN KEY (audit_id) REFERENCES survey_audit_runs (id) ON DELETE CASCADE,
@@ -221,6 +224,8 @@ CREATE INDEX IF NOT EXISTS ix_survey_findings_audit_id ON survey_qc_findings (au
 CREATE INDEX IF NOT EXISTS ix_survey_findings_resp_id ON survey_qc_findings (respondent_id);
 CREATE INDEX IF NOT EXISTS ix_survey_findings_issue_type ON survey_qc_findings (issue_type);
 CREATE INDEX IF NOT EXISTS ix_survey_findings_audit_key ON survey_qc_findings (audit_id, respondent_key);
+CREATE INDEX IF NOT EXISTS ix_survey_qc_findings_respondent_key ON survey_qc_findings (respondent_key);
+CREATE INDEX IF NOT EXISTS ix_qc_find_audit_type ON survey_qc_findings (audit_id, issue_type);
 
 -- ----------------------------------------------------------------------------
 -- 10. SURVEY QUESTION MAPPINGS
@@ -228,16 +233,32 @@ CREATE INDEX IF NOT EXISTS ix_survey_findings_audit_key ON survey_qc_findings (a
 CREATE TABLE IF NOT EXISTS survey_question_mappings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     audit_id INTEGER NOT NULL,
-    question_number VARCHAR(100) NOT NULL,
-    question_text TEXT,
-    question_type VARCHAR(50),
-    mapped_columns_json TEXT,
+    question_number VARCHAR(50) NOT NULL,
+    question_text TEXT NOT NULL,
+    question_type VARCHAR(50) NOT NULL,
+    mapped_columns_json TEXT NOT NULL,
+    mapping_status VARCHAR(30) NOT NULL DEFAULT 'SUGGESTED',
     confidence VARCHAR(20) NOT NULL DEFAULT 'UNMAPPED',
     mapping_evidence TEXT,
-    is_verified INTEGER NOT NULL DEFAULT 0,
+    qc_instructions TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_survey_mappings_audit_id
         FOREIGN KEY (audit_id) REFERENCES survey_audit_runs (id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS ix_survey_mappings_audit_id ON survey_question_mappings (audit_id);
+CREATE INDEX IF NOT EXISTS ix_sqm_audit_qnum ON survey_question_mappings (audit_id, question_number);
+
+-- Append-only survey review decisions.
+CREATE TABLE IF NOT EXISTS survey_review_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_id INTEGER NOT NULL REFERENCES survey_audit_runs(id) ON DELETE CASCADE,
+    respondent_id INTEGER NOT NULL REFERENCES survey_respondents(id) ON DELETE CASCADE,
+    previous_disposition VARCHAR(30) NOT NULL,
+    new_disposition VARCHAR(30) NOT NULL,
+    reviewer VARCHAR(100) NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_survey_review_events_audit_id ON survey_review_events(audit_id);
+CREATE INDEX IF NOT EXISTS ix_survey_review_events_respondent_id ON survey_review_events(respondent_id);
