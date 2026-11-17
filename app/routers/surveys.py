@@ -1361,7 +1361,7 @@ def reset_all_survey_data(
     Safely clears survey tables and survey storage files without touching
     any Customer, Sales, Inventory, or ProcessingJob records.
     Restricted to authenticated administrators with concurrency locking.
-    """
+
     This dedicated reset is separate from the ETL-wide destructive reset switch.
     Router-level require_survey_admin_auth enforces administrator or scoped reset
     credentials; the UI also requires explicit confirmation. Only survey tables
