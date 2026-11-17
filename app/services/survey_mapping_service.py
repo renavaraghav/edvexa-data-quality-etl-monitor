@@ -40,20 +40,24 @@ def suggest_mappings(
         "coverage_summary": dict
       }
     """
-    col_map = {col.lower(): col for col in raw_columns}
+    columns_by_code: dict[str, list[str]] = {}
+    for column in raw_columns:
+        columns_by_code.setdefault(column.lower(), []).append(column)
     question_codes = {
         str(q.get("question_number", "") if isinstance(q, dict) else q.question_number).strip().casefold()
         for q in questions
     }
     used_columns: set[str] = set()
+    fallback_pool = [column for column in raw_columns if column.casefold() not in question_codes]
 
     # 1. Identify System Telemetry Columns
     system_cols: dict[str, str | None] = {cat: None for cat in SYSTEM_COLUMN_CATEGORIES}
     for cat, candidates in SYSTEM_COLUMN_CATEGORIES.items():
         for cand in candidates:
-            if cand in col_map:
-                system_cols[cat] = col_map[cand]
-                used_columns.add(col_map[cand])
+            if cand in columns_by_code:
+                column = columns_by_code[cand][-1]
+                system_cols[cat] = column
+                used_columns.add(column)
                 break
 
     # Also detect page / question timers
@@ -126,13 +130,12 @@ def suggest_mappings(
         matched_cols: list[str] = []
         confidence = "LOW"
         evidence_parts: list[str] = []
-        fallback_columns = [c for c in raw_columns if c not in used_columns and c.casefold() not in question_codes]
+        fallback_columns = [column for column in fallback_pool if column not in used_columns]
 
         # A. Exact Question Code Match
         # Prefer an exact question code over prefix matches for other questions.
         exact_matches = [
-            col for col in raw_columns
-            if col.lower() == q_lower and col not in used_columns
+            column for column in columns_by_code.get(q_lower, ()) if column not in used_columns
         ]
         if exact_matches:
             matched_cols.extend(exact_matches)

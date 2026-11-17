@@ -14,6 +14,7 @@ Executes comprehensive, contextual quality audits on respondent records:
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from hashlib import sha256
 import json
 import logging
 import math
@@ -25,6 +26,12 @@ from dateutil import parser as dt_parser
 from app.services.survey_rules import confirmed, country_matches, resolve_eligibility_rules, resolve_page_rules
 
 logger = logging.getLogger("edvexa.surveys.qc_engine")
+
+
+def _duplicate_signature(cells: dict[str, str]) -> bytes:
+    """Store a fixed-size key rather than retaining one pair per input cell."""
+    canonical = json.dumps(cells, sort_keys=True, separators=(",", ":"))
+    return sha256(canonical.encode()).digest()
 
 # Common No-Recall phrases that represent VALID, honest non-recall answers
 VALID_NO_RECALL_PATTERNS = [
@@ -164,9 +171,10 @@ def run_survey_qc_audit(
     # Track identifiers for duplicate detection
     seen_ids: dict[str, list[str]] = {}
     seen_ips: dict[str, list[str]] = {}
-    seen_signatures: dict[tuple[tuple[str, str], ...], list[str]] = {}
-    answer_signatures = []
-    seen_full_rows: dict[tuple, list[tuple]] = {}
+    seen_signatures: dict[bytes, list[str]] = {}
+    answer_signatures: list[bytes | None] = []
+    seen_full_rows: dict[bytes, list[tuple[int, str]]] = {}
+    full_signatures: list[bytes | None] = []
 
     # Pass 1: Build duplicate lookup indices
     for idx, row in enumerate(records):
@@ -180,15 +188,19 @@ def run_survey_qc_audit(
             seen_ips.setdefault(ip, []).append(r_id)
 
         # Full record hash (exact duplicate full row)
-        full_sig = tuple(sorted((k, str(v)) for k, v in row.items() if k != "_physical_row"))
-        seen_full_rows.setdefault(full_sig, []).append((idx, r_id))
+        full_sig = None
+        if duplicate_enabled:
+            full_sig = _duplicate_signature({k: str(v) for k, v in row.items() if k != "_physical_row"})
+            seen_full_rows.setdefault(full_sig, []).append((idx, r_id))
+        full_signatures.append(full_sig)
 
         # Evaluate actual mapped answers, or non-telemetry data for a raw-only audit.
-        sig = tuple(sorted(
-            (column, str(value).strip().casefold()) for column, value in row.items()
+        answers = {
+            column: str(value).strip().casefold() for column, value in row.items()
             if column not in telemetry_columns and (not mappings or column in answer_columns)
             and value is not None and str(value).strip()
-        ))
+        } if duplicate_enabled else {}
+        sig = _duplicate_signature(answers) if answers else None
         answer_signatures.append(sig)
         if sig:
             seen_signatures.setdefault(sig, []).append(r_id)
@@ -419,8 +431,8 @@ def run_survey_qc_audit(
                 ))
 
         # B. Confirmed duplicate full record: 100% identical full row data
-        full_sig = tuple(sorted((k, str(v)) for k, v in row.items() if k != "_physical_row"))
-        if duplicate_enabled and len(seen_full_rows.get(full_sig, [])) > 1:
+        full_sig = full_signatures[idx]
+        if full_sig and len(seen_full_rows[full_sig]) > 1:
             first_full_idx, first_resp = seen_full_rows[full_sig][0]
             if idx > first_full_idx:
                 summary.confirmed_duplicates_count += 1

@@ -305,6 +305,8 @@ def test_browser_qc_review_reload_and_export(live_test_server):
         result = run.value.json()
         assert run.value.ok, result
         assert (result["accepted_count"], result["rejected_count"], result["review_required_count"]) == (1, 1, 1)
+        page.get_by_text("Total (3) = Accepted (1) + Rejected (1) + Review Required (1)", exact=False).wait_for()
+        assert page.locator("#surveyExportCurrentBtn").is_enabled()
         for tab, source_row in (("Accepted", "Row 5"), ("Review", "Row 3"), ("Rejected", "Row 4")):
             page.locator(f"#surveyTab{tab}").click()
             page.locator("#surveyRespondentsTableBody tr").get_by_text(source_row, exact=True).wait_for()
@@ -329,4 +331,42 @@ def test_browser_qc_review_reload_and_export(live_test_server):
         assert workbook["Review Required"].max_row == 2
         assert workbook["Review History"].max_row == 2
         assert list(workbook["Intake"].values)[1:] == [(1, "preamble"), (2, "header")]
+        browser.close()
+
+
+def test_wide_csv_mapping_picker_can_select_columns_outside_the_preview(live_test_server):
+    from app.config import settings
+
+    headers = ["ResponseId", "Q1", *[f"Column_{index}" for index in range(300)], "Far_End"]
+    values = ["synthetic-1", "Original answer", *([""] * 300), "Synthetic replacement"]
+    dataset = (",".join(headers) + "\n" + ",".join(values) + "\n").encode()
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(live_test_server)
+        page.evaluate("App.navigateTo('surveys')")
+        page.locator("#surveyAdminPasswordInput").fill(settings.ADMIN_LOGIN_PASSWORD)
+        page.locator("#surveyAdminPasswordInput").press("Enter")
+        page.set_input_files("#surveyQqFileInput", {
+            "name": "synthetic-wide.txt", "mimeType": "text/plain",
+            "buffer": b"Q1. What did you think about the visit? [Open End]",
+        })
+        page.click("#surveyStep1NextBtn")
+        page.set_input_files("#surveyRawFileInput", {
+            "name": "synthetic-wide.csv", "mimeType": "text/csv", "buffer": dataset,
+        })
+        page.get_by_text("50 of 303 columns", exact=False).wait_for()
+        page.click("#surveyStep2NextBtn")
+        picker = page.locator("#surveyMappingTableBody select")
+        picker.wait_for()
+        assert picker.input_value() == "Q1"
+        assert picker.locator("option").count() == 2
+        picker.focus()
+        assert picker.locator("option").count() == len(headers) + 1
+        picker.select_option("Far_End")
+        picker.blur()
+        assert picker.input_value() == "Far_End"
+        assert picker.locator("option").count() == 2
+        page.get_by_role("button", name="Confirm all mapped questions").click()
+        assert page.locator("[data-confirm-index]:checked").count() == 1
         browser.close()
