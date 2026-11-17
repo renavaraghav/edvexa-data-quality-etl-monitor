@@ -19,14 +19,16 @@ services:
         value: production
       - key: STORAGE_BACKEND
         value: neon
-      # Preserve the assignment-demo workflow. Set to "true" to disable the public reset endpoint.
+      # Fail closed: destructive ETL reset must remain disabled in production.
       - key: FORCE_DISABLE_DESTRUCTIVE_RESET
-        value: "false"
+        value: "true"
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_RESET_TOKEN
+        sync: false
+      - key: ADMIN_LOGIN_PASSWORD
         sync: false
       - key: NEON_STORAGE_ENDPOINT
         sync: false
