@@ -887,23 +887,22 @@ def test_survey_cookie_auth_csrf_protection(auth_client: TestClient, client: Tes
     assert res_bearer.status_code == 200
 
 
-def test_survey_destructive_reset_safeguards(auth_client: TestClient, db_session: Session):
+def test_survey_reset_is_independent_of_etl_wide_reset_guard(auth_client: TestClient, db_session: Session):
     """
-    Verify destructive survey reset enforces configuration guards and concurrency protection.
+    Survey-only reset remains available to an authenticated administrator while
+    the broader ETL reset stays disabled by the production safety configuration.
     """
     from unittest.mock import patch
 
-    # 1. When ALLOW_DESTRUCTIVE_RESET is False, returns 403 Forbidden
     with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", False):
-        res_forbidden = auth_client.post("/api/surveys/reset-survey-data")
-        assert res_forbidden.status_code == 403
-        assert "disabled by configuration" in res_forbidden.json()["detail"].lower()
+        survey_reset = auth_client.post("/api/surveys/reset-survey-data")
+        assert survey_reset.status_code == 200
+        assert survey_reset.json()["status"] == "success"
+        assert survey_reset.json()["etl_records_preserved"] is True
 
-    # 2. When allowed, successfully resets survey data
-    with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", True):
-        res_ok = auth_client.post("/api/surveys/reset-survey-data")
-        assert res_ok.status_code == 200
-        assert res_ok.json()["status"] == "success"
+        etl_reset = auth_client.post("/api/dashboard/reset-data")
+        assert etl_reset.status_code == 403
+        assert "disabled by configuration" in etl_reset.json()["detail"].lower()
 
 
 def test_survey_storage_durability_and_cloud_sync(auth_client: TestClient, tmp_path):
