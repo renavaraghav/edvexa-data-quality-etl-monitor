@@ -1362,11 +1362,10 @@ def reset_all_survey_data(
     any Customer, Sales, Inventory, or ProcessingJob records.
     Restricted to authenticated administrators with concurrency locking.
     """
-    if not settings.ALLOW_DESTRUCTIVE_RESET:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Destructive survey reset is currently disabled by configuration."
-        )
+    This dedicated reset is separate from the ETL-wide destructive reset switch.
+    Router-level require_survey_admin_auth enforces administrator or scoped reset
+    credentials; the UI also requires explicit confirmation. Only survey tables
+    and the dedicated survey storage area are cleared here.
 
     if not survey_reset_lock.acquire(blocking=False):
         raise HTTPException(
