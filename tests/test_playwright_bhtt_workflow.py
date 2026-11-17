@@ -305,6 +305,8 @@ def test_browser_qc_review_reload_and_export(live_test_server):
         result = run.value.json()
         assert run.value.ok, result
         assert (result["accepted_count"], result["rejected_count"], result["review_required_count"]) == (1, 1, 1)
+        page.get_by_text("Total (3) = Accepted (1) + Rejected (1) + Review Required (1)", exact=False).wait_for()
+        assert page.locator("#surveyExportCurrentBtn").is_enabled()
         for tab, source_row in (("Accepted", "Row 5"), ("Review", "Row 3"), ("Rejected", "Row 4")):
             page.locator(f"#surveyTab{tab}").click()
             page.locator("#surveyRespondentsTableBody tr").get_by_text(source_row, exact=True).wait_for()

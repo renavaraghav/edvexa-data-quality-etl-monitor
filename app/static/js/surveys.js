@@ -891,10 +891,6 @@ const Surveys = {
 
       this.showToast(`Audit Completed! ${result.total_respondents} respondents: ${result.accepted_count} Accepted, ${result.rejected_count} Rejected, ${result.review_required_count} Review Required.`, 'success');
 
-      // Enable export button
-      const exportBtn = document.getElementById('surveyExportCurrentBtn');
-      if (exportBtn) exportBtn.disabled = auditResp.status !== 'completed';
-
       // Load full audit telemetry and render dashboard
       await this.loadAuditDetails(result.audit_id);
       this.loadHistory();
