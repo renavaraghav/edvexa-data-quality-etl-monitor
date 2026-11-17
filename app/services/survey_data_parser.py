@@ -13,7 +13,10 @@ import re
 import time
 from typing import Any
 import openpyxl
-from app.services.survey_upload_limits import MAX_CELLS, MAX_COLUMNS, MAX_EXCEL_SECONDS, MAX_ROWS, SurveyUploadLimit, check_excel_time, validate_xlsx
+from app.services.survey_upload_limits import (
+    MAX_CSV_CELLS, MAX_CSV_COLUMNS, MAX_EXCEL_SECONDS, MAX_ROWS,
+    SurveyUploadLimit, check_excel_time, validate_xlsx,
+)
 
 logger = logging.getLogger("edvexa.surveys.data_parser")
 
@@ -85,8 +88,15 @@ def read_raw_rows(content: bytes, filename: str, sheet_name: str | None = None, 
             if max_rows and idx >= max_rows:
                 break
             cells += len(row)
-            if idx >= MAX_ROWS or len(row) > MAX_COLUMNS or cells > MAX_CELLS:
-                raise SurveyUploadLimit("CSV exceeds the row, column, or cell processing limit.")
+            if idx >= MAX_ROWS:
+                raise SurveyUploadLimit(f"CSV exceeds the {MAX_ROWS:,} row processing limit.")
+            if len(row) > MAX_CSV_COLUMNS:
+                raise SurveyUploadLimit(
+                    f"Source row {first_line:,} has {len(row):,} columns. "
+                    f"CSV supports up to {MAX_CSV_COLUMNS:,} columns."
+                )
+            if cells > MAX_CSV_CELLS:
+                raise SurveyUploadLimit(f"CSV exceeds the {MAX_CSV_CELLS:,} cell processing limit.")
             if any("\x00" in value for value in row):
                 raise DatasetSelectionError(f"Source row {first_line} contains an unsupported NUL character.")
             rows.append(row)
@@ -165,7 +175,7 @@ def detect_header_and_metadata(rows: list[list[Any]]) -> dict[str, Any]:
             "header_confirmation_required": ambiguous}
 
 
-def _intake(content, filename, sheet_name, header_row_index, metadata_rows=None, *, preview=False):
+def _intake(content, filename, sheet_name, header_row_index, metadata_rows=None, *, preview=False, record_limit=None):
     source_lines: list[int] = []
     rows = read_raw_rows(content, filename, sheet_name, source_lines=source_lines)
     meta = detect_header_and_metadata(rows)
@@ -183,9 +193,11 @@ def _intake(content, filename, sheet_name, header_row_index, metadata_rows=None,
     metadata = sorted(i for i in excluded if header_row_index < i < len(rows))
     excluded_rows = []
     records = []
+    respondent_count = 0
     blank = 0
     intake_error = None
     headers = _clean_headers(source_header)
+    is_csv = filename.lower().endswith(".csv")
     for index, row in enumerate(rows):
         if index <= header_row_index:
             reason = "header" if index == header_row_index else "preamble"
@@ -202,17 +214,23 @@ def _intake(content, filename, sheet_name, header_row_index, metadata_rows=None,
                 intake_error = error
                 reason = "more_values_than_header"
             else:
-                record = {h: ("" if value is None else str(value)) for h, value in zip(headers, row)}
-                record.update({h: "" for h in headers[len(row):]})
-                record["_physical_row"] = source_lines[index]
-                records.append(record)
+                respondent_count += 1
+                if is_csv and respondent_count * len(headers) > MAX_CSV_CELLS:
+                    raise SurveyUploadLimit(
+                        f"CSV exceeds the {MAX_CSV_CELLS:,} cell processing limit after aligning rows with the header."
+                    )
+                if record_limit is None or len(records) < record_limit:
+                    record = {h: ("" if value is None else str(value)) for h, value in zip(headers, row)}
+                    record.update({h: "" for h in headers[len(row):]})
+                    record["_physical_row"] = source_lines[index]
+                    records.append(record)
                 continue
         excluded_rows.append({"row_index": index, "source_row": source_lines[index], "reason": reason})
     source_columns = [{"column": column, "source_header": "" if label is None else str(label)}
                       for column, label in zip(headers, source_header)]
     accounting = {"source_rows": len(rows), "preamble_rows": min(header_row_index, len(rows)),
                   "header_rows": int(bool(rows)), "metadata_rows": len(metadata),
-                  "blank_rows": blank, "respondents": len(records)}
+                  "blank_rows": blank, "respondents": respondent_count}
     if intake_error:
         accounting["malformed_rows"] = sum(row["reason"] == "more_values_than_header" for row in excluded_rows)
     return {
@@ -225,18 +243,23 @@ def _intake(content, filename, sheet_name, header_row_index, metadata_rows=None,
 
 def preview_survey_data(content: bytes, filename: str, sheet_name: str | None = None,
                         header_row_index: int | None = None, sample_size: int = 8) -> dict[str, Any]:
-    intake = _intake(content, filename, sheet_name, header_row_index, preview=True)
+    intake = _intake(content, filename, sheet_name, header_row_index, preview=True, record_limit=sample_size)
     sheets = get_excel_sheets(content) if filename.lower().endswith((".xlsx", ".xls")) else []
     headers = intake["columns"]
     records = intake.pop("records")
     samples = [{h: r[h] for h in headers} for r in records[:sample_size]]
-    count = len(records)
+    count = intake["row_accounting"]["respondents"]
     return {
         **intake, "filename": filename, "is_excel": bool(sheets), "sheets": sheets,
         "selected_sheet": sheet_name or (sheets[0] if sheets else None), "detected_headers": headers,
         "total_data_rows": count, "total_rows_detected": count, "total_rows": count,
         "sample_rows": samples, "preview_rows": samples, "metadata_rows_detected": len(intake["metadata_rows"]),
     }
+
+
+def parse_respondent_headers(content, filename, sheet_name=None, header_row_index=None):
+    """Validate the selected dataset without allocating a dictionary per respondent."""
+    return _intake(content, filename, sheet_name, header_row_index, record_limit=0)["columns"]
 
 
 def parse_respondent_records(content: bytes, filename: str, sheet_name: str | None = None,

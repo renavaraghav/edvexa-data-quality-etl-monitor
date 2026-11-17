@@ -11,6 +11,8 @@ from openpyxl.utils.cell import range_boundaries, coordinate_to_tuple
 MAX_ROWS = 50_000
 MAX_COLUMNS = 1_024
 MAX_CELLS = 1_000_000
+MAX_CSV_COLUMNS = 8_192
+MAX_CSV_CELLS = 4_000_000
 MAX_EXPANDED_BYTES = 48 * 1024 * 1024
 MAX_MEMBER_BYTES = 16 * 1024 * 1024
 MAX_EXCEL_SECONDS = 8

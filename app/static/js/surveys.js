@@ -642,17 +642,18 @@ const Surveys = {
 
     if (!previewContainer || !thead || !tbody) return;
     previewContainer.classList.remove('d-none');
-    if (previewMeta) previewMeta.textContent = `Showing ${rows ? rows.length : 0} of ${totalRows} total respondent rows (${cols ? cols.length : 0} columns)`;
+    const previewColumns = cols.slice(0, 50);
+    if (previewMeta) previewMeta.textContent = `Showing ${rows ? rows.length : 0} of ${totalRows} respondent rows and ${previewColumns.length} of ${cols.length} columns`;
 
     if (cols && cols.length > 0) {
-      thead.innerHTML = `<tr>${cols.map(c => `<th>${this.escapeHtml(c)}</th>`).join('')}</tr>`;
+      thead.innerHTML = `<tr>${previewColumns.map(c => `<th>${this.escapeHtml(c)}</th>`).join('')}</tr>`;
     } else {
       thead.innerHTML = '';
     }
 
     if (rows && rows.length > 0) {
       tbody.innerHTML = rows.map(r => `
-        <tr>${cols.map(c => `<td>${this.escapeHtml(r[c] !== null && r[c] !== undefined ? String(r[c]) : '')}</td>`).join('')}</tr>
+        <tr>${previewColumns.map(c => `<td>${this.escapeHtml(r[c] !== null && r[c] !== undefined ? String(r[c]) : '')}</td>`).join('')}</tr>
       `).join('');
     } else {
       tbody.innerHTML = '<tr><td colspan="100" class="text-center py-2 text-muted">No rows to display.</td></tr>';
@@ -702,14 +703,23 @@ const Surveys = {
     if (lowBadge) lowBadge.textContent = `Low: ${data.low_confidence_count || 0}`;
     if (unmappedBadge) unmappedBadge.textContent = `Unmapped: ${data.unmapped_count || 0}`;
 
+    const loadOptionsOnFocus = this.columns.length > 250;
+    const columnOptions = (selected, expanded = !loadOptionsOnFocus) => {
+      const selectedSet = new Set(selected);
+      const columns = expanded ? this.columns : this.columns.filter(column => selectedSet.has(column));
+      return columns.map(column => {
+        const label = this.escapeHtml(column);
+        return `<option value="${label}" ${selectedSet.has(column) ? 'selected' : ''}>${label}</option>`;
+      }).join('');
+    };
+
     if (teleList) {
-      const selectOptions = columns => this.columns.map(c => `<option value="${this.escapeHtml(c)}" ${columns.includes(c) ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('');
       const roles = [['respondent_id', 'Respondent ID'], ['duration', 'Duration (seconds)'], ['start_time', 'Start'], ['end_time', 'End'], ['ip_address', 'IP']];
       teleList.innerHTML = roles.map(([role, title]) =>
-        `<label>${title} <select data-survey-telemetry="${role}"><option value="">Unmapped</option>${selectOptions([data.system_columns?.[role]])}</select></label>`
-      ).join(' ') + ` <label>Page and question timers (seconds) <select id="surveyTimerColumns" multiple>${selectOptions(data.timer_columns || [])}</select></label>`;
+        `<label>${title} <select data-survey-telemetry="${role}"><option value="">Unmapped</option>${columnOptions([data.system_columns?.[role]])}</select></label>`
+      ).join(' ') + ` <label>Page and question timers (seconds) <select id="surveyTimerColumns" multiple>${columnOptions(data.timer_columns || [])}</select></label>`;
       if (this.qqData?.questions?.some(q => q.age_countries?.length)) {
-        teleList.insertAdjacentHTML('beforeend', ` <label>Country for eligibility <select id="surveyCountryColumn"><option value="">Use confirmed country question</option>${selectOptions([])}</select></label>`);
+        teleList.insertAdjacentHTML('beforeend', ` <label>Country for eligibility <select id="surveyCountryColumn"><option value="">Use confirmed country question</option>${columnOptions([])}</select></label>`);
       }
 
     }
@@ -730,7 +740,7 @@ const Surveys = {
       const selectHtml = `
         <select class="form-control text-xs survey-map-select" data-index="${idx}" ${multiple ? 'multiple' : ''} ${skipped ? 'disabled' : ''}>
           <option value="">-- Unmapped / Skip --</option>
-          ${this.columns.map(c => `<option value="${this.escapeHtml(c)}" ${(m.mapped_columns || []).includes(c) ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('')}
+          ${columnOptions(m.mapped_columns || [])}
         </select>
       `;
 
@@ -747,6 +757,19 @@ const Surveys = {
         </tr>
       `;
     }).join('');
+
+    if (loadOptionsOnFocus) {
+      const selects = [...tbody.querySelectorAll('select'), ...(teleList?.querySelectorAll('select') || [])];
+      for (const select of selects) {
+        const emptyOption = select.querySelector('option[value=""]')?.outerHTML || '';
+        const renderOptions = expanded => {
+          const selected = Array.from(select.selectedOptions, option => option.value);
+          select.innerHTML = emptyOption + columnOptions(selected, expanded);
+        };
+        select.addEventListener('focus', () => renderOptions(true));
+        select.addEventListener('blur', () => renderOptions(false));
+      }
+    }
 
     // Bind change listeners to selects
     tbody.querySelectorAll('.survey-map-select').forEach(sel => {

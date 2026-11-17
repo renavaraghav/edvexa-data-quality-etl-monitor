@@ -14,16 +14,14 @@ Applies CWE-1236 spreadsheet injection mitigation, auto-filters, frozen panes, a
 
 import io
 import json
-import logging
-from typing import Any
+from copy import copy
 from openpyxl import Workbook
+from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from app.models import SurveyAuditRun, SurveyRespondent, SurveyQcFinding, SurveyQuestionMapping
 from app.services.export_service import sanitize_cell_value
-
-logger = logging.getLogger("edvexa.surveys.export")
 
 # Color Tokens
 NAVY_HEADER = "1B365D"
@@ -50,6 +48,7 @@ LABEL_FONT = Font(name=FONT_FAMILY, size=10, bold=True, color="374151")
 VALUE_FONT = Font(name=FONT_FAMILY, size=10, color=DARK_TEXT)
 MUTED_FONT = Font(name=FONT_FAMILY, size=9, italic=True, color="6B7280")
 BOLD_VALUE_FONT = Font(name=FONT_FAMILY, size=10, bold=True, color=DARK_TEXT)
+STREAM_EXPORT_CELLS = 250_000
 
 
 def generate_survey_audit_workbook(
@@ -60,41 +59,45 @@ def generate_survey_audit_workbook(
     reviews=None,
 ) -> io.BytesIO:
     """Generate the complete 8-worksheet Excel audit report."""
-    wb = Workbook()
-    # Remove default sheet
-    wb.remove(wb.active)
+    source_headers = _source_headers(respondents)
+    streamed = len(respondents) * len(source_headers) * 2 + len(findings) * 13 > STREAM_EXPORT_CELLS
+    wb = Workbook(write_only=streamed)
 
     # 1. Audit Summary
-    ws_summary = wb.create_sheet(title="Audit Summary")
+    ws_summary = Workbook().active if streamed else wb.active
+    ws_summary.title = "Audit Summary"
     _build_summary_sheet(ws_summary, audit, respondents, findings)
+    if streamed:
+        _auto_adjust_column_widths(ws_summary)
+        _append_summary_sheet(wb.create_sheet(title=ws_summary.title), ws_summary)
 
     # 2. Imported cell values; original file bytes are stored as an artifact.
     ws_raw = wb.create_sheet(title="Raw Data")
-    _build_raw_data_sheet(ws_raw, respondents)
+    _build_raw_data_sheet(ws_raw, respondents, source_headers, streamed)
 
     # 3. Accepted Data
     ws_accepted = wb.create_sheet(title="Accepted Data")
-    _build_disposition_sheet(ws_accepted, respondents, "ACCEPTED")
+    _build_disposition_sheet(ws_accepted, respondents, source_headers, "ACCEPTED", streamed)
 
     # 4. Rejected Data
     ws_rejected = wb.create_sheet(title="Rejected Data")
-    _build_disposition_sheet(ws_rejected, respondents, "REJECTED", include_reasons=True)
+    _build_disposition_sheet(ws_rejected, respondents, source_headers, "REJECTED", streamed)
 
     # 5. Review Required
     ws_review = wb.create_sheet(title="Review Required")
-    _build_disposition_sheet(ws_review, respondents, "REVIEW_REQUIRED", include_flags=True)
+    _build_disposition_sheet(ws_review, respondents, source_headers, "REVIEW_REQUIRED", streamed)
 
     # 6. QC Findings
     ws_findings = wb.create_sheet(title="QC Findings")
-    _build_findings_sheet(ws_findings, findings)
+    _build_findings_sheet(ws_findings, findings, streamed)
 
     # 7. QQ Mapping
     ws_mapping = wb.create_sheet(title="QQ Mapping")
-    _build_mapping_sheet(ws_mapping, mappings)
+    _build_mapping_sheet(ws_mapping, mappings, streamed)
 
     # 8. QC Coverage
     ws_coverage = wb.create_sheet(title="QC Coverage")
-    _build_coverage_sheet(ws_coverage, audit)
+    _build_coverage_sheet(ws_coverage, audit, streamed)
 
     if audit.timing_rules_json:
         provenance = wb.create_sheet(title="Provenance")
@@ -120,9 +123,9 @@ def generate_survey_audit_workbook(
                             event.previous_disposition, event.new_disposition, sanitize_cell_value(event.reviewer),
                             sanitize_cell_value(event.reason), event.created_at.isoformat()])
 
-    # Auto-adjust column widths across all sheets
-    for ws in wb.worksheets:
-        _auto_adjust_column_widths(ws)
+    if not streamed:
+        for ws in wb.worksheets:
+            _auto_adjust_column_widths(ws)
 
     output = io.BytesIO()
     wb.save(output)
@@ -271,230 +274,155 @@ def _build_summary_sheet(ws, audit: SurveyAuditRun, respondents: list[SurveyResp
         r_curr += 1
 
 
-def _build_raw_data_sheet(ws, respondents: list[SurveyRespondent]):
-    """Build the imported-cell sheet with spreadsheet-safe text values."""
-    ws.views.sheetView[0].showGridLines = True
-    if not respondents:
-        ws["A1"].value = "No respondent records imported."
-        return
+def _append_summary_sheet(target, summary):
+    """Keep the summary's layout when the report tables are written as streams."""
+    for reference in summary.merged_cells.ranges:
+        target.merged_cells.add(str(reference))
+    for name, dimension in summary.column_dimensions.items():
+        target.column_dimensions[name].width = dimension.width
+    for number, dimension in summary.row_dimensions.items():
+        target.row_dimensions[number].height = dimension.height
+    for row in summary.iter_rows():
+        output = []
+        for cell in row:
+            if cell.value is None:
+                output.append(None)
+                continue
+            item = WriteOnlyCell(target, value=cell.value)
+            item.font = copy(cell.font)
+            item.fill = copy(cell.fill)
+            item.border = copy(cell.border)
+            item.alignment = copy(cell.alignment)
+            output.append(item)
+        target.append(output)
 
-    # Extract headers from first record
-    first_dict = json.loads(respondents[0].raw_data_json) if respondents[0].raw_data_json else {}
-    headers = [k for k in first_dict if k != "_physical_row"]
 
-    # Write Header Row
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=sanitize_cell_value(h))
-        cell.font = HEADER_FONT
-        cell.fill = PatternFill("solid", fgColor=NAVY_HEADER)
-        cell.border = HEADER_BORDER_STYLE
-        cell.alignment = Alignment(horizontal="left")
+def _source_headers(respondents):
+    if not respondents or not respondents[0].raw_data_json:
+        return []
+    return [header for header in json.loads(respondents[0].raw_data_json) if header != "_physical_row"]
 
-    # Freeze header row
+
+def _write_report_table(ws, headers, rows, row_count, streamed, *, color=NAVY_HEADER, centered=(), filtered=True):
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{len(respondents) + 1}"
+    if row_count and filtered:
+        ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{row_count + 1}"
 
-    # Write Data Rows
-    for r_idx, resp in enumerate(respondents, 2):
-        row_dict = json.loads(resp.raw_data_json) if resp.raw_data_json else {}
-        for col_idx, h in enumerate(headers, 1):
-            val = row_dict.get(h, "")
-            cell = ws.cell(row=r_idx, column=col_idx, value=sanitize_cell_value(val))
-            cell.font = VALUE_FONT
-            cell.border = CELL_BORDER
+    header_fill = PatternFill("solid", fgColor=color)
+    header_cells = []
+    for index, header in enumerate(headers, 1):
+        cell = WriteOnlyCell(ws, value=sanitize_cell_value(header))
+        cell.font = HEADER_FONT
+        cell.fill = header_fill
+        cell.border = HEADER_BORDER_STYLE
+        cell.alignment = Alignment(horizontal="center" if index in centered else "left")
+        header_cells.append(cell)
+        if streamed:
+            ws.column_dimensions[get_column_letter(index)].width = max(14, min(55, len(header) + 3))
+    ws.append(header_cells)
+
+    for row in rows:
+        values = [sanitize_cell_value(value) if value != "" else None for value in row]
+        if streamed:
+            ws.append(values)
+        else:
+            cells = []
+            for index, value in enumerate(values, 1):
+                cell = WriteOnlyCell(ws, value=value)
+                cell.font = VALUE_FONT
+                cell.border = CELL_BORDER
+                if index in centered:
+                    cell.alignment = Alignment(horizontal="center")
+                cells.append(cell)
+            ws.append(cells)
 
 
-def _build_disposition_sheet(ws, respondents: list[SurveyRespondent], target_disposition: str, include_reasons: bool = False, include_flags: bool = False):
-    """Build Sheet 3/4/5: Accepted, Rejected, or Review Required respondent tables."""
-    ws.views.sheetView[0].showGridLines = True
-    filtered = [r for r in respondents if r.disposition == target_disposition]
-
-    if not filtered:
-        ws["A1"].value = f"No respondents classified as {target_disposition}."
-        ws["A1"].font = MUTED_FONT
+def _build_raw_data_sheet(ws, respondents, headers, streamed):
+    if not respondents or not headers:
+        ws.append(["No respondent records imported."])
         return
 
-    first_dict = json.loads(filtered[0].raw_data_json) if filtered[0].raw_data_json else {}
-    base_headers = [k for k in first_dict if k != "_physical_row"]
+    def source_rows():
+        for respondent in respondents:
+            data = json.loads(respondent.raw_data_json or "{}")
+            yield (data.get(header, "") for header in headers)
+
+    _write_report_table(ws, headers, source_rows(), len(respondents), streamed)
+
+
+def _build_disposition_sheet(ws, respondents, source_headers, disposition, streamed):
+    filtered = [row for row in respondents if row.disposition == disposition]
+    if not filtered:
+        cell = WriteOnlyCell(ws, value=f"No respondents classified as {disposition}.")
+        cell.font = MUTED_FONT
+        ws.append([cell])
+        return
 
     headers = ["Disposition", "Respondent Key", "Source Row", "Manual Decision", "Reviewer", "Review Reason"]
-    if include_reasons:
+    if disposition == "REJECTED":
         headers.append("Rejection Reasons")
-    if include_flags:
+    elif disposition == "REVIEW_REQUIRED":
         headers.append("Review Flags")
-    headers.extend(base_headers)
+    headers.extend(source_headers)
+    color = {"ACCEPTED": "065F46", "REJECTED": "991B1B", "REVIEW_REQUIRED": "92400E"}[disposition]
 
-    header_fill_color = NAVY_HEADER
-    if target_disposition == "ACCEPTED":
-        header_fill_color = "065F46"  # Emerald
-    elif target_disposition == "REJECTED":
-        header_fill_color = "991B1B"  # Crimson
-    elif target_disposition == "REVIEW_REQUIRED":
-        header_fill_color = "92400E"  # Amber
+    def disposition_rows():
+        for row in filtered:
+            data = json.loads(row.raw_data_json or "{}")
+            values = [row.disposition, row.respondent_key, row.row_number, row.manual_decision, row.reviewed_by, row.reviewer_notes]
+            if disposition == "REJECTED":
+                values.append("; ".join(json.loads(row.rejection_reasons_json or "[]")))
+            elif disposition == "REVIEW_REQUIRED":
+                values.append("; ".join(json.loads(row.review_flags_json or "[]")))
+            values.extend(data.get(header, "") for header in source_headers)
+            yield values
 
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=sanitize_cell_value(h))
-        cell.font = HEADER_FONT
-        cell.fill = PatternFill("solid", fgColor=header_fill_color)
-        cell.border = HEADER_BORDER_STYLE
-        cell.alignment = Alignment(horizontal="left")
-
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{len(filtered) + 1}"
-
-    for r_idx, resp in enumerate(filtered, 2):
-        row_dict = json.loads(resp.raw_data_json) if resp.raw_data_json else {}
-        col_cursor = 1
-
-        # Disposition
-        cell = ws.cell(row=r_idx, column=col_cursor, value=resp.disposition)
-        cell.font = BOLD_VALUE_FONT
-        cell.border = CELL_BORDER
-        col_cursor += 1
-        for value in (resp.respondent_key, resp.row_number, resp.manual_decision, resp.reviewed_by, resp.reviewer_notes):
-            ws.cell(row=r_idx, column=col_cursor, value=sanitize_cell_value(value))
-            col_cursor += 1
-
-        if include_reasons:
-            reasons = json.loads(resp.rejection_reasons_json) if resp.rejection_reasons_json else []
-            cell = ws.cell(row=r_idx, column=col_cursor, value=sanitize_cell_value("; ".join(reasons)))
-            cell.font = VALUE_FONT
-            cell.border = CELL_BORDER
-            col_cursor += 1
-
-        if include_flags:
-            flags = json.loads(resp.review_flags_json) if resp.review_flags_json else []
-            cell = ws.cell(row=r_idx, column=col_cursor, value=sanitize_cell_value("; ".join(flags)))
-            cell.font = VALUE_FONT
-            cell.border = CELL_BORDER
-            col_cursor += 1
-
-        for h in base_headers:
-            val = row_dict.get(h, "")
-            cell = ws.cell(row=r_idx, column=col_cursor, value=sanitize_cell_value(val))
-            cell.font = VALUE_FONT
-            cell.border = CELL_BORDER
-            col_cursor += 1
+    _write_report_table(ws, headers, disposition_rows(), len(filtered), streamed, color=color)
 
 
-def _build_findings_sheet(ws, findings: list[SurveyQcFinding]):
-    """Build Sheet 6: Itemized QC Findings with evidence and recommendations."""
-    ws.views.sheetView[0].showGridLines = True
+def _build_findings_sheet(ws, findings, streamed):
     headers = [
         "Finding ID", "Respondent Key", "Respondent Record ID", "Issue Type", "Severity",
         "Recommendation", "Question Number", "Raw Column",
         "Original Answer", "Observed Value", "Expected Rule / Standard",
-        "Detailed Evidence", "Final Review Decision"
+        "Detailed Evidence", "Final Review Decision",
     ]
-
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
-        cell.font = HEADER_FONT
-        cell.fill = PatternFill("solid", fgColor=NAVY_HEADER)
-        cell.border = HEADER_BORDER_STYLE
-        cell.alignment = Alignment(horizontal="center" if col_idx in (1, 4, 5) else "left")
-
-    ws.freeze_panes = "A2"
-    if findings:
-        ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{len(findings) + 1}"
-
-    for r_idx, f in enumerate(findings, 2):
-        row_data = [
-            f.id,
-            f.respondent_key,
-            f.respondent_id,
-            f.issue_type,
-            f.severity,
-            f.review_recommendation,
-            f.question_number or "General",
-            f.raw_column or "N/A",
-            f.original_answer or "",
-            f.observed_value or "",
-            f.expected_rule or "",
-            f.evidence,
-            f.final_decision or "PENDING"
-        ]
-        for col_idx, val in enumerate(row_data, 1):
-            cell = ws.cell(row=r_idx, column=col_idx, value=sanitize_cell_value(val))
-            cell.font = VALUE_FONT
-            cell.border = CELL_BORDER
-            if col_idx in (1, 4, 5):
-                cell.alignment = Alignment(horizontal="center")
+    rows = (
+        [item.id, item.respondent_key, item.respondent_id, item.issue_type, item.severity,
+         item.review_recommendation, item.question_number or "General", item.raw_column or "N/A",
+         item.original_answer or "", item.observed_value or "", item.expected_rule or "",
+         item.evidence, item.final_decision or "PENDING"]
+        for item in findings
+    )
+    _write_report_table(ws, headers, rows, len(findings), streamed, centered=(1, 4, 5))
 
 
-def _build_mapping_sheet(ws, mappings: list[SurveyQuestionMapping]):
-    """Build Sheet 7: QQ Question-to-Column Mapping."""
-    ws.views.sheetView[0].showGridLines = True
+def _build_mapping_sheet(ws, mappings, streamed):
     headers = [
-        "QQ Question #", "Questionnaire Text", "Question Type",
-        "Mapped Raw Column(s)", "Mapping Status", "Confidence",
-        "Mapping Evidence", "QC Instructions"
+        "QQ Question #", "Questionnaire Text", "Question Type", "Mapped Raw Column(s)",
+        "Mapping Status", "Confidence", "Mapping Evidence", "QC Instructions",
     ]
-
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
-        cell.font = HEADER_FONT
-        cell.fill = PatternFill("solid", fgColor=NAVY_HEADER)
-        cell.border = HEADER_BORDER_STYLE
-        cell.alignment = Alignment(horizontal="center" if col_idx in (1, 3, 5, 6) else "left")
-
-    ws.freeze_panes = "A2"
-    if mappings:
-        ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{len(mappings) + 1}"
-
-    for r_idx, m in enumerate(mappings, 2):
-        cols = json.loads(m.mapped_columns_json) if m.mapped_columns_json else []
-        row_data = [
-            m.question_number,
-            m.question_text,
-            m.question_type,
-            ", ".join(cols) if cols else "(Unmapped)",
-            m.mapping_status,
-            m.confidence,
-            m.mapping_evidence or "",
-            m.qc_instructions or ""
-        ]
-        for col_idx, val in enumerate(row_data, 1):
-            cell = ws.cell(row=r_idx, column=col_idx, value=sanitize_cell_value(val))
-            cell.font = VALUE_FONT
-            cell.border = CELL_BORDER
-            if col_idx in (1, 3, 5, 6):
-                cell.alignment = Alignment(horizontal="center")
+    rows = (
+        [item.question_number, item.question_text, item.question_type,
+         ", ".join(json.loads(item.mapped_columns_json or "[]")) or "(Unmapped)", item.mapping_status,
+         item.confidence, item.mapping_evidence or "", item.qc_instructions or ""]
+        for item in mappings
+    )
+    _write_report_table(ws, headers, rows, len(mappings), streamed, centered=(1, 3, 5, 6))
 
 
-def _build_coverage_sheet(ws, audit: SurveyAuditRun):
-    """Build Sheet 8: Quality Control Coverage Matrix."""
-    ws.views.sheetView[0].showGridLines = True
+def _build_coverage_sheet(ws, audit, streamed):
     headers = [
         "Quality Check Name", "Category", "Execution Status",
-        "Flagged Count", "Audit Rule Description", "Coverage Limitations & Notes"
+        "Flagged Count", "Audit Rule Description", "Coverage Limitations & Notes",
     ]
-
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
-        cell.font = HEADER_FONT
-        cell.fill = PatternFill("solid", fgColor=NAVY_HEADER)
-        cell.border = HEADER_BORDER_STYLE
-        cell.alignment = Alignment(horizontal="center" if col_idx in (3, 4) else "left")
-
-    ws.freeze_panes = "A2"
-
-    coverage_items = json.loads(audit.checks_summary_json) if audit.checks_summary_json else []
-    for r_idx, item in enumerate(coverage_items, 2):
-        row_data = [
-            item.get("check_name", ""),
-            item.get("category", ""),
-            item.get("status", "NOT_CHECKED"),
-            item.get("flagged_count", 0),
-            item.get("rule_description", ""),
-            item.get("notes", "")
-        ]
-        for col_idx, val in enumerate(row_data, 1):
-            cell = ws.cell(row=r_idx, column=col_idx, value=sanitize_cell_value(val))
-            cell.font = VALUE_FONT
-            cell.border = CELL_BORDER
-            if col_idx in (3, 4):
-                cell.alignment = Alignment(horizontal="center")
+    coverage = json.loads(audit.checks_summary_json or "[]")
+    rows = (
+        [item.get("check_name", ""), item.get("category", ""), item.get("status", "NOT_CHECKED"),
+         item.get("flagged_count", 0), item.get("rule_description", ""), item.get("notes", "")]
+        for item in coverage
+    )
+    _write_report_table(ws, headers, rows, len(coverage), streamed, centered=(3, 4), filtered=False)
 
 
 def _auto_adjust_column_widths(ws):

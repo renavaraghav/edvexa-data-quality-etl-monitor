@@ -52,6 +52,7 @@ from app.services.survey_qq_parser import parse_questionnaire, ParsedQuestion
 from app.services.survey_data_parser import (
     DatasetSelectionError,
     preview_survey_data,
+    parse_respondent_headers,
     parse_respondent_records,
 )
 from app.services.survey_mapping_service import suggest_mappings
@@ -673,7 +674,7 @@ async def generate_suggested_mappings(request: Request):
         raise HTTPException(status_code=400, detail="raw_filename or raw_artifact_name is required.")
 
     raw_content = await run_in_threadpool(_get_survey_file, raw_artifact_name, "raw")
-    headers, _, _ = await run_in_threadpool(_parse_dataset, parse_respondent_records,
+    headers = await run_in_threadpool(_parse_dataset, parse_respondent_headers,
         raw_content, raw_filename, sheet_name=sheet_name, header_row_index=header_row_index
     )
 
@@ -727,9 +728,12 @@ async def execute_survey_scrubbing_audit(
     duplicates, screeners, routing, and incomplete responses.
     Assigns each respondent to ACCEPTED, REJECTED, or REVIEW_REQUIRED.
     """
-    start_time = time.time()
     body = await _survey_payload(request, SurveyAuditRequest)
+    return await run_in_threadpool(_execute_survey_audit, body, db)
 
+
+def _execute_survey_audit(body, db):
+    start_time = time.time()
     raw_artifact_name = body.get("raw_artifact_name") or body.get("raw_filename")
     raw_filename = _artifact_filename(raw_artifact_name, body.get("raw_filename"), "raw_data.csv")
     sheet_name = body.get("sheet_name")
@@ -743,16 +747,16 @@ async def execute_survey_scrubbing_audit(
     if not raw_artifact_name:
         raise HTTPException(status_code=400, detail="raw_filename or raw_artifact_name is required.")
 
-    raw_content = await run_in_threadpool(_get_survey_file, raw_artifact_name, "raw")
+    raw_content = _get_survey_file(raw_artifact_name, "raw")
     raw_file_hash = _verified_hash(raw_content, body.get("raw_file_hash"))
 
     qq_file_hash = None
     qq_parsed_rules: dict[str, Any] = {}
     parsed_questions: list[ParsedQuestion] = []
     if qq_artifact_name:
-        qq_content = await run_in_threadpool(_get_survey_file, qq_artifact_name, "qq")
+        qq_content = _get_survey_file(qq_artifact_name, "qq")
         qq_file_hash = _verified_hash(qq_content, body.get("qq_file_hash"))
-        extraction = await run_in_threadpool(_parse_dataset, parse_questionnaire, qq_content, qq_filename or qq_artifact_name)
+        extraction = _parse_dataset(parse_questionnaire, qq_content, qq_filename or qq_artifact_name)
         parsed_questions = extraction.questions
         if not parsed_questions:
             raise HTTPException(422, "Questionnaire has no readable substantive questions.")
@@ -768,7 +772,7 @@ async def execute_survey_scrubbing_audit(
     timing_rules = body.get("timing_rules") or {}
     final_timing_rules = _effective_rules(qq_parsed_rules, timing_rules, body)
 
-    headers, records, resp_id_col, intake = await run_in_threadpool(_parse_dataset, parse_respondent_records,
+    headers, records, resp_id_col, intake = _parse_dataset(parse_respondent_records,
         raw_content, raw_filename, sheet_name=sheet_name, header_row_index=header_row_index, with_intake=True
     )
 
@@ -859,7 +863,7 @@ async def execute_survey_scrubbing_audit(
         raise HTTPException(500, "Audit could not be recorded.") from exc
     try:
         # Execute QC engine
-        audit_summary = await run_in_threadpool(run_survey_qc_audit,
+        audit_summary = run_survey_qc_audit(
             records=records,
             mappings=confirmed_mappings,
             system_columns=system_cols,
@@ -906,42 +910,7 @@ async def execute_survey_scrubbing_audit(
             )
             db.add(sqm)
 
-        # Persist Respondents & Findings in batches
-        for r_res in audit_summary.results:
-            resp_model = SurveyRespondent(
-                audit_id=audit_run.id,
-                respondent_key=r_res.respondent_key,
-                row_number=r_res.row_number,
-                disposition=r_res.disposition,
-                rejection_reasons_json=json.dumps(r_res.rejection_reasons),
-                review_flags_json=json.dumps(r_res.review_flags),
-                calculated_duration_seconds=r_res.calculated_duration_seconds,
-                exported_duration_seconds=r_res.exported_duration_seconds,
-                duration_delta_seconds=r_res.duration_delta_seconds,
-                local_completion_hour=r_res.local_completion_hour,
-                is_overnight=r_res.is_overnight,
-                raw_data_json=json.dumps(r_res.raw_data)
-            )
-            db.add(resp_model)
-            db.flush()
-
-            for f_item in r_res.findings:
-                finding_model = SurveyQcFinding(
-                    audit_id=audit_run.id,
-                    respondent_id=resp_model.id,
-                    respondent_key=r_res.respondent_key,
-                    issue_type=f_item.issue_type,
-                    question_number=f_item.question_number,
-                    raw_column=f_item.raw_column,
-                    original_answer=f_item.original_answer,
-                    observed_value=f_item.observed_value,
-                    expected_rule=f_item.expected_rule,
-                    evidence=f_item.evidence,
-                    severity=f_item.severity,
-                    review_recommendation=f_item.recommendation
-                )
-                db.add(finding_model)
-
+        _persist_survey_results(db, audit_run.id, audit_summary.results)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -985,6 +954,49 @@ async def execute_survey_scrubbing_audit(
         "status": audit_run.status,
         "strict_accounting_verified": True
     }
+
+
+def _persist_survey_results(db, audit_id, results):
+    batch_size = 32
+    for start in range(0, len(results), batch_size):
+        batch = results[start:start + batch_size]
+        respondents = []
+        for r_res in batch:
+            resp_model = SurveyRespondent(
+                audit_id=audit_id,
+                respondent_key=r_res.respondent_key,
+                row_number=r_res.row_number,
+                disposition=r_res.disposition,
+                rejection_reasons_json=json.dumps(r_res.rejection_reasons),
+                review_flags_json=json.dumps(r_res.review_flags),
+                calculated_duration_seconds=r_res.calculated_duration_seconds,
+                exported_duration_seconds=r_res.exported_duration_seconds,
+                duration_delta_seconds=r_res.duration_delta_seconds,
+                local_completion_hour=r_res.local_completion_hour,
+                is_overnight=r_res.is_overnight,
+                raw_data_json=json.dumps(r_res.raw_data, separators=(",", ":"))
+            )
+            respondents.append(resp_model)
+        db.add_all(respondents)
+        db.flush()
+
+        for r_res, resp_model in zip(batch, respondents):
+            for f_item in r_res.findings:
+                finding_model = SurveyQcFinding(
+                    audit_id=audit_id,
+                    respondent_id=resp_model.id,
+                    respondent_key=r_res.respondent_key,
+                    issue_type=f_item.issue_type,
+                    question_number=f_item.question_number,
+                    raw_column=f_item.raw_column,
+                    original_answer=f_item.original_answer,
+                    observed_value=f_item.observed_value,
+                    expected_rule=f_item.expected_rule,
+                    evidence=f_item.evidence,
+                    severity=f_item.severity,
+                    review_recommendation=f_item.recommendation
+                )
+                db.add(finding_model)
 
 
 @router.get("/audits", response_model=list[SurveyAuditRunSummary])

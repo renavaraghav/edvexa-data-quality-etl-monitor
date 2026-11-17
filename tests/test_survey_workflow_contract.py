@@ -1,4 +1,5 @@
-from io import BytesIO
+import csv
+from io import BytesIO, StringIO
 
 from openpyxl import Workbook, load_workbook
 
@@ -85,6 +86,81 @@ def test_invalid_mappings_and_ambiguous_legacy_artifacts_fail(auth_client):
     skipped = auth_client.post(f"{base}/run-audit", json={**a, "confirmed_mappings": []})
     assert skipped.status_code == 200, skipped.text
     assert skipped.json()["straightlining_count"] == 0
+
+
+def test_wide_qualtrics_csv_reaches_audit_and_workbook(auth_client):
+    base = "/api/surveys"
+    width, row_count = 5187, 704
+    headers = ["ResponseId", "Age", "Repeat", "Repeat", *[f"Column_{i}" for i in range(4, width - 1)], "Q3"]
+    output = StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerow(["Response ID", *([""] * (width - 1))])
+    writer.writerow(['{"ImportId":"_recordId"}', *([""] * (width - 2)), '{"ImportId":"Q3"}'])
+    for index in range(row_count):
+        answer = "qwerty" if index == 1 else f"The synthetic project visit {index} was helpful."
+        writer.writerow([
+            f"wide-{index}", 16 if index == 0 else 32,
+            *([str(index)] * 1_300), *([""] * (width - 1_303)), answer,
+        ])
+
+    qq = auth_client.post(f"{base}/upload-qq", files={"file": ("wide.txt", b"S1. What is your age? [Terminate if under 18]\nQ3. In your own words, how was the visit? [Open End]")})
+    raw = auth_client.post(f"{base}/upload-raw", files={"file": ("wide.csv", output.getvalue().encode())})
+    assert qq.status_code == raw.status_code == 200
+    intake = raw.json()
+    assert intake["total_rows"] == row_count
+    assert len(intake["columns"]) == width
+    assert intake["header_confirmation_required"]
+    assert intake["columns"][2:4] == ["Repeat", "Repeat_2"]
+    assert [row["source_row"] for row in intake["excluded_rows"]] == [1, 2, 3]
+    assert len(intake["preview_rows"]) == 8
+    selection = {
+        "qq_artifact_name": qq.json()["artifact_name"],
+        "raw_artifact_name": intake["artifact_name"],
+        "header_row_index": 0,
+    }
+    suggested = auth_client.post(f"{base}/suggest-mapping", json=selection)
+    assert suggested.status_code == 200
+    assert next(item for item in suggested.json()["mappings"] if item["question_number"] == "Q3")["mapped_columns"] == ["Q3"]
+    audit = auth_client.post(f"{base}/run-audit", json={
+        **selection,
+        "confirmed_mappings": [
+            {"question_number": "S1", "mapped_columns": ["Age"], "mapping_status": "CONFIRMED"},
+            {"question_number": "Q3", "mapped_columns": ["Q3"], "mapping_status": "CONFIRMED"},
+        ],
+    })
+    assert audit.status_code == 200, audit.text
+    result = audit.json()
+    assert (result["accepted_count"], result["rejected_count"], result["review_required_count"]) == (702, 1, 1)
+    report = auth_client.get(f"{base}/audits/{result['id']}/export/excel")
+    assert report.status_code == 200
+    with BytesIO(report.content) as buffer:
+        workbook = load_workbook(buffer, read_only=True)
+        try:
+            rows = workbook["Raw Data"].iter_rows(values_only=True)
+            assert len(next(rows)) == width
+            assert next(rows)[-1] == "The synthetic project visit 0 was helpful."
+            assert sum(1 for _ in rows) == row_count - 1
+            assert next(workbook["Audit Summary"].values)[0].startswith("EDVEXA")
+            for sheet, count in (("Accepted Data", 702), ("Rejected Data", 1), ("Review Required", 1)):
+                assert sum(1 for _ in workbook[sheet].values) == count + 1
+        finally:
+            workbook.close()
+
+
+def test_wide_csv_still_bounds_physical_and_aligned_dimensions(monkeypatch, auth_client):
+    from app.services import survey_data_parser
+
+    monkeypatch.setattr(survey_data_parser, "MAX_CSV_COLUMNS", 4)
+    monkeypatch.setattr(survey_data_parser, "MAX_CSV_CELLS", 9)
+    endpoint = "/api/surveys/upload-raw"
+    for content, detail in (
+        (b"ResponseId,Q1,Q2,Q3,Q4\n", "5 columns"),
+        (b"ResponseId,Q1,Q2\nA,1,2\nB,3,4\nC,5,6\n", "9 cell processing limit"),
+        (b"ResponseId,Q1,Q2,Q3\nA\nB\nC\n", "after aligning rows with the header"),
+    ):
+        response = auth_client.post(endpoint, files={"file": ("limited.csv", content)})
+        assert response.status_code == 422 and detail in response.json()["detail"]
 
 
 def test_preview_preserves_cells_and_reconciles_preamble():
