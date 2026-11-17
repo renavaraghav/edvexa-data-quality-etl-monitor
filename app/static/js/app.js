@@ -1107,6 +1107,17 @@ const App = {
     const badge = document.getElementById('apiStatusBadge');
     if (!badge) return;
 
+    const markDatabaseStatusUnknown = () => {
+      const sidebarDb = document.getElementById('sidebarDbStatus');
+      if (sidebarDb) sidebarDb.textContent = 'Status unknown';
+
+      const dbStatus = document.getElementById('settingsDbStatus');
+      if (dbStatus) {
+        dbStatus.textContent = '• Status: Unknown (health check failed)';
+        dbStatus.className = 'text-sm mt-2 font-bold text-muted';
+      }
+    };
+
     try {
       const res = await fetch(`${window.API_BASE}/api/health`);
       if (res.ok) {
@@ -1171,6 +1182,7 @@ const App = {
           }
         }
       } else {
+        markDatabaseStatusUnknown();
         const statusText = badge.querySelector('.status-text');
         console.warn('[Health Check] Non-OK status from health API: HTTP ' + res.status + ' ' + res.statusText);
         if (res.status === 502 || res.status === 503) {
@@ -1182,6 +1194,7 @@ const App = {
         }
       }
     } catch (err) {
+      markDatabaseStatusUnknown();
       console.warn('[Health Check] Network failure reaching health API:', err);
       badge.className = 'status-indicator offline';
       const statusText = badge.querySelector('.status-text');
