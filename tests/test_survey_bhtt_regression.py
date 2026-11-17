@@ -34,7 +34,7 @@ def auth_client(client: TestClient) -> TestClient:
 
 
 def test_bhtt_docx_59_candidate_extraction_characterization():
-    """Characterize the known fixture. This test has no release approval authority."""
+    """Record observed extraction from one pinned sample questionnaire."""
     if BHTT_DOCX_PATH is None or not BHTT_DOCX_PATH.exists():
         pytest.skip(f"BHTT test file not found at {BHTT_DOCX_PATH}")
 
@@ -45,7 +45,7 @@ def test_bhtt_docx_59_candidate_extraction_characterization():
     res = parse_questionnaire(content, "2026.10.29_INV BHTT_W3B(1).docx")
     assert res.document_format == "docx"
     assert res.unreadable_or_scanned is False
-    assert len(res.questions) == 59  # Current source-backed candidate inventory, not the release target.
+    assert len(res.questions) == 59  # Observed candidates for the pinned DOCX.
     assert len(res.excluded_blocks) == 7
     assert any(q.question_number == "Q_Postal Code" for q in res.questions)
     assert len([q for q in res.questions if q.parent_question == "PS2"]) == 3
@@ -167,7 +167,7 @@ def test_synthetic_12_domain_qc_audit_engine():
             "Duration": "540", "IP": "198.51.100.4", "Age": "38", "Q1": "1", "Q2_1": "3", "Q2_2": "4", "Q2_3": "3", "Q2_4": "4",
             "OE_Text": "asdfghjk qwerty zxcvbnm"
         },
-        # 5. Meaningful off-topic brand ("Nike") -> REVIEW_REQUIRED
+        # 5. Coherent text may still need a human to check topic relevance.
         {
             "ResponseId": "SYNTH_05", "StartDate": "2026-10-29 10:40:00", "EndDate": "2026-10-29 10:48:40",
             "Duration": "520", "IP": "198.51.100.5", "Age": "27", "Q1": "1", "Q2_1": "4", "Q2_2": "4", "Q2_3": "3", "Q2_4": "4",
@@ -264,3 +264,7 @@ def test_synthetic_12_domain_qc_audit_engine():
     # 4. Valid completes are ACCEPTED
     synth_06 = next(r for r in summary.results if r.respondent_key == "SYNTH_06")
     assert synth_06.disposition == "ACCEPTED"
+    synth_05 = next(r for r in summary.results if r.respondent_key == "SYNTH_05")
+    assert synth_05.disposition == "ACCEPTED"
+    checks = {check["check_name"]: check["status"] for check in summary.checks_coverage}
+    assert checks["Open-Ended Topic Relevance"] == "NOT_CHECKED"

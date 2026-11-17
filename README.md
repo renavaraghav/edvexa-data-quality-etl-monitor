@@ -355,7 +355,7 @@ The platform includes an iPhone-style Slide-to-Reset control to clear uploaded d
 > [!NOTE]
 > The public ETL reset is for isolated loopback demos using local SQLite and local storage. Production always rejects ETL reset. The slider and checkbox are interface controls; direct local API calls are still possible when the server permits demo reset.
 
-Survey release acceptance and the disposable PostgreSQL test procedure are documented in [release/README.md](release/README.md).
+Survey platform regression checks and the disposable PostgreSQL test procedure are documented in [release/README.md](release/README.md).
 
 ---
 

@@ -12,7 +12,7 @@ Verifies all audited requirements:
 8. Straightlining detection on matrix rating scales.
 9. Open-ended quality: valid relevant answers.
 10. Open-ended quality: valid no-recall answers ("IDK", "none come to mind").
-11. Open-ended quality: meaningful off-topic brand ("Nike").
+11. Open-ended quality: ambiguous short answers.
 12. Open-ended quality: contextual gibberish detection (numeric in ID/zip is valid,
     single suspicious open-text response routes to Review Required, never auto-rejects entire respondent).
 13. Open-ended quality: ambiguous / unrecognized routed to Review Required.
@@ -441,10 +441,11 @@ def test_contextual_open_text_numeric_and_no_auto_reject_single_field():
     assert cat2 == "AMBIGUOUS_REVIEW"
     assert rec2 == "REVIEW_REQUIRED"
 
-    # 3. Unfamiliar acronym "3M" is valid relevant
+    # 3. A short acronym has no automated relevance decision.
     cat3, reason3, sev3, rec3 = _classify_open_text("3M", "What clear aligner brands come to mind?")
-    assert cat3 == "VALID_RELEVANT"
-    assert rec3 == "NOTE"
+    assert cat3 == "AMBIGUOUS_REVIEW"
+    assert rec3 == "REVIEW_REQUIRED"
+    assert _classify_open_text("3M", "Which supplier do you prefer?") == (cat3, reason3, sev3, rec3)
 
     # 4. Keyboard walk "asdfgh" routes to REVIEW_REQUIRED (never automatic REJECT)
     cat4, reason4, sev4, rec4 = _classify_open_text("asdfgh", "What clear aligner brands come to mind?")
@@ -502,7 +503,7 @@ def test_survey_qc_audit_via_api_full_suite(auth_client: TestClient, db_session:
     csv_data = (
         "ResponseId,StartDate,EndDate,Duration (in seconds),PageTimer_Q5,IPAddress,Q1_Age,Q2_Aligner,Q3_Brand,Q5_1,Q5_2,Q5_3,Q5_4,Q5_5\n"
         # 1. Normal Valid -> ACCEPTED
-        "R_NORMAL,2026-03-15 14:00:00,2026-03-15 14:10:00,600,45,198.51.100.1,28,Yes,Invisalign,4,3,5,4,2\n"
+        "R_NORMAL,2026-03-15 14:00:00,2026-03-15 14:10:00,600,45,198.51.100.1,28,Yes,I wear the recommended clear aligners,4,3,5,4,2\n"
         # 2. Extreme Speeding (72s) without hard reject rule -> REVIEW_REQUIRED
         "R_SPEED_EXTREME,2026-03-15 14:00:00,2026-03-15 14:01:12,72,25,198.51.100.2,30,Yes,Byte,4,3,5,4,2\n"
         # 3. Concern Speeding (210s) -> REVIEW_REQUIRED
@@ -511,20 +512,20 @@ def test_survey_qc_audit_via_api_full_suite(auth_client: TestClient, db_session:
         "R_STRAIGHTLINE,2026-03-15 14:00:00,2026-03-15 14:10:00,600,40,198.51.100.4,26,Yes,Invisalign,4,4,4,4,4\n"
         # 5. Open-Text Valid No-Recall -> ACCEPTED
         "R_NORECALL,2026-03-15 14:00:00,2026-03-15 14:10:00,600,35,198.51.100.5,29,Yes,none come to mind,3,4,2,5,3\n"
-        # 6. Open-Text Meaningful Off-Topic Brand: "Nike" -> REVIEW_REQUIRED
-        "R_OFFTOPIC,2026-03-15 14:00:00,2026-03-15 14:10:00,600,38,198.51.100.6,35,Yes,Nike,3,4,2,5,3\n"
+        # 6. A one-word answer requires context from a reviewer.
+        "R_SHORTNAME,2026-03-15 14:00:00,2026-03-15 14:10:00,600,38,198.51.100.6,35,Yes,Nike,3,4,2,5,3\n"
         # 7. Open-Text Gibberish: "asdfgh" -> REVIEW_REQUIRED (single open text does not auto reject)
         "R_GIBBERISH,2026-03-15 14:00:00,2026-03-15 14:10:00,600,39,198.51.100.7,31,Yes,asdfgh,3,4,2,5,3\n"
         # 8. Open-Text Ambiguous Brand: "ClearBreeze360" -> REVIEW_REQUIRED
         "R_AMBIGUOUS,2026-03-15 14:00:00,2026-03-15 14:10:00,600,42,198.51.100.8,33,Yes,ClearBreeze360,3,4,2,5,3\n"
         # 9. Potentially Similar Respondent (identical answers, distinct ID) -> REVIEW_REQUIRED
-        "R_SIMILAR,2026-03-15 14:00:00,2026-03-15 14:10:00,600,45,198.51.100.99,28,Yes,Invisalign,4,3,5,4,2\n"
+        "R_SIMILAR,2026-03-15 14:00:00,2026-03-15 14:10:00,600,45,198.51.100.99,28,Yes,I wear the recommended clear aligners,4,3,5,4,2\n"
         # 10. Screener Violation: Age 15 (< 18 per QQ) -> REJECTED
         "R_UNDERAGE,2026-03-15 14:00:00,2026-03-15 14:10:00,600,44,198.51.100.9,15,Yes,Invisalign,4,3,5,4,2\n"
         # 11. Overnight Completion: 03:30 AM -> ACCEPTED
-        "R_OVERNIGHT,2026-03-15 03:30:00,2026-03-15 03:40:00,600,40,198.51.100.10,40,Yes,Spark,3,4,2,4,3\n"
+        "R_OVERNIGHT,2026-03-15 03:30:00,2026-03-15 03:40:00,600,40,198.51.100.10,40,Yes,I wear the clear trays provided by my clinic,3,4,2,4,3\n"
         # 12. Confirmed Exact Duplicate ID -> REJECTED
-        "R_NORMAL,2026-03-15 14:00:00,2026-03-15 14:10:00,600,45,198.51.100.1,28,Yes,Invisalign,4,3,5,4,2\n"
+        "R_NORMAL,2026-03-15 14:00:00,2026-03-15 14:10:00,600,45,198.51.100.1,28,Yes,I wear the recommended clear aligners,4,3,5,4,2\n"
     ).encode("utf-8")
 
     raw_upload = auth_client.post(
@@ -583,11 +584,11 @@ def test_survey_qc_audit_via_api_full_suite(auth_client: TestClient, db_session:
     assert unique_resps["R_UNDERAGE"]["disposition"] == "REJECTED"
 
     # Review Required: R_STRAIGHTLINE (defaults to review without explicit project reject rule),
-    # R_SPEED_EXTREME, R_SPEED_CONCERN, R_OFFTOPIC, R_GIBBERISH, R_AMBIGUOUS, R_SIMILAR
+    # R_SPEED_EXTREME, R_SPEED_CONCERN, R_SHORTNAME, R_GIBBERISH, R_AMBIGUOUS, R_SIMILAR
     assert unique_resps["R_STRAIGHTLINE"]["disposition"] == "REVIEW_REQUIRED"
     assert unique_resps["R_SPEED_EXTREME"]["disposition"] == "REVIEW_REQUIRED"
     assert unique_resps["R_SPEED_CONCERN"]["disposition"] == "REVIEW_REQUIRED"
-    assert unique_resps["R_OFFTOPIC"]["disposition"] == "REVIEW_REQUIRED"
+    assert unique_resps["R_SHORTNAME"]["disposition"] == "REVIEW_REQUIRED"
     assert unique_resps["R_GIBBERISH"]["disposition"] == "REVIEW_REQUIRED"
     assert unique_resps["R_AMBIGUOUS"]["disposition"] == "REVIEW_REQUIRED"
     assert unique_resps["R_SIMILAR"]["disposition"] == "REVIEW_REQUIRED"

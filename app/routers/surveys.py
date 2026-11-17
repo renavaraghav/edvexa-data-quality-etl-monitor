@@ -837,7 +837,7 @@ async def execute_survey_scrubbing_audit(
         status="processing",
         timing_rules_json=json.dumps({
             **final_timing_rules,
-            "snapshot": {"schema_version": 2, "parser_version": 3, "qc_version": 3,
+            "snapshot": {"schema_version": 2, "parser_version": 4, "qc_version": 4,
                          "raw_artifact": raw_artifact_name, "qq_artifact": qq_artifact_name,
                          "raw_sha256": raw_file_hash, "qq_sha256": qq_file_hash,
                          "system_columns": system_cols, "timer_columns": timer_cols,

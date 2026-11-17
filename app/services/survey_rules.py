@@ -9,15 +9,16 @@ def confirmed(mapping):
 
 
 def country_matches(value, country):
-    cleaned = re.sub(r"[^a-z0-9]", "", str(value).casefold())
-    if country == "US":
-        return cleaned in {"us", "usa", "unitedstates", "unitedstatesofamerica"}
-    return False
+    def normalize(label):
+        key = "".join(char for char in (label or "").casefold() if char.isalnum())
+        return "us" if key in {"us", "usa", "unitedstates", "unitedstatesofamerica"} else key
+
+    return bool(value and country) and normalize(str(value)) == normalize(country)
 
 
 def timer_matches_question(column, question):
     # Accept the export conventions Q1_Timer_Page Submit and PageTimer_Q1.
-    timer = r"(?:page[ _.-]*timer|timer|page[ _.-]*submit|seconds[ _.-]*spent)"
+    timer = r"(?:(?:page|question|screen)[ _.-]*timer|timer|page[ _.-]*submit|seconds[ _.-]*spent)"
     qid = re.escape(question)
     return bool(re.fullmatch(
         rf"(?:{timer}[ _.-]+{qid}|{qid}[ _.-]+{timer}(?:[ _.-]+page[ _.-]*submit)?)", column, re.I

@@ -41,6 +41,10 @@ def suggest_mappings(
       }
     """
     col_map = {col.lower(): col for col in raw_columns}
+    question_codes = {
+        str(q.get("question_number", "") if isinstance(q, dict) else q.question_number).strip().casefold()
+        for q in questions
+    }
     used_columns: set[str] = set()
 
     # 1. Identify System Telemetry Columns
@@ -122,12 +126,13 @@ def suggest_mappings(
         matched_cols: list[str] = []
         confidence = "LOW"
         evidence_parts: list[str] = []
+        fallback_columns = [c for c in raw_columns if c not in used_columns and c.casefold() not in question_codes]
 
         # A. Exact Question Code Match
-        # e.g. Q.Country matches 'Q.Country', Q.Age matches 'Q.Age', PS1 matches 'PS1'
+        # Prefer an exact question code over prefix matches for other questions.
         exact_matches = [
             col for col in raw_columns
-            if col.lower() == q_lower
+            if col.lower() == q_lower and col not in used_columns
         ]
         if exact_matches:
             matched_cols.extend(exact_matches)
@@ -135,54 +140,49 @@ def suggest_mappings(
             evidence_parts.append(f"Exact question code match on '{exact_matches[0]}'")
 
         # B. Multi-column Matrix / Grid or Multi-select Match
-        # E.g. Q.PastTreatment matches 'Q.PastTreatment_1' ... 'Q.PastTreatment_13'
+        # E.g. Q.Rating matches Q.Rating_1 and Q.Rating_2.
         q_nospace = q_num.replace(" ", "")
         grid_cols = [
-            col for col in raw_columns
+            col for col in fallback_columns
             if (re.match(rf"^{re.escape(q_num)}[_\-\.\s][0-9a-zA-Z_]+$", col, re.IGNORECASE)
                 or (q_nospace != q_num and re.match(rf"^{re.escape(q_nospace)}[_\-\.\s][0-9a-zA-Z_]+$", col, re.IGNORECASE))
                 )
             and not col.lower().endswith(("_timer_first click", "_timer_last click", "_timer_page submit", "_timer_click count"))
         ]
-        if grid_cols:
+        if grid_cols and (not exact_matches or q_type in {"matrix_grid", "multi_choice_grid", "multiple_choice"}):
             matched_cols = sorted(grid_cols)
             confidence = "HIGH"
             evidence_parts.append(f"Matched {len(grid_cols)} matrix/statement columns ({grid_cols[0]} ... {grid_cols[-1]})")
 
-        # C. Loop / Piped Question Match (e.g. 13_Q.NPS, 14_Q.NPS for Q.NPS)
-        if not matched_cols and q_num.startswith("Q."):
+        # C. Loop / Piped Question Match (e.g. 1_Q.Satisfaction and 2_Q.Satisfaction)
+        loop_cols = []
+        if not matched_cols:
             loop_cols = [
-                col for col in raw_columns
+                col for col in fallback_columns
                 if re.match(rf"^\d+_{re.escape(q_num)}(?:_\w+)?$", col, re.IGNORECASE)
-                and not any(t in col.lower() for t in ["timer", "submit", "click"])
             ]
             if loop_cols:
                 matched_cols = sorted(loop_cols)
                 confidence = "HIGH"
                 evidence_parts.append(f"Matched {len(loop_cols)} piped loop columns ({loop_cols[0]} ... {loop_cols[-1]})")
 
-        # D. Semantic / Keyword Match for Demographics, Open-ends, and Brand recall
+        # D. Semantic suggestions from common demographic and rating labels
         if not matched_cols:
-            if "age" in q_lower or (len(text_lower) > 3 and ("how old" in text_lower or any(w.startswith("age") for w in re.findall(r"\w+", text_lower)))):
-                age_cols = [c for c in raw_columns if any(k == c.lower() for k in ["age", "demo_age", "q_age", "q.age"])]
+            code_words = re.findall(r"[a-z0-9]+", q_lower)
+            if "age" in code_words or re.search(r"\b(?:age|how old)\b", text_lower):
+                age_cols = [c for c in fallback_columns if c.lower() in {"age", "demo_age", "q_age", "q.age"}]
                 if age_cols:
                     matched_cols = [age_cols[0]]
                     confidence = "HIGH"
                     evidence_parts.append(f"Matched demographic age column '{age_cols[0]}'")
             elif "gender" in q_lower or (len(text_lower) > 5 and "gender" in text_lower):
-                gender_cols = [c for c in raw_columns if any(k == c.lower() for k in ["gender", "sex", "demo_gender", "q.gender"])]
+                gender_cols = [c for c in fallback_columns if c.lower() in {"gender", "sex", "demo_gender", "q.gender"}]
                 if gender_cols:
                     matched_cols = [gender_cols[0]]
                     confidence = "HIGH"
                     evidence_parts.append(f"Matched demographic gender column '{gender_cols[0]}'")
-            elif "oe_brand" in q_lower or "unaidedaware" in q_lower or ("brand" in text_lower and "come to mind" in text_lower):
-                brand_cols = [c for c in raw_columns if any(k in c.lower() for k in ["oe_brand", "unaidedaware", "open_brand", "q.unaidedaware"])]
-                if brand_cols:
-                    matched_cols = [brand_cols[0]]
-                    confidence = "HIGH"
-                    evidence_parts.append(f"Matched open-ended brand column '{brand_cols[0]}'")
             elif "nps" in q_lower or ("recommend" in text_lower and "scale of 0-10" in text_lower):
-                nps_cols = [c for c in raw_columns if any(k in c.lower() for k in ["nps", "recommend"] and not any(t in c.lower() for t in ["timer", "submit"]))]
+                nps_cols = [c for c in fallback_columns if any(k in c.lower() for k in ("nps", "recommend"))]
                 if nps_cols:
                     matched_cols = [nps_cols[0]]
                     confidence = "MEDIUM"
@@ -196,9 +196,7 @@ def suggest_mappings(
             ]
             best_cand = None
             best_score = 0
-            for col in raw_columns:
-                if col in used_columns or any(t in col.lower() for t in ["timer", "submit", "click", "start", "end", "date"]):
-                    continue
+            for col in fallback_columns:
                 c_low = col.lower()
                 matches_count = sum(1 for w in words if w in c_low)
                 if matches_count > best_score:
@@ -226,7 +224,7 @@ def suggest_mappings(
             "question_number": q_num,
             "question_text": q_text,
             "question_type": q_type,
-            "grouped_columns": bool(grid_cols or (len(matched_cols) > 1 and q_num.startswith("Q."))),
+            "grouped_columns": bool(grid_cols or loop_cols),
             "matched_column": primary_matched_column,
             "mapped_columns": matched_cols,
             "confidence": confidence,

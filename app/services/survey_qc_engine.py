@@ -3,11 +3,11 @@ Survey Data Quality Control (QC) Engine.
 Executes comprehensive, contextual quality audits on respondent records:
 1. Timestamp arithmetic & survey speeding (duration range, page timers, overnight context)
 2. Straightlining detection on matrix/grid rating scales
-3. Open-ended quality & gibberish detection (valid no-recall vs gibberish vs off-topic vs typos)
+3. Open-ended quality & gibberish detection
 4. Duplicate detection (confirmed vs potential)
 5. Screening and eligibility validation
 6. Survey routing and skip-logic consistency
-7. Contradictory response detection
+7. Matrix response validation against explicit option codes
 8. Incomplete / missing answer validation
 9. Deterministic respondent disposition (ACCEPTED, REJECTED, REVIEW_REQUIRED)
 """
@@ -46,23 +46,6 @@ VALID_NO_RECALL_PATTERNS = [
     r"^\s*nil\s*$",
     r"^\s*unknown\s*$",
 ]
-
-# Recognizable product / brand / category terms for orthodontic and health surveys
-RECOGNIZED_ORTHO_TERMS = {
-    "invisalign", "angel aligner", "angelaligner", "ortho classic", "orthoclassic",
-    "braces", "clear aligners", "aligners", "aligner", "retainers", "retainer",
-    "byte", "candid", "smile direct", "smiledirectclub", "spark", "3m", "ormco",
-    "damon", "six month smiles", "surefit", "metal braces", "ceramic braces",
-    "lingual braces", "invisible braces", "teeth straighteners", "bands"
-}
-
-# Real words that are common known brands outside orthodontics (Meaningful but Off-Topic)
-COMMON_OFF_TOPIC_BRANDS = {
-    "nike", "adidas", "apple", "samsung", "toyota", "honda", "ford", "bmw",
-    "google", "amazon", "microsoft", "sony", "coca cola", "coke", "pepsi",
-    "starbucks", "mcdonalds", "gucci", "prada", "rolex", "tesla"
-}
-
 
 @dataclass
 class FindingDetail:
@@ -158,6 +141,13 @@ def run_survey_qc_audit(
     active = [m for m in mappings if m.get("mapped_columns") and m.get("mapping_status") not in {"SKIPPED", "UNMAPPED"}]
     by_question = {m["question_number"]: m["mapped_columns"] for m in active}
     matrix_mappings = [m for m in active if m.get("question_type") == "matrix_grid"] if rules.get("straightlining_enabled", True) else []
+    matrix_options = [
+        (m, {value.casefold() for code, label in m["option_codes"].items()
+             for value in (code, label, f"{code}. {label}")})
+        for m in active
+        if m.get("question_type") == "matrix_grid" and confirmed(m) and m.get("option_codes")
+        and len(m["mapped_columns"]) == len(m.get("matrix_items") or []) > 1
+    ]
     open_ended_mappings = [m for m in active if m.get("question_type") == "open_ended"] if rules.get("open_text_enabled", True) else []
     eligibility = rules.get("effective_eligibility_rules")
     if eligibility is None:
@@ -167,11 +157,15 @@ def run_survey_qc_audit(
     required = required_questions & by_question.keys() if rules.get("completeness_enabled", bool(required_questions)) else set()
     duplicate_enabled = rules.get("duplicate_enabled", True)
     total_tested = timer_tested = routed = complete_tested = eligibility_tested = 0
+    matrix_options_tested = potential_duplicates_tested = 0
+    telemetry_columns = {resp_id_col, *system_columns.values(), *timer_columns, "_physical_row"}
+    answer_columns = {column for columns in by_question.values() for column in columns}
 
     # Track identifiers for duplicate detection
     seen_ids: dict[str, list[str]] = {}
     seen_ips: dict[str, list[str]] = {}
-    seen_signatures: dict[str, list[str]] = {}
+    seen_signatures: dict[tuple[tuple[str, str], ...], list[str]] = {}
+    answer_signatures = []
     seen_full_rows: dict[tuple, list[tuple]] = {}
 
     # Pass 1: Build duplicate lookup indices
@@ -189,14 +183,13 @@ def run_survey_qc_audit(
         full_sig = tuple(sorted((k, str(v)) for k, v in row.items() if k != "_physical_row"))
         seen_full_rows.setdefault(full_sig, []).append((idx, r_id))
 
-        # Substantive answer signature for similar responses check (ignoring telemetry)
-        substantive = []
-        for col_name, val in row.items():
-            col_low = col_name.lower()
-            if not col_name.startswith("_") and col_name not in (resp_id_col, start_col, end_col, dur_col, ip_col) and not any(t in col_low for t in ["timer", "submit", "start", "end", "date", "time", "dur", "ip", "prog"]):
-                if val is not None and str(val).strip():
-                    substantive.append(f"{col_name}={str(val).strip().lower()}")
-        sig = "|".join(sorted(substantive))
+        # Evaluate actual mapped answers, or non-telemetry data for a raw-only audit.
+        sig = tuple(sorted(
+            (column, str(value).strip().casefold()) for column, value in row.items()
+            if column not in telemetry_columns and (not mappings or column in answer_columns)
+            and value is not None and str(value).strip()
+        ))
+        answer_signatures.append(sig)
         if sig:
             seen_signatures.setdefault(sig, []).append(r_id)
 
@@ -372,13 +365,31 @@ def run_survey_qc_audit(
                             expected_rule="Auditor review for non-differentiation vs authentic uniform rating"
                         ))
 
+        # A confirmed rating grid can also be checked against its explicit response codes.
+        checked_options = False
+        for matrix, options in matrix_options:
+            for column in matrix["mapped_columns"]:
+                value = row.get(column)
+                if value is None or not str(value).strip():
+                    continue
+                answer = str(value).strip()
+                checked_options = True
+                if answer.casefold() not in options:
+                    result.findings.append(FindingDetail(
+                        issue_type="MATRIX_INVALID_OPTION", question_number=matrix["question_number"], raw_column=column,
+                        recommendation="REVIEW_REQUIRED", original_answer=answer,
+                        evidence=f"Answer '{answer}' is outside the documented rating options for {matrix['question_number']}.",
+                        expected_rule="Use a rating code or label declared in the questionnaire.",
+                    ))
+        matrix_options_tested += int(checked_options)
+
         # --- CHECK 6: Open-Ended Quality & Gibberish Detection ---
         for om in open_ended_mappings:
             for o_col in om.get("mapped_columns", []):
                 ans = str(row.get(o_col, "")).strip()
                 if ans:
                     classification, reason, sev, rec = _classify_open_text(ans, om.get("question_text", ""))
-                    if classification in ("GIBBERISH", "MEANINGFUL_OFF_TOPIC", "AMBIGUOUS_REVIEW"):
+                    if classification in ("GIBBERISH", "AMBIGUOUS_REVIEW"):
                         summary.suspicious_text_count += 1
                         result.findings.append(FindingDetail(
                             issue_type=classification,
@@ -389,7 +400,7 @@ def run_survey_qc_audit(
                             raw_column=o_col,
                             original_answer=ans,
                             observed_value=ans,
-                            expected_rule="Thoughtful, relevant answer or valid non-recall"
+                            expected_rule="Substantive answer, valid non-recall, or a numeric answer where requested"
                         ))
 
         # --- CHECK 7: Duplicate Detection ---
@@ -423,13 +434,9 @@ def run_survey_qc_audit(
                 ))
 
         # C. Potential similar respondents: identical substantive answers with DIFFERENT respondent IDs
-        substantive = []
-        for col_name, val in row.items():
-            col_low = col_name.lower()
-            if not col_name.startswith("_") and col_name not in (resp_id_col, start_col, end_col, dur_col, ip_col) and not any(t in col_low for t in ["timer", "submit", "start", "end", "date", "time", "dur", "ip", "prog"]):
-                if val is not None and str(val).strip():
-                    substantive.append(f"{col_name}={str(val).strip().lower()}")
-        sig = "|".join(sorted(substantive))
+        sig = answer_signatures[idx]
+        ip = str(row.get(ip_col) or "").strip()
+        potential_duplicates_tested += int(duplicate_enabled and bool(sig or ip))
         if duplicate_enabled and sig and len(seen_signatures.get(sig, [])) > 1:
             first_resp = seen_signatures[sig][0]
             if r_id != first_resp:
@@ -444,8 +451,7 @@ def run_survey_qc_audit(
                 ))
 
         # D. Potential duplicate: identical IP address across multiple respondents
-        if ip_col and row.get(ip_col):
-            ip = str(row[ip_col]).strip()
+        if ip:
             linked_ids = seen_ips.get(ip, [])
             if duplicate_enabled and len(linked_ids) > 1 and r_id != linked_ids[0]:
                 summary.potential_duplicates_count += 1
@@ -575,13 +581,16 @@ def run_survey_qc_audit(
         ("Straightlining Detection", "Response Quality", ("STRAIGHTLINING",), "straightlining_count",
          sum(any(sum(bool(str(r.raw_data.get(c, "")).strip()) for c in m["mapped_columns"]) >= straightlining_min_items for m in matrix_mappings)
              for r in summary.results), f"Same response on at least {straightlining_pct:g}% of at least {straightlining_min_items} rating items."),
-        ("Open-Ended Quality & Gibberish", "Content Integrity", ("GIBBERISH", "AMBIGUOUS_REVIEW", "MEANINGFUL_OFF_TOPIC"), "suspicious_text_count",
+        ("Matrix Response Options", "Response Quality", ("MATRIX_INVALID_OPTION",), None,
+         matrix_options_tested, "Compare answers with explicit codes or labels on confirmed rating grids."),
+        ("Open-Ended Quality & Gibberish", "Content Integrity", ("GIBBERISH", "AMBIGUOUS_REVIEW"), "suspicious_text_count",
          sum(any(str(r.raw_data.get(c, "")).strip() for m in open_ended_mappings for c in m["mapped_columns"]) for r in summary.results),
          "Review suspicious or ambiguous responses."),
+        ("Open-Ended Topic Relevance", "Content Integrity", (), None, 0, "Semantic relevance requires auditor review."),
         ("Confirmed Duplicates", "Fraud Prevention", ("CONFIRMED_DUPLICATE_ID", "CONFIRMED_DUPLICATE_FULL_RECORD"), "confirmed_duplicates_count",
          len(records) if duplicate_enabled else 0, "Subsequent exact record or respondent ID matches."),
         ("Potential Duplicates", "Fraud Prevention", ("POTENTIAL_DUPLICATE_IP", "POTENTIAL_DUPLICATE_SIGNATURE"), "potential_duplicates_count",
-         len(records) if duplicate_enabled else 0, "Shared IP or substantive answers are review signals."),
+         potential_duplicates_tested, "Shared IP or substantive answers are review signals."),
         ("Screening & Eligibility Validation", "Target Audience", ("SCREENER_AGE_VIOLATION", "SCREENER_TERMINATION"), "screener_violations_count",
          eligibility_tested, "Explicit eligibility criteria on confirmed mappings, within their applicable scope."),
         ("Survey Routing & Skip Logic", "Survey Flow", ("ROUTING_VIOLATION",), "routing_violations_count",
@@ -652,8 +661,7 @@ def _check_overnight_time(row: dict[str, Any], end_col: str | None) -> tuple[int
 
 def _classify_open_text(text: str, question_wording: str) -> tuple[str, str, str, str]:
     """
-    Context-aware open-ended text evaluation.
-    Considers the actual question wording:
+    Evaluate answer patterns using the question wording for numeric and code fields.
       - Numbers/IDs (like 12345) are valid when question is numeric/postal/code.
       - Unfamiliar names, acronyms, and misspellings route to REVIEW_REQUIRED.
       - Definite keyboard walks/repeated chars route to REVIEW_REQUIRED as review signals.
@@ -682,10 +690,8 @@ def _classify_open_text(text: str, question_wording: str) -> tuple[str, str, str
     if re.match(r"^[0-9\s\.\,\-\!\?]+$", cleaned):
         return "AMBIGUOUS_REVIEW", f"Numeric response ('{cleaned}') in open-ended text question; routed to review for auditor context", "LOW", "REVIEW_REQUIRED"
 
-    # Rule 3: Single character or extremely short strings (< 3 chars)
+    # Rule 3: Extremely short strings may be valid abbreviations or partial answers.
     if len(cleaned) < 3:
-        if low in ("3m", "dr", "gc", "us", "uk", "tp", "yo"):
-            return "VALID_RELEVANT", f"Recognized abbreviation / short term ('{cleaned}')", "INFO", "NOTE"
         return "AMBIGUOUS_REVIEW", f"Very short response ('{cleaned}'); routed for auditor review", "LOW", "REVIEW_REQUIRED"
 
     # Rule 4: Repeated characters ("aaaaa", "zzzzz", ".....")
@@ -697,15 +703,7 @@ def _classify_open_text(text: str, question_wording: str) -> tuple[str, str, str
     if any(walk in low for walk in keyboard_walks):
         return "GIBBERISH", f"Matches standard keyboard walk pattern in '{cleaned}'", "HIGH", "REVIEW_REQUIRED"
 
-    # Rule 6: Check for known relevant orthodontic brands/terms
-    if any(k in qw_low for k in ("orthodont", "teeth straight", "aligner")) and any(term in low for term in RECOGNIZED_ORTHO_TERMS):
-        return "VALID_RELEVANT", "Recognized relevant brand or category response", "INFO", "NOTE"
-
-    # Rule 7: Check for common off-topic brands (meaningful real brand, but off-topic for orthodontics)
-    if any(k in qw_low for k in ("orthodont", "teeth straight", "aligner")) and any(b in low for b in COMMON_OFF_TOPIC_BRANDS):
-        return "MEANINGFUL_OFF_TOPIC", f"Recognized real-world brand ('{cleaned}') that appears off-topic for this survey category", "MEDIUM", "REVIEW_REQUIRED"
-
-    # Rule 7b: Repetitive single word spam (e.g. "good good good good good", "test test test")
+    # Repetitive single-word spam (e.g. "good good good good").
     words = re.findall(r"[a-zA-Z]+", low)
     if len(words) >= 3 and len(set(words)) == 1:
         return "GIBBERISH", f"Contains low-effort repeated word spam in '{cleaned}'", "MEDIUM", "REVIEW_REQUIRED"
@@ -722,10 +720,6 @@ def _classify_open_text(text: str, question_wording: str) -> tuple[str, str, str
         valid_words_count = sum(1 for w in words if any(v in w for v in "aeiouy"))
         if valid_words_count >= len(words) * 0.8:
             return "VALID_SUBSTANTIVE", f"Coherent multi-word open-ended response ({len(words)} words)", "INFO", "NOTE"
-
-    # Rule 9: Plausible English word, typo, or abbreviation
-    if any(w in low for w in ["invis", "align", "ortho", "smile", "teeth", "tooth", "dent"]):
-        return "AMBIGUOUS_REVIEW", f"Appears to be a misspelling or variation of a relevant term ('{cleaned}')", "LOW", "REVIEW_REQUIRED"
 
     # Default for unrecognized answers: Send to Review Required with LOW severity
     return "AMBIGUOUS_REVIEW", f"Unrecognized response requiring human auditor review ('{cleaned}')", "LOW", "REVIEW_REQUIRED"

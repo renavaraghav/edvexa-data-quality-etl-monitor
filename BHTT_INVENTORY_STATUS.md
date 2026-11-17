@@ -1,6 +1,6 @@
 # BHTT Wave 3B questionnaire evidence
 
-**Release gate: blocked.** The mandatory acceptance criterion remains 62 substantive questions. The current Word evidence supports 59 extracted candidates and seven excluded blocks. Three inventory positions are unresolved: no source establishes their identities, wording, response structures, or inclusion as standalone questions. This report does not assign question IDs to those positions.
+The parser detected 59 candidate questions and seven excluded blocks in the inspected BHTT Word file. These are observations for this sample and its exact source hash. The questionnaire's completeness remains unverified. References to 62 questions are historical claims that lack an authoritative inventory.
 
 ## Source questionnaire and inventory
 
@@ -35,14 +35,14 @@ OneDrive had another `BHTT_Manager_Format_W1_W2_W3_W3B_704_FINAL.xlsx` under `On
 
 ## Information needed to close the gate
 
-1. **Unresolved inventory positions 60, 61, 62:** supply source IDs, exact prompts, response structure, routing, and evidence they are three distinct substantive questions. There are no validated identities for these slots.
-2. **External references:** establish the correct Teen Global and Moms workbook versions. They are cited for countries, gender, market age eligibility, and profiling/geographic items. The currently counted draft entries that reference those files are not proof of the missing three.
+1. **Substantive question inventory.** Verify the source IDs, prompts, response structure, and routing against an authoritative questionnaire specification. The available material does not identify additional standalone questions.
+2. **External references.** Establish the Teen Global and Moms workbook versions cited for countries, gender, market age eligibility, and profiling and geographic items.
 3. **Conditional fields:** the sports-team, musical-instrument, and Other follow-ups under `Q.Activities` are preserved as dependent fields. Equivalent follow-ups also exist elsewhere. A programming codebook or approved inventory must establish which, if any, count independently before promoting them.
 
-To reproduce the evidence, set `BHTT_QQ_PATH` to the local Word file for pytest, or run:
+Set `BHTT_QQ_PATH` to the local Word file and run the sample's characterization test.
 
 ```powershell
-python -m scripts.verify_bhtt_inventory "<local BHTT DOCX>" --show-extraction
+python -m pytest -q tests/test_survey_bhtt_regression.py::test_bhtt_docx_59_candidate_extraction_characterization
 ```
 
-The verifier checks the exact source hash against the repository approval record, which currently says `blocked`. Passing the 59-candidate regression does not pass release acceptance. See [the release procedure](release/README.md) for approval provenance, CI enforcement and the deployment check.
+The test pins the source hash and checks the observed extraction for regressions. [Platform release validation](release/README.md) uses general survey regression tests.

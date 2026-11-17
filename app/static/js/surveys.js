@@ -477,11 +477,11 @@ const Surveys = {
         const routingCount = data.routing_logic ? data.routing_logic.length : (data.skip_logic_rules ? data.skip_logic_rules.length : 0);
 
         pillsEl.innerHTML = `
-          <span class="badge-neutral">&bull; Questions: <strong>${totalQ}</strong></span>
+          <span class="badge-neutral">&bull; Candidate questions: <strong>${totalQ}</strong></span>
           <span class="badge-neutral">&bull; Expected Duration: <strong>${durPill}</strong></span>
           <span class="badge-neutral">&bull; Page Timers: <strong>${timerPill}</strong></span>
           <span class="badge-neutral">&bull; Screeners: <strong>${screenerCount}</strong></span>
-          <span class="badge-neutral">&bull; Skip Logic: <strong>${routingCount} rules</strong></span>
+          <span class="badge-neutral">&bull; Routing notes: <strong>${routingCount}</strong></span>
         `;
       }
 
@@ -707,7 +707,10 @@ const Surveys = {
       const roles = [['respondent_id', 'Respondent ID'], ['duration', 'Duration (seconds)'], ['start_time', 'Start'], ['end_time', 'End'], ['ip_address', 'IP']];
       teleList.innerHTML = roles.map(([role, title]) =>
         `<label>${title} <select data-survey-telemetry="${role}"><option value="">Unmapped</option>${selectOptions([data.system_columns?.[role]])}</select></label>`
-      ).join(' ') + ` <label>Page timers (seconds) <select id="surveyTimerColumns" multiple>${selectOptions(data.timer_columns || [])}</select></label>`;
+      ).join(' ') + ` <label>Page and question timers (seconds) <select id="surveyTimerColumns" multiple>${selectOptions(data.timer_columns || [])}</select></label>`;
+      if (this.qqData?.questions?.some(q => q.age_countries?.length)) {
+        teleList.insertAdjacentHTML('beforeend', ` <label>Country for eligibility <select id="surveyCountryColumn"><option value="">Use confirmed country question</option>${selectOptions([])}</select></label>`);
+      }
 
     }
 
@@ -835,6 +838,7 @@ const Surveys = {
         straightline_threshold_pct: parseFloat(document.getElementById('ruleStraightlineThreshold')?.value || 80),
         system_columns: Object.fromEntries(Array.from(document.querySelectorAll('[data-survey-telemetry]'), el => [el.dataset.surveyTelemetry, el.value || null])),
         timer_columns: Array.from(document.getElementById('surveyTimerColumns')?.selectedOptions || [], el => el.value),
+        country_column: document.getElementById('surveyCountryColumn')?.value || undefined,
         timing_rules: {
           required_questions: Array.from(document.querySelectorAll('[data-required-index]:checked'), el => this.mappingData[Number(el.dataset.requiredIndex)].question_number),
           completeness_threshold_pct: document.getElementById('ruleCompletenessThreshold').valueAsNumber

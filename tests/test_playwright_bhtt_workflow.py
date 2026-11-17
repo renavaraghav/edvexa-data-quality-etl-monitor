@@ -126,10 +126,10 @@ def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server, tmp_path
         assert BHTT_DOCX.name in file_name_text or "2026.10.29_INV BHTT_W3B(1).docx" in file_name_text
 
         pills_text = page.locator("#surveyQqPills").inner_text()
-        assert "Questions: 59" in pills_text
+        assert f"Candidate questions: {len(qq_data['questions'])}" in pills_text
         assert "Page Timers: 0 (No timer rule in QQ)" in pills_text
         assert f"Screeners: {len(qq_data['screening_criteria'])}" in pills_text
-        assert f"Skip Logic: {len(qq_data['routing_logic'])} rules" in pills_text
+        assert f"Routing notes: {len(qq_data['routing_logic'])}" in pills_text
 
         # Capture Step 1 Screenshot
         page.screenshot(path=str(ARTIFACT_DIR / "bhtt_step1_qq_parsed.png"))
@@ -162,7 +162,7 @@ def test_e2e_bhtt_questionnaire_and_qc_rules_workflow(local_app_server, tmp_path
         # Wait for mapping suggestions to load into the table
         page.wait_for_selector("#surveyMappingTableBody tr:nth-child(5)", timeout=10000)
         mapping_rows = page.locator("#surveyMappingTableBody tr")
-        assert mapping_rows.count() == 59
+        assert mapping_rows.count() == len(qq_data["questions"])
 
         # Verify confidence counters
         high_badge = page.locator("#surveyMapHighCount").inner_text()
@@ -253,8 +253,8 @@ def test_browser_qc_review_reload_and_export(live_test_server):
     import csv
     respondent_payload = '<img src=x onerror=window.edvexaToastPayload=1>'
     filename = '<img src=x onerror=window.edvexaToastPayload=1>.xlsx'
-    for row in csv.reader(CSV.replace('DUP', respondent_payload).splitlines()):
-        sheet.append(row)
+    for index, row in enumerate(csv.reader(CSV.replace('DUP', respondent_payload).splitlines())):
+        sheet.append([*row, "exported region" if index == 0 else "Canada"])
     data = BytesIO()
     dataset.save(data)
 
@@ -268,7 +268,8 @@ def test_browser_qc_review_reload_and_export(live_test_server):
         with page.expect_response('**/api/auth/login') as login:
             page.locator('#surveyAdminPasswordInput').press('Enter')
         assert login.value.ok
-        page.set_input_files("#surveyQqFileInput", {"name": "qq.txt", "mimeType": "text/plain", "buffer": QQ.encode()})
+        questionnaire = QQ.replace("[Terminate if under 18]", "[Terminate if under 18 in Canada only]")
+        page.set_input_files("#surveyQqFileInput", {"name": "qq.txt", "mimeType": "text/plain", "buffer": questionnaire.encode()})
         page.click("#surveyStep1NextBtn")
         # Construct a browser File directly so the host OS cannot sanitize the payload filename.
         with page.expect_response("**/api/surveys/upload-raw") as upload:
@@ -296,6 +297,7 @@ def test_browser_qc_review_reload_and_export(live_test_server):
         assert page.locator("[data-confirm-index]:checked").count() == 0
         page.get_by_role("button", name="Confirm all mapped questions").click()
         assert page.locator("[data-confirm-index]:checked").count() == 3
+        page.select_option("#surveyCountryColumn", "exported region")
         page.click("#surveyStep3NextBtn")
         page.locator("#ruleStraightlineThreshold").fill("80")
         with page.expect_response("**/api/surveys/run-audit") as run:
