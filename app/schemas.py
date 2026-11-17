@@ -268,6 +268,7 @@ class SurveyCoverageItem(BaseModel):
     category: str
     status: str  # PASSED, FLAGGED, PARTIALLY_CHECKED, NOT_CHECKED, NOT_APPLICABLE
     flagged_count: int = 0
+    finding_count: int = 0
     rule_description: str
     notes: str
 
@@ -326,3 +327,44 @@ class SurveyPreviewResponse(BaseModel):
     metadata_rows_detected: list[int] = Field(default_factory=list)
     recommended_header_row: int = 0
 
+
+
+class SurveyDatasetSelection(BaseModel):
+    raw_artifact_name: str | None = Field(default=None, max_length=255)
+    raw_filename: str | None = Field(default=None, max_length=255)
+    qq_artifact_name: str | None = Field(default=None, max_length=255)
+    qq_filename: str | None = Field(default=None, max_length=255)
+    sheet_name: str | None = Field(default=None, max_length=100)
+    header_row_index: int | None = Field(default=None, ge=0)
+    model_config = ConfigDict(extra="allow")
+
+
+class SurveyMappingSelection(BaseModel):
+    question_number: str = Field(min_length=1, max_length=50)
+    mapped_columns: list[str] | None = None
+    matched_column: str | None = None
+    mapping_status: str | None = None
+    question_type: str | None = Field(default=None, max_length=50)
+    question_text: str | None = None
+    confidence: str | None = Field(default=None, max_length=20)
+    evidence: str | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class SurveyAuditRequest(SurveyDatasetSelection):
+    audit_name: str | None = Field(default=None, max_length=255)
+    raw_file_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    qq_file_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    confirmed_mappings: list[SurveyMappingSelection] | None = None
+    timing_rules: dict[str, Any] | None = None
+    system_columns: dict[str, str | None] | None = None
+    timer_columns: list[str] | None = None
+    country_column: str | None = None
+
+
+class SurveyManualEligibility(BaseModel):
+    question_number: str = Field(min_length=1, max_length=50)
+    min_age: float | None = Field(default=None, strict=True, ge=0, le=130)
+    max_age: float | None = Field(default=None, strict=True, ge=0, le=130)
+    termination_values: list[str] = Field(default_factory=list, max_length=100)
+    model_config = ConfigDict(extra="forbid")

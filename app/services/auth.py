@@ -3,12 +3,15 @@ import hmac
 import os
 import secrets
 import time
-from fastapi import Request
+from urllib.parse import urlsplit
+from fastapi import HTTPException, Request
 
 from app.config import settings
 
 SESSION_COOKIE_NAME = "edvexa_admin_session"
 SESSION_MAX_AGE_SECONDS = 86400  # 24 hours
+_SESSION_VERSION = "admin-v2"
+_DEV_SIGNING_KEY = secrets.token_urlsafe(32)
 
 
 def get_secret_key() -> str:
@@ -26,7 +29,7 @@ def get_secret_key() -> str:
                 "Application fails closed to prevent unauthorized access. "
                 "Do NOT use ADMIN_RESET_TOKEN for session signing."
             )
-        return "edvexa-dev-ephemeral-session-signing-key"
+        return _DEV_SIGNING_KEY
     return key
 
 
@@ -34,7 +37,7 @@ def create_admin_session_token() -> str:
     """Generate a cryptographically signed admin session token."""
     now = int(time.time())
     nonce = secrets.token_hex(16)
-    payload = f"admin:{now}:{nonce}"
+    payload = f"{_SESSION_VERSION}:{now}:{nonce}"
     signature = hmac.new(
         get_secret_key().encode("utf-8"),
         payload.encode("utf-8"),
@@ -60,16 +63,24 @@ def verify_admin_session_token(token: str | None) -> bool:
             return False
 
         parts = payload.split(":")
-        if len(parts) != 3 or parts[0] != "admin":
+        if len(parts) != 3 or parts[0] != _SESSION_VERSION:
             return False
 
         created_at = int(parts[1])
-        if time.time() - created_at > SESSION_MAX_AGE_SECONDS:
+        if not 0 <= time.time() - created_at <= SESSION_MAX_AGE_SECONDS:
             return False
 
         return True
     except Exception:
         return False
+
+
+def has_admin_header_session(request: Request) -> bool:
+    header = request.headers.get("authorization", "")
+    scheme, _, value = header.partition(" ")
+    return (scheme.lower() == "bearer" and verify_admin_session_token(value.strip())) or verify_admin_session_token(
+        request.headers.get("x-admin-session-token", "").strip()
+    )
 
 
 def is_authenticated_admin(request: Request) -> bool:
@@ -80,24 +91,15 @@ def is_authenticated_admin(request: Request) -> bool:
     (X-Admin-Reset-Token) DO NOT grant broad administrative access to
     general endpoints (see is_authorized_reset_client for reset scoping).
     """
-    # 1. Check HttpOnly session cookie
-    cookie_token = request.cookies.get(SESSION_COOKIE_NAME)
-    if cookie_token and verify_admin_session_token(cookie_token):
-        return True
+    return has_admin_header_session(request) or verify_admin_session_token(request.cookies.get(SESSION_COOKIE_NAME))
 
-    # 2. Check Authorization: Bearer <session_token>
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        bearer_token = auth_header[len("Bearer "):].strip()
-        if verify_admin_session_token(bearer_token):
-            return True
 
-    # 3. Check X-Admin-Session-Token
-    session_header = request.headers.get("X-Admin-Session-Token", "").strip()
-    if session_header and verify_admin_session_token(session_header):
-        return True
+def token_matches(supplied: str | None, expected: str | None) -> bool:
+    return bool(supplied and expected and secrets.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8")))
 
-    return False
+
+def has_reset_credential(request: Request) -> bool:
+    return token_matches(request.headers.get("X-Admin-Reset-Token"), settings.ADMIN_RESET_TOKEN)
 
 
 def is_authorized_reset_client(request: Request) -> bool:
@@ -105,19 +107,47 @@ def is_authorized_reset_client(request: Request) -> bool:
     Check if the incoming request is authorized specifically for destructive reset operations.
     Accepts:
       1. Full authenticated admin session (cookie, Bearer, session token).
-      2. Scoped machine reset token (X-Admin-Reset-Token or ?token=).
+      2. Scoped machine reset token in the X-Admin-Reset-Token header.
     """
-    if is_authenticated_admin(request):
-        return True
+    return is_authenticated_admin(request) or has_reset_credential(request)
 
-    configured_token = (settings.ADMIN_RESET_TOKEN or "").strip()
-    if configured_token:
-        direct_token = (
-            request.headers.get("X-Admin-Reset-Token")
-            or request.query_params.get("token")
-            or ""
-        ).strip()
-        if direct_token and secrets.compare_digest(direct_token, configured_token):
-            return True
 
-    return False
+def _origin(value, *, referer=False):
+    if not value or any(c.isspace() for c in value):
+        return None
+    try:
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username is not None:
+            return None
+        if not referer and (parsed.path not in {"", "/"} or parsed.query or parsed.fragment):
+            return None
+        port = parsed.port if parsed.port is not None else (443 if parsed.scheme == "https" else 80)
+        return parsed.scheme, parsed.hostname.casefold(), port
+    except ValueError:
+        return None
+
+
+def enforce_browser_origin(request: Request, *, required=True, use_configured=True):
+    """Use ASGI's trusted scheme and Host, or an explicitly configured public origin."""
+    label = "Origin" if "origin" in request.headers else "Referer"
+    supplied = request.headers.get(label)
+    fetch_site = request.headers.get("sec-fetch-site", "").lower()
+    if fetch_site == "cross-site":
+        raise HTTPException(403, "CSRF protection: cross-site request blocked.")
+    if supplied is None and not required:
+        return
+    actual = _origin(supplied, referer=label == "Referer")
+    target = _origin(f"{request.url.scheme}://{request.url.netloc}")
+    configured_origins = settings.ADMIN_ALLOWED_ORIGINS if use_configured else []
+    configured = {_origin(value) for value in configured_origins} - {None}
+    allowed = {target} if not configured_origins or target in configured else {
+        origin for origin in configured if target and origin[0] == target[0]
+    }
+    if not actual or actual not in allowed:
+        raise HTTPException(403, f"CSRF protection: a trusted {label} is required.")
+
+
+def enforce_cookie_csrf(request: Request):
+    if (request.method in {"POST", "PUT", "PATCH", "DELETE"} and not has_admin_header_session(request)
+            and verify_admin_session_token(request.cookies.get(SESSION_COOKIE_NAME))):
+        enforce_browser_origin(request)

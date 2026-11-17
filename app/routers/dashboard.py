@@ -1,13 +1,13 @@
 import logging
-import secrets
+from ipaddress import ip_address
 from datetime import datetime, time, timedelta
 import threading
-from fastapi import APIRouter, Depends, Query, Header, HTTPException, status, Request
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
 from app.config import settings
-from app.services.auth import is_authenticated_admin
+from app.services.auth import enforce_browser_origin
 from app.database import get_db
 from app.services.storage import clear_all_upload_artifacts
 
@@ -42,7 +42,7 @@ def parse_date_boundaries(start_date: str | None, end_date: str | None):
             start_dt = datetime.combine(d, time.min)
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Invalid start_date '{start_date}'. Expected YYYY-MM-DD."
             ) from exc
     if end_date:
@@ -51,12 +51,12 @@ def parse_date_boundaries(start_date: str | None, end_date: str | None):
             end_dt = datetime.combine(d, time.max)
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Invalid end_date '{end_date}'. Expected YYYY-MM-DD."
             ) from exc
     if start_dt and end_dt and start_dt > end_dt:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="start_date must be on or before end_date."
         )
     return start_dt, end_dt
@@ -261,19 +261,33 @@ def reset_dashboard_preferences():
 reset_lock = threading.Lock()
 
 
-def verify_reset_authorization(
-    request: Request,
-) -> bool:
-    """
-    Validate authorization for destructive data reset operations.
-    Public reset is enabled across environments (development and production)
-    so any visitor can reset uploaded data via the interactive slider and confirmation checkbox.
-    """
+def _loopback(host):
+    try:
+        return bool(host and ip_address(host).is_loopback)
+    except ValueError:
+        return False
+
+
+def _etl_demo_reset_allowed(request: Request) -> bool:
+    hostname = request.url.hostname
+    return bool(
+        settings.ALLOW_DESTRUCTIVE_RESET and settings.ENVIRONMENT in {"development", "test"}
+        and settings.database_type == "sqlite" and settings.STORAGE_BACKEND == "local"
+        and request.client and _loopback(request.client.host)
+        and (hostname == "localhost" or _loopback(hostname))
+    )
+
+
+def verify_reset_authorization(request: Request) -> bool:
+    """Keep destructive ETL demo reset confined to loopback and local data."""
     if not settings.ALLOW_DESTRUCTIVE_RESET:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Destructive data reset is currently disabled by configuration."
         )
+    if not _etl_demo_reset_allowed(request):
+        raise HTTPException(403, "Destructive ETL reset is available only in an isolated local demo.")
+    enforce_browser_origin(request, required=False, use_configured=False)
     return True
 
 
@@ -283,11 +297,12 @@ def get_reset_status(request: Request):
     Returns whether destructive data reset is allowed in the current environment
     and whether public reset is active.
     """
+    allowed = _etl_demo_reset_allowed(request)
     return {
         "status": "ready",
         "environment": settings.ENVIRONMENT,
-        "destructive_reset_allowed": settings.ALLOW_DESTRUCTIVE_RESET,
-        "public_reset_enabled": True,
+        "destructive_reset_allowed": allowed,
+        "public_reset_enabled": allowed,
         "confirmation_checkbox_required": True,
         "admin_auth_required": False,
         "admin_token_required": False,

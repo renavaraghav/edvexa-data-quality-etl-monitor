@@ -86,30 +86,17 @@ def seed_test_database(db: Session) -> dict:
     return {"job_id": job.id}
 
 
-def test_public_reset_allowed_in_production_without_token(client: TestClient, db_session: Session):
-    """In production environment, any visitor can execute reset without tokens or login."""
+def test_public_reset_denied_in_production_and_records_preserved(client: TestClient, db_session: Session):
     with patch.object(settings, "ENVIRONMENT", "production"):
         with patch.object(settings, "ALLOW_DESTRUCTIVE_RESET", True):
             # Seed test data
             seed_test_database(db_session)
             assert db_session.query(ProcessingJob).count() >= 1
 
-            # Public reset request without any credentials/headers
-            res = client.post("/api/dashboard/reset-data")
-            assert res.status_code == 200
-            data = res.json()
-            assert data["status"] == "success"
-            assert data["database_schema_preserved"] is True
-            assert data["deleted"]["customers"] >= 1
-            assert data["deleted"]["jobs"] >= 1
-
-            # Verify tables are empty
-            assert db_session.query(ProcessingJob).count() == 0
-            assert db_session.query(Customer).count() == 0
-            assert db_session.query(Sale).count() == 0
-            assert db_session.query(Inventory).count() == 0
-            assert db_session.query(ValidationError).count() == 0
-            assert db_session.query(JobCleanRecord).count() == 0
+            for headers in ({}, {"X-Admin-Reset-Token": settings.ADMIN_RESET_TOKEN}):
+                assert client.post("/api/dashboard/reset-data", headers=headers).status_code == 403
+            for table in (ProcessingJob, Customer, Sale, Inventory, ValidationError, JobCleanRecord):
+                assert db_session.query(table).count() == 1
 
 
 def test_public_reset_allowed_in_development_without_token(client: TestClient, db_session: Session):

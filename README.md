@@ -333,13 +333,15 @@ The application loads a private `.env` file from the project root when present. 
 | `R2_ACCOUNT_ID` | No | None | Optional Cloudflare R2 account ID used to derive the endpoint if no explicit endpoint is configured. |
 | `UPLOAD_MAX_SIZE_BYTES` | No | `10485760` | Maximum upload size in bytes (10 MiB by default). |
 | `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins. Configure explicit trusted origins for production. |
-| `FORCE_DISABLE_DESTRUCTIVE_RESET` | No | `false` | Set to `true`, `1`, or `yes` to disable the destructive reset endpoint. |
-| `ADMIN_RESET_TOKEN` | For admin login | None | Administrator credential used by the admin login flow and direct admin authentication. Store only in a private environment setting. |
-| `SECRET_KEY` | Recommended in production | Falls back to `ADMIN_RESET_TOKEN` or a development fallback | Independent high-entropy key for signing admin sessions. Set explicitly in production and never commit it. |
+| `FORCE_DISABLE_DESTRUCTIVE_RESET` | No | `false` | Set to `true`, `1`, or `yes` to disable destructive reset. ETL reset is always disabled in production. |
+| `ADMIN_RESET_TOKEN` | For scoped survey reset clients | None | Machine credential accepted only in `X-Admin-Reset-Token` on the survey reset endpoint. |
+| `ADMIN_LOGIN_PASSWORD` | For survey admin login | None | Independent human login credential. An unset value or one equal to the reset token disables login. |
+| `ADMIN_ALLOWED_ORIGINS` | For proxies that change the public Host | Render external URL if provided | Comma-separated public admin origins, including scheme and optional port. Preserve Host and configure trusted proxy peers in Uvicorn. |
+| `SECRET_KEY` | Required in production | Per-process key in local development | Independent high-entropy key for signing admin sessions. Neither login nor reset credentials are used as a fallback. |
 
 **Remote-storage setup:** For `STORAGE_BACKEND=neon`, `s3`, or `r2`, provide the endpoint, bucket, access key, and secret key. Check `GET /api/health` after startup to confirm the effective backend; incomplete remote configuration falls back to local storage after logging a warning.
 
-**Security note:** `ADMIN_RESET_TOKEN` enables the admin authentication flow, but does not by itself disable the public reset endpoint. Set `FORCE_DISABLE_DESTRUCTIVE_RESET=true` when the reset endpoint must be disabled.
+For browser authentication behind a reverse proxy, configure Uvicorn's `FORWARDED_ALLOW_IPS` for the actual trusted ingress peers. Have the proxy replace incoming forwarded scheme and client-address headers and restrict direct application access. Cookie writes require a matching Origin or Referer. Existing admin sessions issued before the credential separation must log in again with the new, distinct password.
 
 ### Two-Step Destructive Data Reset
 The platform includes an iPhone-style Slide-to-Reset control to clear uploaded data without dropping database tables:
@@ -351,9 +353,9 @@ The platform includes an iPhone-style Slide-to-Reset control to clear uploaded d
 5. **Atomic Purge & Automatic Refresh:** The backend purges records inside an atomic transaction, unlinks uploaded files, and confirms success. The frontend then executes `window.location.reload()`, performing an automatic full page refresh so all dashboard numbers and tables display the fresh updated state.
 
 > [!NOTE]
-> **Assignment Demo Configuration:**  
-> The app computes its internal `ALLOW_DESTRUCTIVE_RESET` setting from `FORCE_DISABLE_DESTRUCTIVE_RESET`. In the current assignment-demo configuration, `FORCE_DISABLE_DESTRUCTIVE_RESET` is unset or `false`, so reset is enabled without an administrative token or login.  
-> Direct API requests to `POST /api/dashboard/reset-data` bypass the frontend slider and checkbox controls because backend token enforcement is disabled in this evaluation mode. The separate module at `app/routers/auth.py` is not wired to this reset endpoint in the current demo, so it does not protect this route.
+> The public ETL reset is for isolated loopback demos using local SQLite and local storage. Production always rejects ETL reset. The slider and checkbox are interface controls; direct local API calls are still possible when the server permits demo reset.
+
+Survey platform regression checks and the disposable PostgreSQL test procedure are documented in [release/README.md](release/README.md).
 
 ---
 

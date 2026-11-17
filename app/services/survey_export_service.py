@@ -56,7 +56,8 @@ def generate_survey_audit_workbook(
     audit: SurveyAuditRun,
     respondents: list[SurveyRespondent],
     findings: list[SurveyQcFinding],
-    mappings: list[SurveyQuestionMapping]
+    mappings: list[SurveyQuestionMapping],
+    reviews=None,
 ) -> io.BytesIO:
     """Generate the complete 8-worksheet Excel audit report."""
     wb = Workbook()
@@ -67,7 +68,7 @@ def generate_survey_audit_workbook(
     ws_summary = wb.create_sheet(title="Audit Summary")
     _build_summary_sheet(ws_summary, audit, respondents, findings)
 
-    # 2. Raw Data (100% original dataset preserved)
+    # 2. Imported cell values; original file bytes are stored as an artifact.
     ws_raw = wb.create_sheet(title="Raw Data")
     _build_raw_data_sheet(ws_raw, respondents)
 
@@ -94,6 +95,30 @@ def generate_survey_audit_workbook(
     # 8. QC Coverage
     ws_coverage = wb.create_sheet(title="QC Coverage")
     _build_coverage_sheet(ws_coverage, audit)
+
+    if audit.timing_rules_json:
+        provenance = wb.create_sheet(title="Provenance")
+        provenance.append(["Effective audit configuration", "Value"])
+        snapshot = json.loads(audit.timing_rules_json)
+        for key, value in snapshot.items():
+            value_text = json.dumps(value, ensure_ascii=False)
+            for offset in range(0, max(1, len(value_text)), 30000):
+                provenance.append([sanitize_cell_value(key), sanitize_cell_value(value_text[offset:offset+30000])])
+        intake = snapshot.get("snapshot", {}).get("intake")
+        if intake:
+            exclusions = wb.create_sheet(title="Intake")
+            exclusions.append(["Source row", "Reason not imported as a respondent"])
+            for row in intake["excluded_rows"]:
+                exclusions.append([row["source_row"], row["reason"]])
+    if reviews:
+        history = wb.create_sheet(title="Review History")
+        history.append(["Respondent Record ID", "Respondent Key", "Source Row", "Previous", "New", "Reviewer", "Reason", "At"])
+        by_id = {r.id: r for r in respondents}
+        for event in reviews:
+            respondent = by_id[event.respondent_id]
+            history.append([event.respondent_id, sanitize_cell_value(respondent.respondent_key), respondent.row_number,
+                            event.previous_disposition, event.new_disposition, sanitize_cell_value(event.reviewer),
+                            sanitize_cell_value(event.reason), event.created_at.isoformat()])
 
     # Auto-adjust column widths across all sheets
     for ws in wb.worksheets:
@@ -227,18 +252,9 @@ def _build_summary_sheet(ws, audit: SurveyAuditRun, respondents: list[SurveyResp
         cell.alignment = Alignment(horizontal="center" if col in ("B", "C") else "left")
     r_curr += 1
 
-    qc_breakdown = [
-        ("Survey Speeding Concerns", audit.speeding_count, "Review Required / Reject", "Completion faster than threshold (under 5m or under 2m) or question timer flags"),
-        ("Straightlining Responses", audit.straightlining_count, "Review Required", "Zero variance across scale statements on matrix questions"),
-        ("Suspicious Open-Text / Gibberish", audit.suspicious_text_count, "Review Required", "Gibberish, repeated characters, vowel-less strings, or meaningful off-topic brands"),
-        ("Confirmed Duplicates", audit.confirmed_duplicates_count, "Reject", "Duplicate Respondent IDs or 100% identical response signatures"),
-        ("Potential Duplicates", audit.potential_duplicates_count, "Review Required", "Shared IP address or high partial similarity"),
-        ("Screening & Eligibility Violations", audit.screener_violations_count, "Reject", "Failed demographic criteria (e.g. age < 18) or selected termination option"),
-        ("Routing / Skip Logic Inconsistencies", audit.routing_violations_count, "Review Required", "Answers present on questions that should have been skipped"),
-        ("Contradictory Responses", audit.contradiction_count, "Review Required", "Mutually exclusive answer choices selected together"),
-        ("Incomplete Submissions", audit.incomplete_count, "Review Required / Reject", "Premature drop-offs or substantial unanswered fields"),
-        ("Timestamp Arithmetic Discrepancies", audit.timestamp_mismatch_count, "Review Required", "Calculated duration (EndDate − StartDate) differs from exported duration")
-    ]
+    coverage = json.loads(audit.checks_summary_json) if audit.checks_summary_json else []
+    qc_breakdown = [(item["check_name"], item["flagged_count"], item["status"], item["rule_description"])
+                    for item in coverage]
 
     for q_name, q_cnt, q_act, q_desc in qc_breakdown:
         ws[f"A{r_curr}"].value = q_name
@@ -256,7 +272,7 @@ def _build_summary_sheet(ws, audit: SurveyAuditRun, respondents: list[SurveyResp
 
 
 def _build_raw_data_sheet(ws, respondents: list[SurveyRespondent]):
-    """Build Sheet 2: Raw Data (100% original dataset preserved)."""
+    """Build the imported-cell sheet with spreadsheet-safe text values."""
     ws.views.sheetView[0].showGridLines = True
     if not respondents:
         ws["A1"].value = "No respondent records imported."
@@ -264,7 +280,7 @@ def _build_raw_data_sheet(ws, respondents: list[SurveyRespondent]):
 
     # Extract headers from first record
     first_dict = json.loads(respondents[0].raw_data_json) if respondents[0].raw_data_json else {}
-    headers = [k for k in first_dict.keys() if not k.startswith("_")]
+    headers = [k for k in first_dict if k != "_physical_row"]
 
     # Write Header Row
     for col_idx, h in enumerate(headers, 1):
@@ -299,9 +315,9 @@ def _build_disposition_sheet(ws, respondents: list[SurveyRespondent], target_dis
         return
 
     first_dict = json.loads(filtered[0].raw_data_json) if filtered[0].raw_data_json else {}
-    base_headers = [k for k in first_dict.keys() if not k.startswith("_")]
+    base_headers = [k for k in first_dict if k != "_physical_row"]
 
-    headers = ["Disposition"]
+    headers = ["Disposition", "Respondent Key", "Source Row", "Manual Decision", "Reviewer", "Review Reason"]
     if include_reasons:
         headers.append("Rejection Reasons")
     if include_flags:
@@ -335,6 +351,9 @@ def _build_disposition_sheet(ws, respondents: list[SurveyRespondent], target_dis
         cell.font = BOLD_VALUE_FONT
         cell.border = CELL_BORDER
         col_cursor += 1
+        for value in (resp.respondent_key, resp.row_number, resp.manual_decision, resp.reviewed_by, resp.reviewer_notes):
+            ws.cell(row=r_idx, column=col_cursor, value=sanitize_cell_value(value))
+            col_cursor += 1
 
         if include_reasons:
             reasons = json.loads(resp.rejection_reasons_json) if resp.rejection_reasons_json else []
@@ -362,7 +381,7 @@ def _build_findings_sheet(ws, findings: list[SurveyQcFinding]):
     """Build Sheet 6: Itemized QC Findings with evidence and recommendations."""
     ws.views.sheetView[0].showGridLines = True
     headers = [
-        "Finding ID", "Respondent Key", "Issue Type", "Severity",
+        "Finding ID", "Respondent Key", "Respondent Record ID", "Issue Type", "Severity",
         "Recommendation", "Question Number", "Raw Column",
         "Original Answer", "Observed Value", "Expected Rule / Standard",
         "Detailed Evidence", "Final Review Decision"
@@ -383,6 +402,7 @@ def _build_findings_sheet(ws, findings: list[SurveyQcFinding]):
         row_data = [
             f.id,
             f.respondent_key,
+            f.respondent_id,
             f.issue_type,
             f.severity,
             f.review_recommendation,

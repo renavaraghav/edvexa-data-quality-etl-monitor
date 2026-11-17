@@ -3,11 +3,11 @@ Survey Data Quality Control (QC) Engine.
 Executes comprehensive, contextual quality audits on respondent records:
 1. Timestamp arithmetic & survey speeding (duration range, page timers, overnight context)
 2. Straightlining detection on matrix/grid rating scales
-3. Open-ended quality & gibberish detection (valid no-recall vs gibberish vs off-topic vs typos)
+3. Open-ended quality & gibberish detection
 4. Duplicate detection (confirmed vs potential)
 5. Screening and eligibility validation
 6. Survey routing and skip-logic consistency
-7. Contradictory response detection
+7. Matrix response validation against explicit option codes
 8. Incomplete / missing answer validation
 9. Deterministic respondent disposition (ACCEPTED, REJECTED, REVIEW_REQUIRED)
 """
@@ -17,10 +17,12 @@ from datetime import datetime
 import json
 import logging
 import math
+from collections import Counter
 import re
 from typing import Any
 
 from dateutil import parser as dt_parser
+from app.services.survey_rules import confirmed, country_matches, resolve_eligibility_rules, resolve_page_rules
 
 logger = logging.getLogger("edvexa.surveys.qc_engine")
 
@@ -44,23 +46,6 @@ VALID_NO_RECALL_PATTERNS = [
     r"^\s*nil\s*$",
     r"^\s*unknown\s*$",
 ]
-
-# Recognizable product / brand / category terms for orthodontic and health surveys
-RECOGNIZED_ORTHO_TERMS = {
-    "invisalign", "angel aligner", "angelaligner", "ortho classic", "orthoclassic",
-    "braces", "clear aligners", "aligners", "aligner", "retainers", "retainer",
-    "byte", "candid", "smile direct", "smiledirectclub", "spark", "3m", "ormco",
-    "damon", "six month smiles", "surefit", "metal braces", "ceramic braces",
-    "lingual braces", "invisible braces", "teeth straighteners", "bands"
-}
-
-# Real words that are common known brands outside orthodontics (Meaningful but Off-Topic)
-COMMON_OFF_TOPIC_BRANDS = {
-    "nike", "adidas", "apple", "samsung", "toyota", "honda", "ford", "bmw",
-    "google", "amazon", "microsoft", "sony", "coca cola", "coke", "pepsi",
-    "starbucks", "mcdonalds", "gucci", "prada", "rolex", "tesla"
-}
-
 
 @dataclass
 class FindingDetail:
@@ -116,7 +101,7 @@ def run_survey_qc_audit(
     mappings: list[dict[str, Any]],
     system_columns: dict[str, str | None],
     timer_columns: list[str],
-    resp_id_col: str,
+    resp_id_col: str | None,
     timing_rules: dict[str, Any] | None = None
 ) -> SurveyQcExecutionSummary:
     """
@@ -127,15 +112,24 @@ def run_survey_qc_audit(
     summary = SurveyQcExecutionSummary(total_respondents=len(records))
     rules = timing_rules or {}
 
-    dur_source = str(rules.get("duration_source") or "Platform Standard Baseline (Edvexa 7–15m Target)")
-    speeding_threshold = float(rules.get("speeding_threshold_seconds", 300.0))  # 5 min (300s)
-    expected_min_mins = float(rules.get("expected_duration_min_minutes", 7.0))  # 7 min (420s)
-    expected_max_mins = float(rules.get("expected_duration_max_minutes", 15.0))  # 15 min (900s)
-    extreme_speeding_threshold = float(rules.get("extreme_speeding_threshold_seconds", 120.0))  # 2 min (120s)
+    dur_source = rules.get("duration_source") or "Not configured"
+    sources = rules.get("rule_sources", {})
+    speeding_threshold = rules.get("speeding_threshold_seconds")
+    expected_min_mins = rules.get("expected_duration_min_minutes")
+    expected_max_mins = rules.get("expected_duration_max_minutes")
+    extreme_speeding_threshold = rules.get("extreme_speeding_threshold_seconds")
     reject_speeding_under_2min = bool(rules.get("reject_speeding_under_2min", False))
+    if reject_speeding_under_2min and (extreme_speeding_threshold is None or not math.isfinite(extreme_speeding_threshold) or extreme_speeding_threshold <= 0):
+        raise ValueError("Strict speeding rejection requires an explicit positive cutoff.")
     reject_straightlining = bool(rules.get("reject_straightlining", False))
-    page_timer_rules = dict(rules.get("page_timer_rules") or {})
-    straightlining_min_items = int(rules.get("straightlining_min_grid_size", 4))
+    if reject_straightlining and any(rules.get(k) is None for k in ("straightline_threshold_pct", "straightlining_min_grid_size")):
+        raise ValueError("Strict straightlining requires explicit percentage and minimum size thresholds.")
+    page_rules = rules.get("effective_page_rules")
+    if page_rules is None:
+        page_rules = resolve_page_rules(rules, mappings, timer_columns)
+    straightlining_min_items = int(rules.get("straightlining_min_grid_size") or 4)
+    straightlining_pct = rules.get("straightline_threshold_pct") or 100
+    required_questions = set(rules.get("required_questions", []))
     timestamp_tolerance = float(rules.get("timestamp_tolerance_seconds", 2.0))
 
     start_col = system_columns.get("start_time")
@@ -144,57 +138,65 @@ def run_survey_qc_audit(
     ip_col = system_columns.get("ip_address")
 
     # Group mapped questions by type
-    matrix_mappings = [m for m in mappings if (m.get("question_type") == "matrix_grid" or len(m.get("mapped_columns", [])) > 1) and m.get("mapped_columns")]
-    open_ended_mappings = [m for m in mappings if (m.get("question_type") == "open_ended" or "brand" in m.get("question_text", "").lower()) and m.get("mapped_columns")]
-    screener_mappings = [m for m in mappings if (m.get("question_type") == "screener" or "terminate" in m.get("question_text", "").lower() or "age" in m.get("question_text", "").lower() or m.get("min_age") is not None) and m.get("mapped_columns")]
+    active = [m for m in mappings if m.get("mapped_columns") and m.get("mapping_status") not in {"SKIPPED", "UNMAPPED"}]
+    by_question = {m["question_number"]: m["mapped_columns"] for m in active}
+    matrix_mappings = [m for m in active if m.get("question_type") == "matrix_grid"] if rules.get("straightlining_enabled", True) else []
+    matrix_options = [
+        (m, {value.casefold() for code, label in m["option_codes"].items()
+             for value in (code, label, f"{code}. {label}")})
+        for m in active
+        if m.get("question_type") == "matrix_grid" and confirmed(m) and m.get("option_codes")
+        and len(m["mapped_columns"]) == len(m.get("matrix_items") or []) > 1
+    ]
+    open_ended_mappings = [m for m in active if m.get("question_type") == "open_ended"] if rules.get("open_text_enabled", True) else []
+    eligibility = rules.get("effective_eligibility_rules")
+    if eligibility is None:
+        eligibility = resolve_eligibility_rules(active, system_columns.get("country"), [], enabled=rules.get("screener_enabled", True))
+    configured_routing = rules.get("routing_rules", [])
+    routing = [r for r in configured_routing if len(by_question.get(r["control_question"], [])) == 1 and r["skip_question"] in by_question]
+    required = required_questions & by_question.keys() if rules.get("completeness_enabled", bool(required_questions)) else set()
+    duplicate_enabled = rules.get("duplicate_enabled", True)
+    total_tested = timer_tested = routed = complete_tested = eligibility_tested = 0
+    matrix_options_tested = potential_duplicates_tested = 0
+    telemetry_columns = {resp_id_col, *system_columns.values(), *timer_columns, "_physical_row"}
+    answer_columns = {column for columns in by_question.values() for column in columns}
 
     # Track identifiers for duplicate detection
     seen_ids: dict[str, list[str]] = {}
     seen_ips: dict[str, list[str]] = {}
-    seen_signatures: dict[str, list[str]] = {}
-    seen_full_rows: dict[str, list[str]] = {}
-
-    # Check execution flags for coverage tracking
-    executed_checks = {
-        "timestamp_arithmetic": bool(start_col and end_col and dur_col),
-        "overall_speeding": bool(dur_col or (start_col and end_col)),
-        "page_timers": bool(timer_columns),
-        "straightlining": bool(matrix_mappings),
-        "open_ended_quality": bool(open_ended_mappings),
-        "duplicate_detection": True,
-        "screening_eligibility": bool(screener_mappings),
-        "routing_consistency": True,
-        "completeness": True,
-    }
+    seen_signatures: dict[tuple[tuple[str, str], ...], list[str]] = {}
+    answer_signatures = []
+    seen_full_rows: dict[tuple, list[tuple]] = {}
 
     # Pass 1: Build duplicate lookup indices
     for idx, row in enumerate(records):
-        r_id = str(row.get(resp_id_col, f"RESP-{idx+1:04d}")).strip()
-        seen_ids.setdefault(r_id, []).append(r_id)
+        supplied_id = str(row.get(resp_id_col) or "").strip()
+        r_id = supplied_id or f"RESP-{row.get('_physical_row', idx + 1):04d}"
+        if supplied_id:
+            seen_ids.setdefault(supplied_id, []).append(idx)
 
         if ip_col and row.get(ip_col):
             ip = str(row[ip_col]).strip()
             seen_ips.setdefault(ip, []).append(r_id)
 
         # Full record hash (exact duplicate full row)
-        full_row_tokens = [f"{k}={str(v).strip()}" for k, v in row.items() if not k.startswith("_")]
-        full_sig = "|".join(sorted(full_row_tokens))
-        seen_full_rows.setdefault(full_sig, []).append(r_id)
+        full_sig = tuple(sorted((k, str(v)) for k, v in row.items() if k != "_physical_row"))
+        seen_full_rows.setdefault(full_sig, []).append((idx, r_id))
 
-        # Substantive answer signature for similar responses check (ignoring telemetry)
-        substantive = []
-        for col_name, val in row.items():
-            col_low = col_name.lower()
-            if not col_name.startswith("_") and col_name not in (resp_id_col, start_col, end_col, dur_col, ip_col) and not any(t in col_low for t in ["timer", "submit", "start", "end", "date", "time", "dur", "ip", "prog"]):
-                if val is not None and str(val).strip():
-                    substantive.append(f"{col_name}={str(val).strip().lower()}")
-        sig = "|".join(sorted(substantive))
+        # Evaluate actual mapped answers, or non-telemetry data for a raw-only audit.
+        sig = tuple(sorted(
+            (column, str(value).strip().casefold()) for column, value in row.items()
+            if column not in telemetry_columns and (not mappings or column in answer_columns)
+            and value is not None and str(value).strip()
+        ))
+        answer_signatures.append(sig)
         if sig:
             seen_signatures.setdefault(sig, []).append(r_id)
 
     # Pass 2: Evaluate Each Respondent
     for idx, row in enumerate(records):
-        r_id = str(row.get(resp_id_col, f"RESP-{idx+1:04d}")).strip()
+        supplied_id = str(row.get(resp_id_col) or "").strip()
+        r_id = supplied_id or f"RESP-{row.get('_physical_row', idx + 1):04d}"
         phys_row = row.get("_physical_row", idx + 1)
 
         result = RespondentAuditResult(
@@ -222,93 +224,94 @@ def run_survey_qc_audit(
 
         # --- CHECK 2: Overall Survey Speeding Check Across Explicit Intervals ---
         effective_dur = exp_dur if exp_dur is not None else calc_dur
-        if effective_dur is not None:
-            if effective_dur < extreme_speeding_threshold:
-                summary.speeding_count += 1
+        valid_duration = effective_dur is not None and not (start_col and end_col and row.get(start_col) and row.get(end_col) and calc_dur is None) and not (delta_dur is not None and abs(delta_dur) > timestamp_tolerance)
+        if valid_duration and any(v is not None for v in (extreme_speeding_threshold, speeding_threshold, expected_min_mins, expected_max_mins)):
+            total_tested += 1
+            if extreme_speeding_threshold is not None and effective_dur < extreme_speeding_threshold:
                 if reject_speeding_under_2min:
                     result.findings.append(FindingDetail(
                         issue_type="EXTREME_SPEEDING",
-                        evidence=f"Completed entire survey in {effective_dur:.0f} seconds ({effective_dur/60:.1f} min). Violates explicit project exclusion rule (Duration < {extreme_speeding_threshold:.0f}s). Threshold Source: {dur_source}.",
+                        evidence=f"Completed entire survey in {effective_dur:.0f} seconds ({effective_dur/60:.1f} min). Violates explicit project exclusion rule (Duration < {extreme_speeding_threshold:.0f}s). Threshold Source: {sources.get('extreme_speeding_threshold_seconds', 'Explicit cutoff')}.",
                         severity="HIGH",
                         recommendation="REJECT",
                         observed_value=f"{effective_dur:.0f}s ({effective_dur/60:.1f} min)",
-                        expected_rule=f"Duration ≥ {extreme_speeding_threshold:.0f}s (Source: {dur_source})"
+                        expected_rule=f"Duration ≥ {extreme_speeding_threshold:.0f}s (Source: {sources.get('extreme_speeding_threshold_seconds', 'Explicit cutoff')})"
                     ))
                 else:
                     result.findings.append(FindingDetail(
                         issue_type="EXTREME_SPEEDING",
-                        evidence=f"Completed entire survey in {effective_dur:.0f} seconds ({effective_dur/60:.1f} min). Extreme speed flagged as high-priority review signal for manual auditor inspection (Threshold Source: {dur_source}).",
+                        evidence=f"Completed entire survey in {effective_dur:.0f} seconds ({effective_dur/60:.1f} min). Extreme speed flagged as high-priority review signal for manual auditor inspection (Threshold Source: {sources.get('extreme_speeding_threshold_seconds', 'Explicit cutoff')}).",
                         severity="HIGH",
                         recommendation="REVIEW_REQUIRED",
                         observed_value=f"{effective_dur:.0f}s ({effective_dur/60:.1f} min)",
-                        expected_rule=f"Target duration {expected_min_mins:.0f}–{expected_max_mins:.0f} min (Source: {dur_source})"
+                        expected_rule=f"Duration ≥ {extreme_speeding_threshold:g}s"
                     ))
-            elif effective_dur < speeding_threshold:
-                summary.speeding_count += 1
+            elif speeding_threshold is not None and effective_dur < speeding_threshold:
                 result.findings.append(FindingDetail(
                     issue_type="STRONG_SPEEDING_CONCERN",
-                    evidence=f"Completed survey in {effective_dur:.0f} seconds ({effective_dur/60:.1f} min). Well below speeding threshold of {speeding_threshold/60:.1f} minutes (Threshold Source: {dur_source}).",
+                    evidence=f"Completed survey in {effective_dur:.0f} seconds ({effective_dur/60:.1f} min). Well below speeding threshold of {speeding_threshold/60:.1f} minutes (Threshold Source: {sources.get('speeding_threshold_seconds', 'Configured cutoff')}).",
                     severity="MEDIUM",
                     recommendation="REVIEW_REQUIRED",
                     observed_value=f"{effective_dur:.0f}s ({effective_dur/60:.1f} min)",
-                    expected_rule=f"Duration ≥ {speeding_threshold/60:.1f} min (Source: {dur_source})"
+                    expected_rule=f"Duration ≥ {speeding_threshold/60:.1f} min (Source: {sources.get('speeding_threshold_seconds', 'Configured cutoff')})"
                 ))
-            elif effective_dur < (expected_min_mins * 60.0):
-                summary.speeding_count += 1
+            elif expected_min_mins is not None and effective_dur < (expected_min_mins * 60.0):
                 result.findings.append(FindingDetail(
                     issue_type="SUSPICIOUS_SPEEDING",
                     evidence=f"Completed survey in {effective_dur:.0f} seconds ({effective_dur/60:.1f} min). Below expected minimum duration of {expected_min_mins:.0f} minutes (Threshold Source: {dur_source}).",
                     severity="LOW",
                     recommendation="REVIEW_REQUIRED",
                     observed_value=f"{effective_dur/60:.1f} min",
-                    expected_rule=f"Target duration {expected_min_mins:.0f}–{expected_max_mins:.0f} min (Source: {dur_source})"
+                    expected_rule=f"Minimum duration {expected_min_mins:.0f} min (Source: {dur_source})"
                 ))
-            elif effective_dur > (expected_max_mins * 60.0):
+            elif expected_max_mins is not None and effective_dur > (expected_max_mins * 60.0):
                 result.findings.append(FindingDetail(
                     issue_type="EXTENDED_DURATION",
-                    evidence=f"Completed survey in {effective_dur/60:.1f} minutes (exceeds target range of {expected_min_mins:.0f}–{expected_max_mins:.0f} min). Contextual note: indicates paused or extended session; responses remain valid (Threshold Source: {dur_source}).",
+                    evidence=f"Completed survey in {effective_dur/60:.1f} minutes (exceeds configured maximum of {expected_max_mins:g} min). Contextual note (Threshold Source: {sources.get('expected_duration_max_minutes', dur_source)}).",
                     severity="INFO",
                     recommendation="NOTE",
                     observed_value=f"{effective_dur/60:.1f} min",
-                    expected_rule=f"Target duration {expected_min_mins:.0f}–{expected_max_mins:.0f} min (Source: {dur_source})"
+                    expected_rule=f"Maximum duration {expected_max_mins:g} min (Source: {sources.get('expected_duration_max_minutes', dur_source)})"
                 ))
 
         # --- CHECK 3: Question / Page Submit Timers ---
+        timer_evaluated = False
         for tm_col in timer_columns:
             raw_tm = row.get(tm_col)
             if raw_tm is not None and str(raw_tm).strip():
                 try:
                     tm_val = float(str(raw_tm).strip())
-                    thresh = None
-                    thresh_src = None
-                    if tm_col in page_timer_rules:
-                        thresh = float(page_timer_rules[tm_col])
-                        thresh_src = "Configured Project Timing Rule"
-                    else:
-                        for m in mappings:
-                            m_cols = m.get("mapped_columns", [])
-                            q_timer = m.get("page_timer_min_seconds")
-                            if q_timer and (tm_col in m_cols or (m.get("question_number") and m["question_number"].lower() in tm_col.lower())):
-                                thresh = float(q_timer)
-                                thresh_src = f"QQ Specification ({m.get('question_number')})"
-                                break
-
-                    if thresh is not None:
+                    if not math.isfinite(tm_val) or tm_val < 0:
+                        continue
+                    rule = page_rules.get(tm_col)
+                    if rule:
+                        thresh, thresh_src = rule["threshold"], rule["source"]
+                        timer_evaluated = True
                         if tm_val < thresh:
-                            summary.speeding_count += 1
-                            result.findings.append(FindingDetail(
-                                issue_type="PAGE_TIMER_SPEEDING",
-                                evidence=f"Page timer '{tm_col}' submitted in {tm_val:.1f}s (questionnaire specified threshold: {thresh:.0f}s). Threshold Source: {thresh_src}.",
-                                severity="MEDIUM",
-                                recommendation="REVIEW_REQUIRED",
-                                raw_column=tm_col,
-                                observed_value=f"{tm_val:.1f}s",
-                                expected_rule=f"Timer ≥ {thresh:.0f}s ({thresh_src})"
-                            ))
+                            if rule["action"] == "REJECT":
+                                result.findings.append(FindingDetail(
+                                    issue_type="PAGE_TIMER_SPEEDING",
+                                    evidence=f"Page timer '{tm_col}' submitted in {tm_val:.1f}s (specified threshold: {thresh:.0f}s). Violates strict page timer rejection rule. Threshold Source: {thresh_src}.",
+                                    severity="HIGH",
+                                    recommendation="REJECT",
+                                    raw_column=tm_col,
+                                    observed_value=f"{tm_val:.1f}s",
+                                    expected_rule=f"Timer ≥ {thresh:.0f}s ({thresh_src})"
+                                ))
+                            else:
+                                result.findings.append(FindingDetail(
+                                    issue_type="PAGE_TIMER_SPEEDING",
+                                    evidence=f"Page timer '{tm_col}' submitted in {tm_val:.1f}s (specified threshold: {thresh:.0f}s). Flagged as review signal. Threshold Source: {thresh_src}.",
+                                    severity="MEDIUM",
+                                    recommendation="REVIEW_REQUIRED",
+                                    raw_column=tm_col,
+                                    observed_value=f"{tm_val:.1f}s",
+                                    expected_rule=f"Timer ≥ {thresh:.0f}s ({thresh_src})"
+                                ))
                     else:
                         result.findings.append(FindingDetail(
                             issue_type="PAGE_TIMER_RECORDED",
-                            evidence=f"Page timer '{tm_col}' recorded at {tm_val:.1f}s. No questionnaire-specified threshold established for this question; logged as contextual telemetry.",
+                            evidence=f"Page timer '{tm_col}' recorded at {tm_val:.1f}s. No applicable confirmed threshold; logged as contextual telemetry.",
                             severity="INFO",
                             recommendation="NOTE",
                             raw_column=tm_col,
@@ -316,6 +319,8 @@ def run_survey_qc_audit(
                         ))
                 except ValueError:
                     pass
+
+        timer_tested += int(timer_evaluated)
 
         # --- CHECK 4: Respondent-Local Completion Time & Overnight Context ---
         local_hr, is_night = _check_overnight_time(row, end_col)
@@ -336,29 +341,47 @@ def run_survey_qc_audit(
             if len(cols) >= straightlining_min_items:
                 values = [str(row.get(c, "")).strip() for c in cols if str(row.get(c, "")).strip()]
                 # If all matrix items were answered and have zero variance
-                if len(values) >= straightlining_min_items and len(set(values)) == 1:
+                if len(values) >= straightlining_min_items and (modal := Counter(values).most_common(1)[0])[1] * 100 >= straightlining_pct * len(values):
                     summary.straightlining_count += 1
-                    rep_val = values[0]
-                    if reject_straightlining:
+                    rep_val, frequency = modal
+                    if reject_straightlining and confirmed(mm):
                         result.findings.append(FindingDetail(
                             issue_type="STRAIGHTLINING",
-                            evidence=f"Straightlining detected: selected identical response '{rep_val}' across all {len(values)} statements in question {mm.get('question_number')}. Violates explicit project exclusion rule.",
+                            evidence=f"Straightlining detected: selected identical response '{rep_val}' on {frequency} of {len(values)} answered statements in question {mm.get('question_number')}. Violates explicit project exclusion rule.",
                             severity="HIGH",
                             recommendation="REJECT",
                             question_number=mm.get("question_number"),
-                            observed_value=f"Identical '{rep_val}' on {len(values)} items",
+                            observed_value=f"Identical '{rep_val}' on {frequency}/{len(values)} items",
                             expected_rule="Varied response distribution across statement items (Project Exclusion Active)"
                         ))
                     else:
                         result.findings.append(FindingDetail(
                             issue_type="STRAIGHTLINING",
-                            evidence=f"Straightlining detected: selected identical response '{rep_val}' across all {len(values)} statements in question {mm.get('question_number')}. Flagged for auditor review to distinguish authentic uniform opinion from satisficing.",
+                            evidence=f"Straightlining detected: selected identical response '{rep_val}' on {frequency} of {len(values)} answered statements in question {mm.get('question_number')}. Flagged for auditor review to distinguish authentic uniform opinion from satisficing.",
                             severity="MEDIUM",
                             recommendation="REVIEW_REQUIRED",
                             question_number=mm.get("question_number"),
-                            observed_value=f"Identical '{rep_val}' on {len(values)} items",
+                            observed_value=f"Identical '{rep_val}' on {frequency}/{len(values)} items",
                             expected_rule="Auditor review for non-differentiation vs authentic uniform rating"
                         ))
+
+        # A confirmed rating grid can also be checked against its explicit response codes.
+        checked_options = False
+        for matrix, options in matrix_options:
+            for column in matrix["mapped_columns"]:
+                value = row.get(column)
+                if value is None or not str(value).strip():
+                    continue
+                answer = str(value).strip()
+                checked_options = True
+                if answer.casefold() not in options:
+                    result.findings.append(FindingDetail(
+                        issue_type="MATRIX_INVALID_OPTION", question_number=matrix["question_number"], raw_column=column,
+                        recommendation="REVIEW_REQUIRED", original_answer=answer,
+                        evidence=f"Answer '{answer}' is outside the documented rating options for {matrix['question_number']}.",
+                        expected_rule="Use a rating code or label declared in the questionnaire.",
+                    ))
+        matrix_options_tested += int(checked_options)
 
         # --- CHECK 6: Open-Ended Quality & Gibberish Detection ---
         for om in open_ended_mappings:
@@ -366,7 +389,7 @@ def run_survey_qc_audit(
                 ans = str(row.get(o_col, "")).strip()
                 if ans:
                     classification, reason, sev, rec = _classify_open_text(ans, om.get("question_text", ""))
-                    if classification in ("GIBBERISH", "MEANINGFUL_OFF_TOPIC", "AMBIGUOUS_REVIEW"):
+                    if classification in ("GIBBERISH", "AMBIGUOUS_REVIEW"):
                         summary.suspicious_text_count += 1
                         result.findings.append(FindingDetail(
                             issue_type=classification,
@@ -377,13 +400,13 @@ def run_survey_qc_audit(
                             raw_column=o_col,
                             original_answer=ans,
                             observed_value=ans,
-                            expected_rule="Thoughtful, relevant answer or valid non-recall"
+                            expected_rule="Substantive answer, valid non-recall, or a numeric answer where requested"
                         ))
 
         # --- CHECK 7: Duplicate Detection ---
         # A. Confirmed duplicate identifier: same ResponseId appears multiple times
-        if len(seen_ids.get(r_id, [])) > 1:
-            first_idx = next(i for i, r in enumerate(records) if str(r.get(resp_id_col, "")).strip() == r_id)
+        if duplicate_enabled and supplied_id and len(seen_ids.get(r_id, [])) > 1:
+            first_idx = seen_ids[r_id][0]
             if idx > first_idx:
                 summary.confirmed_duplicates_count += 1
                 result.findings.append(FindingDetail(
@@ -396,16 +419,14 @@ def run_survey_qc_audit(
                 ))
 
         # B. Confirmed duplicate full record: 100% identical full row data
-        full_row_tokens = [f"{k}={str(v).strip()}" for k, v in row.items() if not k.startswith("_")]
-        full_sig = "|".join(sorted(full_row_tokens))
-        if len(seen_full_rows.get(full_sig, [])) > 1:
-            first_resp = seen_full_rows[full_sig][0]
-            first_full_idx = next(i for i, r in enumerate(records) if "|".join(sorted([f"{k}={str(v).strip()}" for k, v in r.items() if not k.startswith("_")])) == full_sig)
+        full_sig = tuple(sorted((k, str(v)) for k, v in row.items() if k != "_physical_row"))
+        if duplicate_enabled and len(seen_full_rows.get(full_sig, [])) > 1:
+            first_full_idx, first_resp = seen_full_rows[full_sig][0]
             if idx > first_full_idx:
                 summary.confirmed_duplicates_count += 1
                 result.findings.append(FindingDetail(
                     issue_type="CONFIRMED_DUPLICATE_FULL_RECORD",
-                    evidence=f"Exact duplicate full record: Complete row data is identical byte-for-byte to earlier record '{first_resp}'.",
+                    evidence=f"Exact duplicate full record: Complete row data is identical in all imported fields to earlier record '{first_resp}'.",
                     severity="HIGH",
                     recommendation="REJECT",
                     observed_value=f"Matches {first_resp}",
@@ -413,14 +434,10 @@ def run_survey_qc_audit(
                 ))
 
         # C. Potential similar respondents: identical substantive answers with DIFFERENT respondent IDs
-        substantive = []
-        for col_name, val in row.items():
-            col_low = col_name.lower()
-            if not col_name.startswith("_") and col_name not in (resp_id_col, start_col, end_col, dur_col, ip_col) and not any(t in col_low for t in ["timer", "submit", "start", "end", "date", "time", "dur", "ip", "prog"]):
-                if val is not None and str(val).strip():
-                    substantive.append(f"{col_name}={str(val).strip().lower()}")
-        sig = "|".join(sorted(substantive))
-        if sig and len(seen_signatures.get(sig, [])) > 1:
+        sig = answer_signatures[idx]
+        ip = str(row.get(ip_col) or "").strip()
+        potential_duplicates_tested += int(duplicate_enabled and bool(sig or ip))
+        if duplicate_enabled and sig and len(seen_signatures.get(sig, [])) > 1:
             first_resp = seen_signatures[sig][0]
             if r_id != first_resp:
                 summary.potential_duplicates_count += 1
@@ -434,10 +451,9 @@ def run_survey_qc_audit(
                 ))
 
         # D. Potential duplicate: identical IP address across multiple respondents
-        if ip_col and row.get(ip_col):
-            ip = str(row[ip_col]).strip()
+        if ip:
             linked_ids = seen_ips.get(ip, [])
-            if len(linked_ids) > 1 and r_id != linked_ids[0]:
+            if duplicate_enabled and len(linked_ids) > 1 and r_id != linked_ids[0]:
                 summary.potential_duplicates_count += 1
                 others = [oid for oid in linked_ids if oid != r_id]
                 result.findings.append(FindingDetail(
@@ -449,118 +465,84 @@ def run_survey_qc_audit(
                     expected_rule="Distinct IP address per survey respondent"
                 ))
 
-        # --- CHECK 8: Questionnaire-Specific Screening & Eligibility Validation ---
-        for sm in screener_mappings:
-            s_cols = sm.get("mapped_columns", [])
-            q_num = sm.get("question_number", "Screener")
-            min_age = sm.get("min_age")
-            max_age = sm.get("max_age")
-
-            for sc in s_cols:
-                sc_val = str(row.get(sc, "")).strip().lower()
-                if min_age is not None or max_age is not None:
-                    try:
-                        age_num = float(sc_val)
-                        if min_age is not None and age_num < min_age:
-                            summary.screener_violations_count += 1
-                            result.findings.append(FindingDetail(
-                                issue_type="SCREENER_AGE_VIOLATION",
-                                evidence=f"Reported age {age_num:.0f} violates questionnaire screening threshold (minimum required: {min_age:.0f}). Source: QQ Specification for {q_num}.",
-                                severity="HIGH",
-                                recommendation="REJECT",
-                                question_number=q_num,
-                                raw_column=sc,
-                                observed_value=str(age_num),
-                                expected_rule=f"Age ≥ {min_age:.0f}"
-                            ))
-                        elif max_age is not None and age_num > max_age:
-                            summary.screener_violations_count += 1
-                            result.findings.append(FindingDetail(
-                                issue_type="SCREENER_AGE_VIOLATION",
-                                evidence=f"Reported age {age_num:.0f} violates questionnaire screening threshold (maximum allowed: {max_age:.0f}). Source: QQ Specification for {q_num}.",
-                                severity="HIGH",
-                                recommendation="REJECT",
-                                question_number=q_num,
-                                raw_column=sc,
-                                observed_value=str(age_num),
-                                expected_rule=f"Age ≤ {max_age:.0f}"
-                            ))
-                    except ValueError:
-                        pass
-
-                # Check for explicit termination options
-                term_options: list[str] = []
-                for opt in sm.get("options", []):
-                    opt_lower = str(opt).lower()
-                    if any(k in opt_lower for k in ["terminate", "ineligible", "screen out", "disqualify"]):
-                        clean_opt = re.sub(r"\[.*?\]|\(.*?\)", "", opt_lower).strip()
-                        clean_opt_val = re.sub(r"^\d+[\.\)]\s*", "", clean_opt).strip()
-                        if clean_opt_val:
-                            term_options.append(clean_opt_val)
-                        m_code = re.match(r"^(\d+)", opt_lower)
-                        if m_code:
-                            term_options.append(m_code.group(1))
-
-                is_term_selected = False
-                if any(k in sc_val for k in ["terminate", "ineligible", "screen out", "disqualify"]):
-                    is_term_selected = True
-                elif term_options and any(sc_val == topt or sc_val == f"{topt}." or sc_val.startswith(f"{topt} ") for topt in term_options):
-                    is_term_selected = True
-
-                if is_term_selected:
-                    summary.screener_violations_count += 1
+        # --- CHECK 8: Confirmed eligibility rules and their recorded scope ---
+        checked_eligibility = False
+        for rule in eligibility:
+            scope = rule["scope"]
+            column, question = scope["column"], scope["question_number"]
+            if scope.get("countries") and not any(
+                country_matches(row.get(scope["country_column"], ""), country)
+                for country in scope["countries"]
+            ):
+                continue
+            value = str(row.get(column, "")).strip()
+            if not value:
+                continue
+            source = rule["source"]
+            minimum, maximum = rule["min_age"], rule["max_age"]
+            age = None
+            if minimum is not None or maximum is not None:
+                try:
+                    candidate = float(value)
+                    if math.isfinite(candidate) and 0 <= candidate <= 130:
+                        age = candidate
+                except ValueError:
+                    pass
+            if age is not None:
+                checked_eligibility = True
+                below_minimum = minimum is not None and age < minimum
+                above_maximum = maximum is not None and age > maximum
+                violation = minimum if below_minimum else maximum if above_maximum else None
+                if violation is not None:
+                    comparison = "≥" if below_minimum else "≤"
+                    condition = f" for {'/'.join(scope['countries'])}" if scope.get("countries") else ""
                     result.findings.append(FindingDetail(
-                        issue_type="SCREENER_TERMINATION",
-                        evidence=f"Selected termination option '{sc_val}' on screening question {q_num}. Source: Questionnaire criteria.",
-                        severity="HIGH",
-                        recommendation="REJECT",
-                        question_number=q_num,
-                        raw_column=sc,
-                        observed_value=sc_val,
-                        expected_rule="Eligible screener criteria"
+                        issue_type="SCREENER_AGE_VIOLATION", severity="HIGH", recommendation=rule["action"],
+                        question_number=question, raw_column=column, observed_value=str(age),
+                        evidence=f"Reported age {age:g} violates age eligibility for {question}{condition}. Source: {source}.",
+                        expected_rule=f"Age {comparison} {violation:g} years{condition}",
                     ))
+            if rule["termination_values"]:
+                checked_eligibility = True
+                if value.casefold() in rule["termination_values"]:
+                    result.findings.append(FindingDetail(
+                        issue_type="SCREENER_TERMINATION", severity="HIGH", recommendation=rule["action"],
+                        question_number=question, raw_column=column, observed_value=value,
+                        evidence=f"Selected explicit termination option '{value}' for {question}. Source: {source}.",
+                        expected_rule="Eligible screener option",
+                    ))
+        eligibility_tested += int(checked_eligibility)
 
-        # --- CHECK 9: Routing & Skip Logic Consistency ---
-        # If an eligibility question indicates ineligibility or skip, but subsequent detailed sections are populated
-        # (Example: 'Have you considered orthodontics?' = 'No', but answers brand familiarity in Q3)
-        for m in mappings:
-            r_logic = m.get("routing_logic") or ""
-            if r_logic and m.get("mapped_columns"):
-                # Basic check for answers present on questions marked skip
-                pass
-
-        # --- CHECK 10: Incomplete Responses ---
-        substantive_keys = [
-            k for k in row.keys()
-            if not k.startswith("_")
-            and k not in (resp_id_col, start_col, end_col, dur_col, ip_col)
-            and not any(t in k.lower() for t in ["timer", "submit", "start", "end", "date", "time", "dur", "ip", "prog"])
-        ]
-        if substantive_keys:
-            substantive_answered = sum(1 for k in substantive_keys if str(row.get(k, "")).strip())
-            if len(substantive_keys) >= 4 and substantive_answered < (len(substantive_keys) * 0.3):
-                summary.incomplete_count += 1
+        skipped = set()
+        applicability_unknown = set()
+        routing_evaluated = False
+        for rule in routing:
+            control = str(row.get(by_question[rule["control_question"]][0], "")).strip()
+            if not control:
+                applicability_unknown.add(rule["skip_question"])
+                continue
+            routing_evaluated = True
+            if control.casefold() == rule["equals"].casefold():
+                target = rule["skip_question"]
+                skipped.add(target)
+                if any(str(row.get(c, "")).strip() for c in by_question[target]):
+                    result.findings.append(FindingDetail(
+                        issue_type="ROUTING_VIOLATION", question_number=target, severity="MEDIUM",
+                        recommendation="REVIEW_REQUIRED",
+                        evidence=f"{target} was answered despite an explicit skip rule triggered by {rule['control_question']}.",
+                        expected_rule=f"Skip {target} when {rule['control_question']} equals {rule['equals']}"))
+        routed += int(routing_evaluated)
+        eligible = required - skipped - applicability_unknown
+        # With unresolved routing, required fields may not apply to this respondent.
+        if eligible and not (configured_routing and len(routing) != len(configured_routing)):
+            complete_tested += 1
+            answered = sum(any(str(row.get(c, "")).strip() for c in by_question[q]) for q in eligible)
+            threshold = rules.get("completeness_threshold_pct") or 100
+            if answered * 100 < threshold * len(eligible):
                 result.findings.append(FindingDetail(
-                    issue_type="INCOMPLETE_RESPONSE",
-                    evidence=f"Only {substantive_answered} of {len(substantive_keys)} substantive survey questions answered ({substantive_answered/len(substantive_keys)*100:.0f}%). Substantial section abandonment.",
-                    severity="HIGH",
-                    recommendation="REJECT",
-                    observed_value=f"{substantive_answered}/{len(substantive_keys)} substantive answers",
-                    expected_rule="Complete questionnaire submission"
-                ))
-        else:
-            answered_count = sum(1 for k, v in row.items() if not k.startswith("_") and str(v).strip())
-            total_cols = len([k for k in row.keys() if not k.startswith("_")])
-            if total_cols > 5 and answered_count < (total_cols * 0.3):
-                summary.incomplete_count += 1
-                result.findings.append(FindingDetail(
-                    issue_type="INCOMPLETE_RESPONSE",
-                    evidence=f"Only {answered_count} of {total_cols} questions ({answered_count/total_cols*100:.0f}%) answered. Substantial missing data.",
-                    severity="HIGH",
-                    recommendation="REJECT",
-                    observed_value=f"{answered_count}/{total_cols} answers",
-                    expected_rule="Complete questionnaire submission"
-                ))
+                    issue_type="INCOMPLETE_RESPONSE", severity="MEDIUM", recommendation="REVIEW_REQUIRED",
+                    evidence=f"Answered {answered}/{len(eligible)} confirmed applicable required questions.",
+                    expected_rule=f"At least {threshold:g}% of applicable required questions answered"))
 
         # --- FINAL DETERMINISTIC DISPOSITION CLASSIFICATION ---
         # Rule 1: Any explicit REJECT recommendation with HIGH severity -> REJECTED
@@ -568,6 +550,7 @@ def run_survey_qc_audit(
         rejection_findings = [f for f in result.findings if f.recommendation == "REJECT" and f.severity == "HIGH"]
         review_findings = [f for f in result.findings if f.recommendation == "REVIEW_REQUIRED"]
 
+        result.review_flags = [f.evidence for f in review_findings]
         if rejection_findings:
             result.disposition = "REJECTED"
             result.rejection_reasons = [f.evidence for f in rejection_findings]
@@ -588,81 +571,48 @@ def run_survey_qc_audit(
         f"accepted({summary.accepted_count}) + rejected({summary.rejected_count}) + review_required({summary.review_required_count})"
     )
 
-    # Build QC Coverage Matrix
-    summary.checks_coverage = [
-        {
-            "check_name": "Timestamp Arithmetic Verification",
-            "category": "Timing Integrity",
-            "status": "PASSED" if executed_checks["timestamp_arithmetic"] and summary.timestamp_mismatch_count == 0 else ("FLAGGED" if summary.timestamp_mismatch_count > 0 else "NOT_CHECKED"),
-            "flagged_count": summary.timestamp_mismatch_count,
-            "rule_description": f"EndDate − StartDate reconciled against exported duration within ±{timestamp_tolerance:.1f}s tolerance.",
-            "notes": "Verified start and end timestamps against exported duration." if executed_checks["timestamp_arithmetic"] else "Missing StartDate or EndDate in export."
-        },
-        {
-            "check_name": "Overall Survey Speeding",
-            "category": "Respondent Attention",
-            "status": "FLAGGED" if summary.speeding_count > 0 else ("PASSED" if executed_checks["overall_speeding"] else "NOT_CHECKED"),
-            "flagged_count": summary.speeding_count,
-            "rule_description": f"Audited completion duration: expected {expected_min_mins:.0f}–{expected_max_mins:.0f} mins; under 5 mins flagged for review; under 2 mins extreme speeding.",
-            "notes": "Evaluated all respondents against duration benchmarks." if executed_checks["overall_speeding"] else "Duration column not identified."
-        },
-        {
-            "check_name": "Individual Question/Page Timers",
-            "category": "Page Speeding",
-            "status": "FLAGGED" if any(f.issue_type == "PAGE_TIMER_SPEEDING" for r in summary.results for f in r.findings) else ("PASSED" if timer_columns else "NOT_APPLICABLE"),
-            "flagged_count": sum(1 for r in summary.results for f in r.findings if f.issue_type == "PAGE_TIMER_SPEEDING"),
-            "rule_description": "Audited individual question/page submit timers against questionnaire-specified timing rules.",
-            "notes": f"Inspected {len(timer_columns)} timer column(s). Timing rules applied strictly when established in QQ."
-        },
-        {
-            "check_name": "Straightlining Detection",
-            "category": "Response Quality",
-            "status": "FLAGGED" if summary.straightlining_count > 0 else ("PASSED" if executed_checks["straightlining"] else "NOT_APPLICABLE"),
-            "flagged_count": summary.straightlining_count,
-            "rule_description": f"Identified repetitive identical response patterns across matrix statements (≥{straightlining_min_items} items).",
-            "notes": f"Inspected {len(matrix_mappings)} matrix/grid question(s)." if matrix_mappings else "No matrix/grid questions mapped."
-        },
-        {
-            "check_name": "Open-Ended Quality & Gibberish",
-            "category": "Content Integrity",
-            "status": "FLAGGED" if summary.suspicious_text_count > 0 else ("PASSED" if executed_checks["open_ended_quality"] else "NOT_APPLICABLE"),
-            "flagged_count": summary.suspicious_text_count,
-            "rule_description": "Contextual classification distinguishing valid answers, valid no-recall ('IDK', 'none'), off-topic brands, and gibberish.",
-            "notes": f"Inspected {len(open_ended_mappings)} open-ended question(s)." if open_ended_mappings else "No open-ended questions mapped."
-        },
-        {
-            "check_name": "Duplicate Respondent Detection",
-            "category": "Fraud Prevention",
-            "status": "FLAGGED" if (summary.confirmed_duplicates_count + summary.potential_duplicates_count) > 0 else "PASSED",
-            "flagged_count": summary.confirmed_duplicates_count + summary.potential_duplicates_count,
-            "rule_description": "Audited Respondent IDs, IP addresses, and 100% substantive answer duplicate signatures.",
-            "notes": f"Audited {len(records)} records. Confirmed duplicates: {summary.confirmed_duplicates_count}, Potential: {summary.potential_duplicates_count}."
-        },
-        {
-            "check_name": "Screening & Eligibility Validation",
-            "category": "Target Audience",
-            "status": "FLAGGED" if summary.screener_violations_count > 0 else ("PASSED" if executed_checks["screening_eligibility"] else "NOT_APPLICABLE"),
-            "flagged_count": summary.screener_violations_count,
-            "rule_description": "Audited screening questions (e.g. age ≥ 18, eligibility criteria) for disqualification responses.",
-            "notes": f"Inspected {len(screener_mappings)} screening question(s)." if screener_mappings else "No screening questions mapped in QQ."
-        },
-        {
-            "check_name": "Survey Routing & Skip Logic",
-            "category": "Survey Flow",
-            "status": "FLAGGED" if summary.routing_violations_count > 0 else "PASSED",
-            "flagged_count": summary.routing_violations_count,
-            "rule_description": "Verified that respondents did not answer sections that should have been skipped.",
-            "notes": "Verified question sequence and branch logic."
-        },
-        {
-            "check_name": "Completeness & Missing Answers",
-            "category": "Data Completeness",
-            "status": "FLAGGED" if summary.incomplete_count > 0 else "PASSED",
-            "flagged_count": summary.incomplete_count,
-            "rule_description": "Identified premature drop-offs and substantially incomplete questionnaires.",
-            "notes": f"Audited all {len(records)} records for missing data."
-        }
+    groups = [
+        ("Timestamp Arithmetic Verification", "Timing Integrity", ("TIMESTAMP_MISMATCH",), "timestamp_mismatch_count",
+         sum(r.duration_delta_seconds is not None for r in summary.results), f"Timestamp tolerance: {timestamp_tolerance:g}s."),
+        ("Overall Survey Speeding", "Respondent Attention", ("EXTREME_SPEEDING", "STRONG_SPEEDING_CONCERN", "SUSPICIOUS_SPEEDING"), None,
+         total_tested, f"Seconds: extreme={extreme_speeding_threshold}, concern={speeding_threshold}; expected minutes={expected_min_mins}–{expected_max_mins}."),
+        ("Individual Question/Page Timers", "Page Speeding", ("PAGE_TIMER_SPEEDING",), None,
+         timer_tested, f"Applicable thresholds on {len(page_rules)} mapped timer column(s)."),
+        ("Straightlining Detection", "Response Quality", ("STRAIGHTLINING",), "straightlining_count",
+         sum(any(sum(bool(str(r.raw_data.get(c, "")).strip()) for c in m["mapped_columns"]) >= straightlining_min_items for m in matrix_mappings)
+             for r in summary.results), f"Same response on at least {straightlining_pct:g}% of at least {straightlining_min_items} rating items."),
+        ("Matrix Response Options", "Response Quality", ("MATRIX_INVALID_OPTION",), None,
+         matrix_options_tested, "Compare answers with explicit codes or labels on confirmed rating grids."),
+        ("Open-Ended Quality & Gibberish", "Content Integrity", ("GIBBERISH", "AMBIGUOUS_REVIEW"), "suspicious_text_count",
+         sum(any(str(r.raw_data.get(c, "")).strip() for m in open_ended_mappings for c in m["mapped_columns"]) for r in summary.results),
+         "Review suspicious or ambiguous responses."),
+        ("Open-Ended Topic Relevance", "Content Integrity", (), None, 0, "Semantic relevance requires auditor review."),
+        ("Confirmed Duplicates", "Fraud Prevention", ("CONFIRMED_DUPLICATE_ID", "CONFIRMED_DUPLICATE_FULL_RECORD"), "confirmed_duplicates_count",
+         len(records) if duplicate_enabled else 0, "Subsequent exact record or respondent ID matches."),
+        ("Potential Duplicates", "Fraud Prevention", ("POTENTIAL_DUPLICATE_IP", "POTENTIAL_DUPLICATE_SIGNATURE"), "potential_duplicates_count",
+         potential_duplicates_tested, "Shared IP or substantive answers are review signals."),
+        ("Screening & Eligibility Validation", "Target Audience", ("SCREENER_AGE_VIOLATION", "SCREENER_TERMINATION"), "screener_violations_count",
+         eligibility_tested, "Explicit eligibility criteria on confirmed mappings, within their applicable scope."),
+        ("Survey Routing & Skip Logic", "Survey Flow", ("ROUTING_VIOLATION",), "routing_violations_count",
+         routed, "Only explicit structured rules with mapped inputs are evaluated."),
+        ("Contradictory Responses", "Survey Flow", (), "contradiction_count", 0, "No contradiction rule is implemented."),
+        ("Completeness & Missing Answers", "Data Completeness", ("INCOMPLETE_RESPONSE",), "incomplete_count",
+         complete_tested, "Only confirmed applicable required questions are evaluated."),
     ]
+    issue_counts = Counter(f.issue_type for r in summary.results for f in r.findings)
+    issue_sets = [set(f.issue_type for f in r.findings) for r in summary.results]
+    speeding_issues = {"PAGE_TIMER_SPEEDING", "EXTREME_SPEEDING", "STRONG_SPEEDING_CONCERN", "SUSPICIOUS_SPEEDING"}
+    summary.speeding_count = sum(bool(speeding_issues & actual) for actual in issue_sets)
+    for name, category, issues, counter, evaluated, description in groups:
+        flags = sum(bool(set(issues) & actual) for actual in issue_sets)
+        if counter:
+            setattr(summary, counter, flags)
+        summary.checks_coverage.append({
+            "check_name": name, "category": category,
+            "status": "FLAGGED" if flags else "PASSED" if evaluated == len(records) and evaluated else "PARTIALLY_CHECKED" if evaluated else "NOT_CHECKED",
+            "flagged_count": flags, "finding_count": sum(issue_counts[i] for i in issues),
+            "rule_description": description, "notes": f"Evaluated {evaluated}/{len(records)} respondents." if evaluated else "No applicable rule or valid mapped data."
+        })
 
     return summary
 
@@ -677,13 +627,15 @@ def _evaluate_timestamps(row: dict[str, Any], start_col: str | None, end_col: st
         try:
             st = dt_parser.parse(str(row[start_col]))
             et = dt_parser.parse(str(row[end_col]))
-            calc_dur = max(0.0, (et - st).total_seconds())
+            delta = (et - st).total_seconds()
+            calc_dur = delta if delta >= 0 else None
         except Exception:
             pass
 
     if dur_col and row.get(dur_col):
         try:
-            exp_dur = float(str(row[dur_col]).strip())
+            value = float(str(row[dur_col]).strip())
+            exp_dur = value if math.isfinite(value) and value >= 0 else None
         except ValueError:
             pass
 
@@ -709,8 +661,7 @@ def _check_overnight_time(row: dict[str, Any], end_col: str | None) -> tuple[int
 
 def _classify_open_text(text: str, question_wording: str) -> tuple[str, str, str, str]:
     """
-    Context-aware open-ended text evaluation.
-    Considers the actual question wording:
+    Evaluate answer patterns using the question wording for numeric and code fields.
       - Numbers/IDs (like 12345) are valid when question is numeric/postal/code.
       - Unfamiliar names, acronyms, and misspellings route to REVIEW_REQUIRED.
       - Definite keyboard walks/repeated chars route to REVIEW_REQUIRED as review signals.
@@ -739,10 +690,8 @@ def _classify_open_text(text: str, question_wording: str) -> tuple[str, str, str
     if re.match(r"^[0-9\s\.\,\-\!\?]+$", cleaned):
         return "AMBIGUOUS_REVIEW", f"Numeric response ('{cleaned}') in open-ended text question; routed to review for auditor context", "LOW", "REVIEW_REQUIRED"
 
-    # Rule 3: Single character or extremely short strings (< 3 chars)
+    # Rule 3: Extremely short strings may be valid abbreviations or partial answers.
     if len(cleaned) < 3:
-        if low in ("3m", "dr", "gc", "us", "uk", "tp", "yo"):
-            return "VALID_RELEVANT", f"Recognized abbreviation / short term ('{cleaned}')", "INFO", "NOTE"
         return "AMBIGUOUS_REVIEW", f"Very short response ('{cleaned}'); routed for auditor review", "LOW", "REVIEW_REQUIRED"
 
     # Rule 4: Repeated characters ("aaaaa", "zzzzz", ".....")
@@ -754,15 +703,7 @@ def _classify_open_text(text: str, question_wording: str) -> tuple[str, str, str
     if any(walk in low for walk in keyboard_walks):
         return "GIBBERISH", f"Matches standard keyboard walk pattern in '{cleaned}'", "HIGH", "REVIEW_REQUIRED"
 
-    # Rule 6: Check for known relevant orthodontic brands/terms
-    if any(term in low for term in RECOGNIZED_ORTHO_TERMS):
-        return "VALID_RELEVANT", "Recognized relevant brand or category response", "INFO", "NOTE"
-
-    # Rule 7: Check for common off-topic brands (meaningful real brand, but off-topic for orthodontics)
-    if any(b in low for b in COMMON_OFF_TOPIC_BRANDS):
-        return "MEANINGFUL_OFF_TOPIC", f"Recognized real-world brand ('{cleaned}') that appears off-topic for this survey category", "MEDIUM", "REVIEW_REQUIRED"
-
-    # Rule 7b: Repetitive single word spam (e.g. "good good good good good", "test test test")
+    # Repetitive single-word spam (e.g. "good good good good").
     words = re.findall(r"[a-zA-Z]+", low)
     if len(words) >= 3 and len(set(words)) == 1:
         return "GIBBERISH", f"Contains low-effort repeated word spam in '{cleaned}'", "MEDIUM", "REVIEW_REQUIRED"
@@ -779,10 +720,6 @@ def _classify_open_text(text: str, question_wording: str) -> tuple[str, str, str
         valid_words_count = sum(1 for w in words if any(v in w for v in "aeiouy"))
         if valid_words_count >= len(words) * 0.8:
             return "VALID_SUBSTANTIVE", f"Coherent multi-word open-ended response ({len(words)} words)", "INFO", "NOTE"
-
-    # Rule 9: Plausible English word, typo, or abbreviation
-    if any(w in low for w in ["invis", "align", "ortho", "smile", "teeth", "tooth", "dent"]):
-        return "AMBIGUOUS_REVIEW", f"Appears to be a misspelling or variation of a relevant term ('{cleaned}')", "LOW", "REVIEW_REQUIRED"
 
     # Default for unrecognized answers: Send to Review Required with LOW severity
     return "AMBIGUOUS_REVIEW", f"Unrecognized response requiring human auditor review ('{cleaned}')", "LOW", "REVIEW_REQUIRED"

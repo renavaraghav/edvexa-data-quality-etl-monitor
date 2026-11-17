@@ -1,4 +1,3 @@
-import secrets
 import time
 from collections import defaultdict
 from fastapi import APIRouter, Request, Response, HTTPException, status
@@ -10,6 +9,7 @@ from app.services.auth import (
     SESSION_MAX_AGE_SECONDS,
     create_admin_session_token,
     is_authenticated_admin,
+    enforce_browser_origin, enforce_cookie_csrf, token_matches, get_secret_key,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Admin Authentication"])
@@ -23,7 +23,7 @@ _LOGIN_MAX_ATTEMPTS = 5
 def check_login_rate_limit(client_ip: str) -> None:
     now = time.time()
     cutoff = now - _LOGIN_WINDOW_SECONDS
-    _login_attempts[client_ip] = [t for t in _login_attempts[client_ip] if t > cutoff]
+    _login_attempts[client_ip] = [t for t in _login_attempts.get(client_ip, []) if t > cutoff]
     if len(_login_attempts[client_ip]) >= _LOGIN_MAX_ATTEMPTS:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -52,34 +52,34 @@ def admin_login(body: AdminLoginRequest, request: Request, response: Response):
     Enforces IP-based rate limiting (5 attempts/minute) and fails closed when unconfigured.
     Under least-privilege session security, credentials are NEVER exposed in the JSON response body.
     """
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        client_ip = forwarded_for.split(",")[0].strip()
-    elif request.client and request.client.host:
-        client_ip = request.client.host.strip()
-    else:
-        client_ip = "unknown"
+    enforce_browser_origin(request, required=False)
+    # Uvicorn only normalizes forwarded addresses from configured, trusted peers.
+    client_ip = request.client.host if request.client else "unknown"
     check_login_rate_limit(client_ip)
 
-    configured_token = (settings.ADMIN_RESET_TOKEN or "").strip()
-    if not configured_token:
+    password = settings.ADMIN_LOGIN_PASSWORD
+    if not password or token_matches(password, settings.ADMIN_RESET_TOKEN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin authentication is not configured on this server."
         )
 
-    supplied = (body.token or body.password or "").strip()
-    if not supplied or not secrets.compare_digest(supplied, configured_token):
+    supplied = body.password or body.token  # Legacy JSON field alias for the login password.
+    if not token_matches(supplied, password):
         record_failed_login(client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid administrative credentials."
         )
 
+    try:
+        get_secret_key()
+    except RuntimeError as exc:
+        raise HTTPException(403, "Admin authentication is not configured on this server.") from exc
     record_successful_login(client_ip)
     session_token = create_admin_session_token()
     is_prod = settings.ENVIRONMENT == "production"
-    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    is_https = request.url.scheme == "https"
 
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
@@ -87,7 +87,7 @@ def admin_login(body: AdminLoginRequest, request: Request, response: Response):
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
         samesite="lax",
-        secure=(is_prod and is_https) or is_prod,
+        secure=is_prod or is_https,
         path="/",
     )
 
@@ -99,9 +99,10 @@ def admin_login(body: AdminLoginRequest, request: Request, response: Response):
 
 
 @router.post("/logout")
-def admin_logout(response: Response):
+def admin_logout(request: Request, response: Response):
     """Terminate the current admin session and delete the session cookie."""
-    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    enforce_cookie_csrf(request)
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/", secure=settings.ENVIRONMENT == "production" or request.url.scheme == "https")
     return {
         "status": "success",
         "message": "Admin session terminated.",

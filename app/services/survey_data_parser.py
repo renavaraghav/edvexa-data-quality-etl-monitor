@@ -7,9 +7,13 @@ interactive dataset preview, and full original-data preservation.
 
 import csv
 import io
+import json
 import logging
+import re
+import time
 from typing import Any
 import openpyxl
+from app.services.survey_upload_limits import MAX_CELLS, MAX_COLUMNS, MAX_EXCEL_SECONDS, MAX_ROWS, SurveyUploadLimit, check_excel_time, validate_xlsx
 
 logger = logging.getLogger("edvexa.surveys.data_parser")
 
@@ -37,25 +41,31 @@ def get_excel_sheets(content: bytes) -> list[str]:
         return []
 
 
-def read_raw_rows(content: bytes, filename: str, sheet_name: str | None = None, max_rows: int | None = None) -> list[list[Any]]:
+def read_raw_rows(content: bytes, filename: str, sheet_name: str | None = None, max_rows: int | None = None, *, source_lines: list[int] | None = None) -> list[list[Any]]:
     """Read raw matrix of rows from CSV or XLSX without discarding anything."""
     lower = filename.lower()
     rows: list[list[Any]] = []
 
     if lower.endswith(".xlsx") or lower.endswith(".xls"):
+        deadline = time.monotonic() + MAX_EXCEL_SECONDS
+        validate_xlsx(content, deadline)
         stream = io.BytesIO(content)
-        wb = openpyxl.load_workbook(stream, read_only=True, data_only=True)
-        if sheet_name and sheet_name in wb.sheetnames:
-            sheet = wb[sheet_name]
-        else:
-            sheet = wb.active or wb.worksheets[0]
-
-        for idx, row in enumerate(sheet.iter_rows(values_only=True)):
-            if max_rows and idx >= max_rows:
-                break
-            # Convert row tuple to list with trimmed string representation for headers
-            rows.append(list(row))
-        wb.close()
+        # Preserve formula text from source instead of dropping formulas without cached values.
+        wb = openpyxl.load_workbook(stream, read_only=True, data_only=False)
+        try:
+            if sheet_name and sheet_name not in wb.sheetnames:
+                raise DatasetSelectionError("Unknown worksheet.")
+            sheet = wb[sheet_name] if sheet_name else wb.worksheets[0]
+            sheet.reset_dimensions()
+            for idx, row in enumerate(sheet.iter_rows(values_only=True)):
+                check_excel_time(deadline)
+                if max_rows and idx >= max_rows:
+                    break
+                rows.append(list(row))
+                if source_lines is not None:
+                    source_lines.append(idx + 1)
+        finally:
+            wb.close()
     else:
         # CSV reading with multi-encoding detection
         decoded_text = ""
@@ -68,241 +78,191 @@ def read_raw_rows(content: bytes, filename: str, sheet_name: str | None = None, 
         if not decoded_text:
             decoded_text = content.decode("utf-8", errors="replace")
 
-        reader = csv.reader(io.StringIO(decoded_text))
+        reader = csv.reader(io.StringIO(decoded_text, newline=""), strict=True)
+        first_line = 1
+        cells = 0
         for idx, row in enumerate(reader):
             if max_rows and idx >= max_rows:
                 break
+            cells += len(row)
+            if idx >= MAX_ROWS or len(row) > MAX_COLUMNS or cells > MAX_CELLS:
+                raise SurveyUploadLimit("CSV exceeds the row, column, or cell processing limit.")
+            if any("\x00" in value for value in row):
+                raise DatasetSelectionError(f"Source row {first_line} contains an unsupported NUL character.")
             rows.append(row)
+            if source_lines is not None:
+                source_lines.append(first_line)
+            first_line = reader.line_num + 1
 
     return rows
 
 
-def detect_header_and_metadata(rows: list[list[Any]]) -> dict[str, Any]:
-    """
-    Intelligently inspect top rows to identify column headers and metadata rows.
-    Handles standard survey exports:
-      Qualtrics / Decipher:
-        Row 0: Short column variable names (e.g. ResponseId, Q1, Q2_1)
-        Row 1: Full question wording (e.g. Response ID, What is your age?)
-        Row 2: Import ID metadata JSON (e.g. {"ImportId":"QID1"})
-        Row 3+: Respondent data rows
-    """
-    if not rows:
-        return {
-            "recommended_header_row": 0,
-            "metadata_rows": [],
-            "row_evaluations": []
-        }
-
-    evaluations = []
-    metadata_rows: list[int] = []
-
-    # Check top min(5, len(rows)) rows
-    check_limit = min(5, len(rows))
-    for r_idx in range(check_limit):
-        row = rows[r_idx]
-        non_empty = [str(c).strip() for c in row if c is not None and str(c).strip()]
-        total_cells = len(row)
-        non_empty_count = len(non_empty)
-
-        # Uniqueness ratio
-        unique_count = len(set(non_empty))
-        uniqueness = (unique_count / non_empty_count) if non_empty_count > 0 else 0
-
-        # String vs numeric ratio
-        num_numeric = sum(1 for c in non_empty if _is_number(c))
-        is_predominantly_text = (num_numeric / non_empty_count < 0.2) if non_empty_count > 0 else False
-
-        # Metadata indicators: contains {"ImportId":...} or similar
-        has_import_id = any("importid" in c.lower() or "json" in c.lower() for c in non_empty)
-        if has_import_id:
-            metadata_rows.append(r_idx)
-
-        # Score row as candidate header
-        score = 0
-        if is_predominantly_text:
-            score += 40
-        if uniqueness > 0.8:
-            score += 40
-        if non_empty_count > (total_cells * 0.4):
-            score += 20
-        if has_import_id:
-            score -= 80  # JSON import ID is metadata, not user header
-
-        evaluations.append({
-            "row_index": r_idx,
-            "sample_values": non_empty[:5],
-            "non_empty_count": non_empty_count,
-            "uniqueness": round(uniqueness, 2),
-            "score": score
-        })
-
-    # Pick highest scoring row as recommended header
-    best_row = max(evaluations, key=lambda x: x["score"]) if evaluations else {"row_index": 0}
-    recommended = best_row["row_index"]
-
-    # Also detect if row recommended+1 or recommended+2 are metadata description rows
-    for r_idx in range(recommended + 1, check_limit):
-        row = rows[r_idx]
-        non_empty = [str(c).strip() for c in row if c is not None and str(c).strip()]
-        if any("importid" in c.lower() for c in non_empty):
-            if r_idx not in metadata_rows:
-                metadata_rows.append(r_idx)
-
-    max_meta_idx = max(metadata_rows) if metadata_rows else -1
-    if max_meta_idx > recommended:
-        for r_idx in range(recommended + 1, max_meta_idx):
-            if r_idx not in metadata_rows:
-                metadata_rows.append(r_idx)
-    metadata_rows.sort()
-
-    return {
-        "recommended_header_row": recommended,
-        "metadata_rows": metadata_rows,
-        "row_evaluations": evaluations
-    }
+class DatasetSelectionError(ValueError):
+    """The selected worksheet or header cannot safely be used as a dataset."""
 
 
-def _is_number(val: str) -> bool:
+def _nonblank(value):
+    return value is not None and bool(str(value).strip())
+
+
+def _normalized_header(value):
+    return re.sub(r"[ _-]+", "", str(value).strip().casefold())
+
+
+def _import_id(value):
+    if not _nonblank(value):
+        return None
     try:
-        float(val)
-        return True
-    except ValueError:
-        return False
+        data = json.loads(str(value))
+    except (ValueError, RecursionError):
+        return None
+    if isinstance(data, dict) and isinstance(data.get("ImportId"), str):
+        return data["ImportId"].strip()
+    return None
 
 
-def preview_survey_data(content: bytes, filename: str, sheet_name: str | None = None, header_row_index: int = 0, sample_size: int = 8) -> dict[str, Any]:
-    """Preview sheet structure, headers, and sample data for UI configuration."""
-    sheets = []
-    lower = filename.lower()
-    if lower.endswith(".xlsx") or lower.endswith(".xls"):
-        sheets = get_excel_sheets(content)
+def _platform_metadata(rows, header_index):
+    """Recognize a conventional Qualtrics header, never a lone JSON answer."""
+    if header_index >= len(rows):
+        return {}
+    names = [_normalized_header(v) for v in rows[header_index]]
+    if "responseid" not in names:
+        return {}
+    id_index = names.index("responseid")
+    for i in range(header_index + 1, min(header_index + 3, len(rows))):
+        row = rows[i]
+        ids = [_import_id(v) for v in row]
+        if len(row) != len(names) or sum(bool(v) for v in ids) < 2:
+            continue
+        if (ids[id_index] or "").casefold() not in {"_recordid", "responseid", "response_id"}:
+            continue
+        if not all(iid for cell, iid in zip(row, ids) if _nonblank(cell)):
+            continue
+        if i == header_index + 1:
+            return {i: "qualtrics_import_ids"}
+        labels = rows[header_index + 1]
+        if len(labels) == len(names) and _normalized_header(labels[id_index]) == "responseid":
+            return {header_index + 1: "qualtrics_question_labels", i: "qualtrics_import_ids"}
+    return {}
 
-    all_rows = read_raw_rows(content, filename, sheet_name, max_rows=100)
-    meta_info = detect_header_and_metadata(all_rows)
 
-    effective_header_idx = header_row_index
-    headers: list[str] = []
-    sample_rows: list[dict[str, Any]] = []
+def detect_header_and_metadata(rows: list[list[Any]]) -> dict[str, Any]:
+    """Recommend the first tabular row. Never rank later respondent rows above it."""
+    nonempty = [(i, [str(v).strip() for v in row if _nonblank(v)]) for i, row in enumerate(rows[:10])]
+    first = next(((i, cells) for i, cells in nonempty if len(cells) >= 2), None)
+    if first is None:
+        first = next(((i, cells) for i, cells in nonempty if cells), (0, []))
+    recommended, cells = first
+    normalized = [_normalized_header(v) for v in cells]
+    common = {_normalized_header(v) for v in (*COMMON_ID_COLUMNS, *COMMON_START_TIME_COLS,
+                                              *COMMON_END_TIME_COLS, *COMMON_DURATION_COLS)}
+    identifiable = any(v in common for v in normalized) or any(
+        re.fullmatch(r"(?:[qsdoe]+\d+[\w.]*|q[._][\w ./-]+)", cell, re.I) for cell in cells
+    )
+    ambiguous = bool(cells) and (len(set(normalized)) != len(normalized) or not identifiable)
+    metadata = _platform_metadata(rows, recommended)
+    return {"recommended_header_row": recommended, "metadata_rows": list(metadata),
+            "header_confirmation_required": ambiguous}
 
-    if all_rows and len(all_rows) > effective_header_idx:
-        raw_header = all_rows[effective_header_idx]
-        headers = _clean_headers(raw_header)
 
-        # Skip header and any metadata rows
-        skip_indices = set(meta_info.get("metadata_rows", []))
-        skip_indices.add(effective_header_idx)
-
-        data_rows = [r for idx, r in enumerate(all_rows) if idx not in skip_indices]
-        for r in data_rows[:sample_size]:
-            row_dict = {}
-            for col_idx, h in enumerate(headers):
-                val = r[col_idx] if col_idx < len(r) else ""
-                row_dict[h] = "" if val is None else str(val).strip()
-            sample_rows.append(row_dict)
-
-    # Count total rows if possible
-    full_count = len(read_raw_rows(content, filename, sheet_name))
-    total_data_rows = max(0, full_count - (effective_header_idx + 1 + len(meta_info.get("metadata_rows", []))))
-
-    is_excel = bool(sheets) or lower.endswith(".xlsx") or lower.endswith(".xls")
-    meta_detected_count = len(meta_info.get("metadata_rows", []))
+def _intake(content, filename, sheet_name, header_row_index, metadata_rows=None, *, preview=False):
+    source_lines: list[int] = []
+    rows = read_raw_rows(content, filename, sheet_name, source_lines=source_lines)
+    meta = detect_header_and_metadata(rows)
+    confirmation_required = header_row_index is None and meta["header_confirmation_required"]
+    if confirmation_required and not preview:
+        raise DatasetSelectionError("Header is ambiguous. Select the header row explicitly and retry.")
+    if header_row_index is None:
+        header_row_index = meta["recommended_header_row"]
+    if rows and not 0 <= header_row_index < len(rows):
+        raise DatasetSelectionError("Header row is outside the dataset.")
+    source_header = rows[header_row_index] if rows else []
+    excluded = _platform_metadata(rows, header_row_index)
+    if metadata_rows is not None:
+        excluded = {i: "explicit_metadata_exclusion" for i in metadata_rows}
+    metadata = sorted(i for i in excluded if header_row_index < i < len(rows))
+    excluded_rows = []
+    records = []
+    blank = 0
+    intake_error = None
+    headers = _clean_headers(source_header)
+    for index, row in enumerate(rows):
+        if index <= header_row_index:
+            reason = "header" if index == header_row_index else "preamble"
+        elif index in excluded:
+            reason = excluded[index]
+        elif not any(_nonblank(value) for value in row):
+            reason = "blank"
+            blank += 1
+        else:
+            if len(row) > len(headers):
+                error = f"Source row {source_lines[index]} has more values than the selected header."
+                if not preview:
+                    raise DatasetSelectionError(error)
+                intake_error = error
+                reason = "more_values_than_header"
+            else:
+                record = {h: ("" if value is None else str(value)) for h, value in zip(headers, row)}
+                record.update({h: "" for h in headers[len(row):]})
+                record["_physical_row"] = source_lines[index]
+                records.append(record)
+                continue
+        excluded_rows.append({"row_index": index, "source_row": source_lines[index], "reason": reason})
+    source_columns = [{"column": column, "source_header": "" if label is None else str(label)}
+                      for column, label in zip(headers, source_header)]
+    accounting = {"source_rows": len(rows), "preamble_rows": min(header_row_index, len(rows)),
+                  "header_rows": int(bool(rows)), "metadata_rows": len(metadata),
+                  "blank_rows": blank, "respondents": len(records)}
+    if intake_error:
+        accounting["malformed_rows"] = sum(row["reason"] == "more_values_than_header" for row in excluded_rows)
     return {
-        "filename": filename,
-        "is_excel": is_excel,
-        "sheets": sheets,
-        "selected_sheet": sheet_name or (sheets[0] if sheets else None),
-        "header_row_index": effective_header_idx,
-        "detected_headers": headers,
-        "columns": headers,
-        "total_data_rows": total_data_rows,
-        "total_rows_detected": total_data_rows,
-        "total_rows": total_data_rows,
-        "sample_rows": sample_rows,
-        "preview_rows": sample_rows,
-        "metadata_rows_detected": meta_detected_count,
-        "metadata_rows": meta_info.get("metadata_rows", []),
-        "recommended_header_row": meta_info.get("recommended_header_row", 0)
+        "columns": headers, "records": records, "metadata_rows": metadata, "excluded_rows": excluded_rows,
+        "source_columns": source_columns, "row_accounting": accounting, "header_row_index": header_row_index,
+        "recommended_header_row": meta["recommended_header_row"], "intake_error": intake_error,
+        "header_confirmation_required": confirmation_required,
     }
 
 
-def parse_respondent_records(
-    content: bytes,
-    filename: str,
-    sheet_name: str | None = None,
-    header_row_index: int = 0,
-    metadata_rows: list[int] | None = None
-) -> tuple[list[str], list[dict[str, Any]], str]:
-    """
-    Parse complete respondent dataset into list of row dictionaries.
-    Preserves all original columns and values.
-    Returns: (headers, records, respondent_id_column)
-    """
-    raw_rows = read_raw_rows(content, filename, sheet_name)
-    if not raw_rows or len(raw_rows) <= header_row_index:
-        return [], [], "id"
+def preview_survey_data(content: bytes, filename: str, sheet_name: str | None = None,
+                        header_row_index: int | None = None, sample_size: int = 8) -> dict[str, Any]:
+    intake = _intake(content, filename, sheet_name, header_row_index, preview=True)
+    sheets = get_excel_sheets(content) if filename.lower().endswith((".xlsx", ".xls")) else []
+    headers = intake["columns"]
+    records = intake.pop("records")
+    samples = [{h: r[h] for h in headers} for r in records[:sample_size]]
+    count = len(records)
+    return {
+        **intake, "filename": filename, "is_excel": bool(sheets), "sheets": sheets,
+        "selected_sheet": sheet_name or (sheets[0] if sheets else None), "detected_headers": headers,
+        "total_data_rows": count, "total_rows_detected": count, "total_rows": count,
+        "sample_rows": samples, "preview_rows": samples, "metadata_rows_detected": len(intake["metadata_rows"]),
+    }
 
-    meta_info = detect_header_and_metadata(raw_rows[:10])
-    detected_meta_rows = set(metadata_rows if metadata_rows is not None else meta_info.get("metadata_rows", []))
-    detected_meta_rows.add(header_row_index)
 
-    headers = _clean_headers(raw_rows[header_row_index])
-
-    # Identify best respondent identifier column
-    resp_id_col = _identify_respondent_id_col(headers)
-
-    records: list[dict[str, Any]] = []
-    data_row_counter = 1
-
-    for row_idx, raw_row in enumerate(raw_rows):
-        if row_idx in detected_meta_rows:
-            continue
-
-        # Check if entire row is completely empty
-        if not any(c is not None and str(c).strip() for c in raw_row):
-            continue
-
-        row_dict: dict[str, Any] = {}
-        for col_idx, h in enumerate(headers):
-            val = raw_row[col_idx] if col_idx < len(raw_row) else ""
-            row_dict[h] = "" if val is None else str(val).strip()
-
-        # Ensure respondent ID exists or assign deterministic fallback
-        if not row_dict.get(resp_id_col):
-            row_dict[resp_id_col] = f"RESP-{data_row_counter:04d}"
-
-        # Attach internal physical row index for audit reporting
-        row_dict["_physical_row"] = row_idx + 1  # 1-based index in file
-        records.append(row_dict)
-        data_row_counter += 1
-
-    return headers, records, resp_id_col
+def parse_respondent_records(content: bytes, filename: str, sheet_name: str | None = None,
+                             header_row_index: int | None = None, metadata_rows: list[int] | None = None, *, with_intake=False):
+    intake = _intake(content, filename, sheet_name, header_row_index, metadata_rows)
+    headers, records = intake["columns"], intake.pop("records")
+    parsed = headers, records, _identify_respondent_id_col(headers)
+    return (*parsed, intake) if with_intake else parsed
 
 
 def _clean_headers(raw_header: list[Any]) -> list[str]:
-    """Clean and deduplicate column header names."""
-    headers: list[str] = []
-    seen: dict[str, int] = {}
-
-    for idx, cell in enumerate(raw_header):
-        name = str(cell).strip() if cell is not None else ""
-        if not name:
-            name = f"COL_{idx + 1}"
-        
-        # Deduplicate identical header names by appending _2, _3
-        lower_name = name.lower()
-        if lower_name in seen:
-            seen[lower_name] += 1
-            name = f"{name}_{seen[lower_name]}"
-        else:
-            seen[lower_name] = 1
-
-        headers.append(name)
-
+    names = [str(cell).strip() if cell is not None else "" for cell in raw_header]
+    reserved = {n.casefold() for n in names if n}
+    headers, used = [], {"_physical_row"}
+    for i, original in enumerate(names, 1):
+        name = original or f"COL_{i}"
+        candidate, suffix = name, 2
+        while candidate.casefold() in used or ((candidate != original) and candidate.casefold() in reserved):
+            candidate = f"{name}_{suffix}"
+            suffix += 1
+        headers.append(candidate)
+        used.add(candidate.casefold())
     return headers
 
 
-def _identify_respondent_id_col(headers: list[str]) -> str:
+def _identify_respondent_id_col(headers: list[str]) -> str | None:
     """Identify the primary respondent key column from headers."""
     lower_map = {h.lower(): h for h in headers}
 
@@ -315,9 +275,4 @@ def _identify_respondent_id_col(headers: list[str]) -> str:
         if "responseid" in lower_h or "respondentid" in lower_h or "resp_id" in lower_h:
             return orig_h
 
-    # If first column has 'id'
-    if headers and "id" in headers[0].lower():
-        return headers[0]
-
-    # Fallback to first column or synthesize
-    return headers[0] if headers else "RespondentID"
+    return None
