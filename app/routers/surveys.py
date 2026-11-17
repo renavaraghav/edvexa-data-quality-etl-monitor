@@ -1366,7 +1366,7 @@ def reset_all_survey_data(
     Router-level require_survey_admin_auth enforces administrator or scoped reset
     credentials; the UI also requires explicit confirmation. Only survey tables
     and the dedicated survey storage area are cleared here.
-
+    """
     if not survey_reset_lock.acquire(blocking=False):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
