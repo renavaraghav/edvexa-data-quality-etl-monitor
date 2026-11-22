@@ -98,9 +98,13 @@ def isolated_app(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def live_test_server(isolated_app):
+def live_test_server(isolated_app, monkeypatch, tmp_path):
     import uvicorn
 
+    # Browser requests run concurrently. Give each request its own SQLite connection.
+    browser_engine = create_engine(f"sqlite:///{(tmp_path / 'browser.sqlite').as_posix()}")
+    monkeypatch.setattr(database, "engine", browser_engine)
+    monkeypatch.setitem(SessionLocal.kw, "bind", browser_engine)
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
@@ -116,3 +120,4 @@ def live_test_server(isolated_app):
         finally:
             server.should_exit = True
             thread.join(timeout=5)
+            browser_engine.dispose()

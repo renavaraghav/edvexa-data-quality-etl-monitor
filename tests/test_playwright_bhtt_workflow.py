@@ -18,7 +18,8 @@ import os
 from hashlib import sha256
 from pathlib import Path
 import pytest
-sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
+pytest.importorskip("playwright.sync_api")
+from playwright.sync_api import expect, sync_playwright
 
 from app.services.auth import create_admin_session_token, SESSION_COOKIE_NAME
 from tests.test_survey_bhtt_regression import BHTT_CHARACTERIZATION_SHA256
@@ -270,6 +271,7 @@ def test_browser_qc_review_reload_and_export(live_test_server):
         assert login.value.ok
         questionnaire = QQ.replace("[Terminate if under 18]", "[Terminate if under 18 in Canada only]")
         page.set_input_files("#surveyQqFileInput", {"name": "qq.txt", "mimeType": "text/plain", "buffer": questionnaire.encode()})
+        expect(page.locator("#surveyQqStorage")).to_have_text("File saved to local storage.")
         page.click("#surveyStep1NextBtn")
         # Construct a browser File directly so the host OS cannot sanitize the payload filename.
         with page.expect_response("**/api/surveys/upload-raw") as upload:
@@ -282,6 +284,7 @@ def test_browser_qc_review_reload_and_export(live_test_server):
                 input.dispatchEvent(new Event('change', {bubbles: true}));
             }""", {"name": filename, "data": b64encode(data.getvalue()).decode()})
         assert upload.value.ok and upload.value.json()["filename"] == filename
+        expect(page.locator("#surveyRawStorage")).to_have_text("File saved to local storage.")
         page.locator('#toastContainer').get_by_text(f'Uploading respondent data: {filename}...', exact=True).wait_for(timeout=3000)
         assert page.locator('#toastContainer img').count() == 0
         with page.expect_response("**/api/surveys/preview") as selected:
@@ -318,6 +321,10 @@ def test_browser_qc_review_reload_and_export(live_test_server):
         with page.expect_response("**/review-by-id/*") as review:
             page.click("#saveSurveyReviewBtn")
         assert review.value.ok
+        history_row = page.locator("#surveyAuditRunsTableBody tr").filter(has=page.get_by_text(f'#{result["id"]}', exact=True))
+        expect(history_row.locator("td").nth(5)).to_have_text("2")
+        expect(history_row.locator("td").nth(6)).to_have_text("1")
+        expect(history_row.locator("td").nth(7)).to_have_text("0")
         page.get_by_text(f'Updated respondent {respondent_payload} to ACCEPTED. Invariant reconciled.', exact=True).wait_for()
         assert page.locator('#toastContainer img').count() == 0
         assert page.evaluate('Boolean(window.edvexaToastPayload)') is False
@@ -331,6 +338,39 @@ def test_browser_qc_review_reload_and_export(live_test_server):
         assert workbook["Review Required"].max_row == 2
         assert workbook["Review History"].max_row == 2
         assert list(workbook["Intake"].values)[1:] == [(1, "preamble"), (2, "header")]
+        browser.close()
+
+
+def test_browser_reports_upload_replication(live_test_server, monkeypatch):
+    from unittest.mock import Mock
+    from app.config import settings
+    from app.services import storage
+
+    monkeypatch.setattr(settings, "STORAGE_BACKEND", "neon")
+    monkeypatch.setattr(type(settings), "is_s3_configured", property(lambda self: True))
+    backend = Mock()
+    backend.save.side_effect = [RuntimeError("synthetic replication failure"), None]
+    monkeypatch.setattr(storage, "get_storage", lambda: backend)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(live_test_server)
+        page.evaluate("App.navigateTo('surveys')")
+        page.locator("#surveyAdminPasswordInput").fill(settings.ADMIN_LOGIN_PASSWORD)
+        with page.expect_response("**/api/auth/login") as login:
+            page.locator("#surveyAdminPasswordInput").press("Enter")
+        assert login.value.ok
+        page.set_input_files("#surveyQqFileInput", {
+            "name": "storage-qq.txt", "mimeType": "text/plain", "buffer": b"Q1. How was your visit? [Open End]",
+        })
+        expect(page.locator("#surveyQqStorage")).to_contain_text("cloud replication to neon failed")
+        page.click("#surveyStep1NextBtn")
+        page.set_input_files("#surveyRawFileInput", {
+            "name": "storage-raw.csv", "mimeType": "text/csv", "buffer": b"ResponseId,Q1\nTEST,Clear and helpful\n",
+        })
+        expect(page.locator("#surveyRawStorage")).to_have_text("File copied to cloud storage (neon).")
+        assert backend.save.call_count == 2
         browser.close()
 
 
