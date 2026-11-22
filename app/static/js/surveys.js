@@ -7,6 +7,7 @@
 const Surveys = {
   currentAuditId: null,
   currentAudit: null,
+  historyRequest: 0,
   qqData: null,
   rawData: null,
   mappingData: [],
@@ -447,6 +448,7 @@ const Surveys = {
 
       if (summaryBox) summaryBox.classList.remove('d-none');
       if (fileNameEl) fileNameEl.textContent = `${data.original_name} (${(data.file_size_bytes / 1024).toFixed(1)} KB)`;
+      this.showUploadStorage('surveyQqStorage', data);
 
       if (data.is_scanned && limitAlert) {
         limitAlert.textContent = data.extraction_notes || 'Scanned or unreadable document detected. OCR or structured text format recommended.';
@@ -582,6 +584,7 @@ const Surveys = {
       }
 
       this.applyRawPreview(data);
+      this.showUploadStorage('surveyRawStorage', data);
       const wizardBtn2 = document.getElementById('wizardBtn2');
       if (wizardBtn2) wizardBtn2.classList.add('completed');
 
@@ -1250,10 +1253,12 @@ const Surveys = {
     const tbody = document.getElementById('surveyAuditRunsTableBody');
     if (!tbody) return;
 
+    const requestId = ++this.historyRequest;
     try {
       const resp = await this.apiFetch('/api/surveys/audits');
       if (!resp.ok) return;
       const runs = await resp.json();
+      if (requestId !== this.historyRequest) return;
 
       if (!runs || runs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" class="text-center py-3 text-muted">No audit runs on record.</td></tr>';
@@ -1363,15 +1368,27 @@ const Surveys = {
         throw new Error(err.detail || 'Review update failed.');
       }
 
-      const updated = await resp.json();
       if (modal) modal.classList.add('d-none');
       this.showToast(`Updated respondent ${this.activeReviewKey} to ${decision}. Invariant reconciled.`, 'success');
 
-      // Reload audit details to update KPIs and counts
-      await this.loadAuditDetails(this.currentAuditId);
+      await Promise.all([this.loadAuditDetails(this.currentAuditId), this.loadHistory()]);
     } catch (err) {
       this.showToast('Error saving review decision: ' + err.message, 'error');
     }
+  },
+
+  showUploadStorage(id, data) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const replicated = data.durability_status === 'DURABLE_CLOUD' && data.cloud_replicated === true;
+    const messages = {
+      LOCAL_STORAGE: 'File saved to local storage.',
+      REPLICATION_FAILED: 'Cloud copy failed. The file is available only in the local cache.',
+    };
+    el.textContent = replicated
+      ? `File copied to cloud storage (${data.storage_tier}).`
+      : data.storage_warning || messages[data.durability_status] || 'File storage could not be confirmed.';
+    el.classList.toggle('alert-warning', !replicated && data.durability_status !== 'LOCAL_STORAGE');
   },
 
   setText(id, val) {
